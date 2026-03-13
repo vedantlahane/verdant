@@ -103,7 +103,11 @@ export function VerdantRenderer({ ast, theme = 'moss', width = '100%', height = 
 
   return (
     <div style={{ width, height, background: theme === 'dark' ? '#0f172a' : '#f8fafc' }}>
-      <Canvas style={{ width: '100%', height: '100%' }} camera={{ position: [0, 5, 10], fov: 45 }}>
+      <Canvas 
+        style={{ width: '100%', height: '100%' }} 
+        camera={{ position: [0, 5, 10], fov: 45 }}
+        gl={{ preserveDrawingBuffer: true }}
+      >
         <ambientLight intensity={0.6} color={ambientColor} />
         <directionalLight position={[10, 20, 10]} intensity={1.5} castShadow />
         <pointLight position={[-10, -10, -10]} intensity={0.5} />

@@ -1,26 +1,327 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --page-bg: #000000;
+  --surface: #0a0a0a;
+  --surface-soft: #101311;
+  --surface-strong: #161a18;
+  --code-bg: #0d1f17;
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-muted: #4b5563;
+  --accent-primary: #52b788;
+  --accent-dark: #2d6a4f;
+  --accent-light: #95d5b2;
+  --accent-glow: rgba(82, 183, 136, 0.12);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --font-sans-stack: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono-stack: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+  --font-display-stack: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--page-bg);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-sans-stack);
+  --font-mono: var(--font-mono-stack);
+  --font-display: var(--font-display-stack);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root[data-theme="light"] {
+  --page-bg: #ffffff;
+  --surface: #f9fafb;
+  --surface-soft: #f4f7f5;
+  --surface-strong: #ffffff;
+  --code-bg: #f0fdf4;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --accent-primary: #2d6a4f;
+  --accent-dark: #1b4332;
+  --accent-light: #52b788;
+  --accent-glow: rgba(45, 106, 79, 0.08);
+  --border-subtle: rgba(0, 0, 0, 0.08);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --page-bg: #ffffff;
+    --surface: #f9fafb;
+    --surface-soft: #f4f7f5;
+    --surface-strong: #ffffff;
+    --code-bg: #f0fdf4;
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --accent-primary: #2d6a4f;
+    --accent-dark: #1b4332;
+    --accent-light: #52b788;
+    --accent-glow: rgba(45, 106, 79, 0.08);
+    --border-subtle: rgba(0, 0, 0, 0.08);
   }
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--page-bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans-stack);
+}
+
+a,
+button {
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+}
+
+.font-display {
+  font-family: var(--font-display-stack);
+}
+
+.hero-grid {
+  background-image:
+    radial-gradient(circle at 20% 20%, var(--accent-glow), transparent 30%),
+    radial-gradient(circle at 80% 0%, rgba(82, 183, 136, 0.06), transparent 25%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.12) 1px, transparent 1.2px);
+  background-size: auto, auto, 28px 28px;
+  background-position: center, center, center;
+  mask-image: radial-gradient(circle at center, black 60%, transparent 100%);
+}
+
+.hero-glow {
+  position: absolute;
+  inset: 8% 12%;
+  background: radial-gradient(circle, var(--accent-glow), transparent 68%);
+  filter: blur(60px);
+}
+
+.breathe-word {
+  animation: breathe 4.8s ease-in-out infinite;
+}
+
+.verdant-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent-dark), var(--accent-primary));
+  color: white;
+  padding: 0.95rem 1.45rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  box-shadow: 0 18px 50px var(--accent-glow);
+}
+
+.verdant-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 24px 64px var(--accent-glow);
+}
+
+.separator-dashed,
+.separator-solid,
+.separator-dotdash {
+  height: 1px;
+  width: 100%;
+}
+
+.separator-dashed {
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.separator-solid {
+  background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
+}
+
+.separator-dotdash {
+  background-image: linear-gradient(90deg, transparent 0, transparent 2%, var(--border-subtle) 2%, var(--border-subtle) 10%, transparent 10%, transparent 14%, var(--border-subtle) 14%, var(--border-subtle) 16%, transparent 16%, transparent 100%);
+  background-size: 88px 1px;
+}
+
+.bento-card {
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 2rem;
+  background:
+    radial-gradient(circle at top, rgba(82, 183, 136, 0.08), transparent 42%),
+    color-mix(in srgb, var(--surface) 92%, transparent);
+}
+
+.bento-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, var(--accent-glow), transparent 62%);
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+}
+
+.bento-card:hover::after {
+  opacity: 1;
+}
+
+.bento-eyebrow {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.component-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 220px;
+  border-radius: 1.5rem;
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-soft) 92%, transparent), color-mix(in srgb, var(--surface) 96%, transparent));
+}
+
+.component-card-inner {
+  position: relative;
+  height: 100%;
+}
+
+.component-static,
+.component-preview {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+.component-preview {
+  opacity: 0;
+  transform: scale(0.94);
+}
+
+.component-card:hover .component-static {
+  opacity: 0;
+  transform: scale(1.04);
+}
+
+.component-card:hover .component-preview {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.verdant-code-block {
+  width: 100%;
+  max-width: 32rem;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 34%, var(--border-subtle));
+  background:
+    linear-gradient(180deg, rgba(82, 183, 136, 0.08), transparent 30%),
+    radial-gradient(circle at top, rgba(149, 213, 178, 0.08), transparent 55%),
+    var(--code-bg);
+  box-shadow: 0 24px 70px var(--accent-glow);
+}
+
+.verdant-code-block-lg {
+  max-width: 56rem;
+}
+
+.verdant-code-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  padding: 0.9rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.verdant-code-tab {
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  padding: 0.35rem 0.75rem;
+  font-family: var(--font-mono-stack);
+  font-size: 0.78rem;
+  color: var(--accent-light);
+}
+
+.verdant-code-leaf {
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+}
+
+.verdant-code-body {
+  display: grid;
+  gap: 0.45rem;
+  padding: 1.15rem 1.1rem 1.25rem;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.035) 0.7px, transparent 0.7px);
+  background-size: 18px 18px;
+}
+
+.verdant-code-line {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.95rem;
+  align-items: start;
+  font-family: var(--font-mono-stack);
+  font-size: 0.92rem;
+  line-height: 1.75;
+}
+
+.verdant-code-block-lg .verdant-code-line {
+  font-size: 1rem;
+}
+
+.verdant-code-number {
+  color: color-mix(in srgb, var(--accent-primary) 72%, transparent);
+  text-align: right;
+}
+
+.verdant-code-content {
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.token-comment {
+  color: #4a6e5c;
+}
+
+.token-config {
+  color: var(--accent-light);
+}
+
+.token-keyword {
+  color: var(--accent-primary);
+  font-weight: 700;
+}
+
+.token-id {
+  color: var(--text-primary);
+}
+
+.token-arrow {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.token-colon {
+  color: var(--text-muted);
+}
+
+.token-string {
+  color: #b7e4c7;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.01);
+  }
 }

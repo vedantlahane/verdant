@@ -20,6 +20,7 @@ export interface VerdantRendererProps {
   theme?: string;
   width?: string | number;
   height?: string | number;
+  autoRotate?: boolean;
 }
 
 const NodeRenderer = () => {
@@ -44,7 +45,7 @@ const NodeRenderer = () => {
           selected: isSelected,
           color: node.props.color,
           size: node.props.size,
-          glow: node.props.glow === true || node.props.glow === 'true',
+          glow: node.props.glow === true,
           onClick: (e) => {
             e.stopPropagation();
             selectNode(node.id);
@@ -81,7 +82,7 @@ const NodeRenderer = () => {
             key={`edge-${index}`}
             from={fromPos}
             to={toPos}
-            label={edge.label}
+            label={edge.props.label}
             animated={true}
             color="#a8b2c1"
           />

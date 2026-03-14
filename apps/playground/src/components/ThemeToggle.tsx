@@ -10,13 +10,19 @@ interface ThemeToggleProps {
   className?: string;
 }
 
+// Spec says: ☀️ System 🌙
 const OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
   { value: "light", label: "Light", icon: Sun },
   { value: "system", label: "System", icon: Monitor },
   { value: "dark", label: "Dark", icon: Moon },
 ];
 
-export function ThemeToggle({ mode, onChange, compact = false, className = "" }: ThemeToggleProps) {
+export function ThemeToggle({
+  mode,
+  onChange,
+  compact = false,
+  className = "",
+}: ThemeToggleProps) {
   return (
     <div
       className={[
@@ -34,15 +40,17 @@ export function ThemeToggle({ mode, onChange, compact = false, className = "" }:
           <button
             key={option.value}
             type="button"
+            role="tab"
             onClick={() => onChange(option.value)}
             className={[
-              "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm transition-all",
+              "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm transition-all duration-200",
               compact ? "justify-center" : "",
               isActive
                 ? "bg-[color:var(--surface-strong)] text-[color:var(--text-primary)] shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
                 : "hover:text-[color:var(--text-primary)]",
             ].join(" ")}
-            aria-pressed={isActive}
+            aria-selected={isActive}
+            aria-label={`${option.label} theme`}
           >
             <Icon className="h-4 w-4" />
             {!compact && <span>{option.label}</span>}

@@ -13,22 +13,21 @@ import { FinalCTA } from "@/features/landing/components/FinalCTA";
 
 export function LandingPage() {
   const { themeMode, resolvedTheme, setThemeMode } = useThemeMode("dark");
-  const [isMounted, setIsMounted] = React.useState(false);
 
-  React.useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) return null;
+  /* FIX: removed isMounted guard that returned null.
+     The inline <script> in layout.tsx already sets data-theme
+     before React hydrates, so CSS variables work immediately.
+     The null return caused a flash of empty page. */
 
   return (
     <div
       className="min-h-screen"
-      style={{ background: "var(--page-bg)", color: "var(--text-primary)", borderLeft: "1px solid var(--border)", borderRight: "1px solid var(--border)" }}
+      style={{ background: "var(--page-bg)", color: "var(--text-primary)" }}
     >
       <Navbar
         themeMode={themeMode}
-        resolvedTheme={resolvedTheme as "light" | "dark" ?? "dark"}
+        resolvedTheme={(resolvedTheme ?? "dark") as "light" | "dark"}
+        /* FIX: nullish coalescing before the cast, not after */
         setThemeMode={setThemeMode}
       />
 

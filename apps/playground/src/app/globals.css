@@ -153,7 +153,7 @@ a, button {
    ═══════════════════════════════════════════════════ */
 
 .grid-section {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-strong);
 }
 
 .grid-lines {

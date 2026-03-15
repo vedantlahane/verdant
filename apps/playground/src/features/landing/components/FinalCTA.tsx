@@ -6,7 +6,7 @@ import { ArrowRight } from "lucide-react";
 export function FinalCTA() {
   return (
     <section className="pattern-topo grid-section">
-      <div className="mx-auto max-w-[1200px] px-6 py-28 md:py-36">
+      <div className="mx-auto  px-6 py-28 md:py-36">
         <h2 className="font-display max-w-[700px] text-4xl sm:text-5xl md:text-6xl">
           Your systems are <span style={{ color: "var(--accent)" }}>alive</span>.
           <br />

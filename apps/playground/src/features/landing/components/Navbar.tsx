@@ -50,7 +50,7 @@ export function Navbar({
           background: "var(--page-bg)",
         }}
       >
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between">
+        <div className="mx-8 flex  items-center justify-between">
           <Link href="/" className="group inline-flex items-center gap-2.5">
             <Leaf />
             <span className="font-body text-xl lowercase tracking-[0.08em]">

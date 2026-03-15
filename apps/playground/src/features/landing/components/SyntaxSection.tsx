@@ -6,7 +6,7 @@ import { CODE_LINES } from "../constants";
 export function SyntaxSection() {
   return (
     <section className="grid-section">
-      <div className="mx-auto max-w-[1200px]">
+      <div className="mx-auto ">
         <div
           className="px-6 py-4"
           style={{ borderBottom: "1px solid var(--border)" }}

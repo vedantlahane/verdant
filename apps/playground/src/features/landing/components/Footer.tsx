@@ -4,7 +4,7 @@ import { Leaf } from "../../playground/components/Leaf";
 export function Footer() {
   return (
     <footer className="grid-section">
-      <div className="mx-auto max-w-[1200px]">
+      <div className="mx-auto ">
         <div className="grid-lines md:grid-cols-3">
           {/* Brand */}
           <div className="px-6 py-10">

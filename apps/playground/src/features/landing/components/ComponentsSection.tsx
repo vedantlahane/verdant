@@ -135,7 +135,7 @@ export function ComponentsSection() {
           </div>
 
           {/* MOBILE COMPACT GRID */}
-          <div className="grid-lines grid-cols-2 md:hidden border-y border-[var(--border)] mt-auto bg-[var(--page-bg)]">
+          {/* <div className="grid-lines grid-cols-2 md:hidden border-y border-[var(--border)] mt-auto bg-[var(--page-bg)]">
             {COMPONENTS.map((c) => (
               <div 
                 key={c} 
@@ -150,10 +150,10 @@ export function ComponentsSection() {
                   {c}
                 </span>
               </div>
-            ))}
+            ))} */}
             
             {/* Bottom Bar Mobile */}
-            <div className="col-span-2 px-6 py-6 flex flex-col items-start gap-4">
+            {/* <div className="col-span-2 px-6 py-6 flex flex-col items-start gap-4">
               <Link
                 href="/playground"
                 className="group inline-flex items-center gap-2 font-ui text-sm font-medium transition-colors text-[color:var(--text-primary)] hover:text-[color:var(--accent)]"
@@ -161,7 +161,7 @@ export function ComponentsSection() {
                 Try them in the playground <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* ═══ Right Gutter ═══ */}

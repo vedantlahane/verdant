@@ -1,11 +1,10 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════
-   VERDANT DESIGN SYSTEM — v2.1
-   "A blueprint that came alive"
+   VERDANT DESIGN SYSTEM — v2.2 (cleaned)
    ═══════════════════════════════════════════════════ */
 
-/* ── Dark Mode (Default) ────────────────────────── */
+/* ── Dark Mode (Default) ── */
 :root {
   --page-bg: #000000;
   --surface: #0A0A0A;
@@ -34,6 +33,7 @@
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", "Fira Code", monospace;
 }
 
+/* ── Light Mode (explicit) ── */
 :root[data-theme="light"] {
   --page-bg: #FFFFFF;
   --surface: #FAFAF8;
@@ -45,7 +45,7 @@
 
   --accent: #2D6A4F;
   --accent-dark: #1B4332;
-    --accent-light: #52B788;
+  --accent-light: #52B788;
   --accent-faint: rgba(45, 106, 79, 0.05);
 
   --warm: #8B6B4A;
@@ -57,6 +57,7 @@
   --topo: rgba(45, 106, 79, 0.03);
 }
 
+/* ── Light Mode (system preference) ── */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --page-bg: #FFFFFF;
@@ -82,7 +83,6 @@
    ═══════════════════════════════════════════════════ */
 
 html {
-  scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scrollbar-gutter: stable;
@@ -96,8 +96,8 @@ body {
 }
 
 ::selection {
-  background: rgba(82, 183, 136, 0.25);
-  color: var(--text-primary);
+  background-color: var(--accent);
+  color: #000000;
 }
 
 a, button {
@@ -109,7 +109,7 @@ a, button {
 }
 
 /* ═══════════════════════════════════════════════════
-   FOCUS — [FIX #11] Keyboard accessibility
+   FOCUS — Keyboard accessibility
    ═══════════════════════════════════════════════════ */
 
 :focus-visible {
@@ -133,7 +133,6 @@ a, button {
   font-style: normal;
 }
 
-/* [FIX #4] lowercase, not uppercase — code comments aren't shouted */
 .section-label {
   font-family: var(--font-mono);
   font-size: 0.75rem;
@@ -143,13 +142,15 @@ a, button {
   color: var(--accent);
 }
 
+.display-bold {
+  font-weight: 600;
+}
+
 /* ═══════════════════════════════════════════════════
    GRID SYSTEM
-   
    Container bg = border color, 1px gap = shared borders.
-   [FIX #13] Use background-color (not shorthand) on
-   children so background-image from pattern classes
-   is never reset.
+   background-color (not shorthand) on children preserves
+   background-image from pattern classes.
    ═══════════════════════════════════════════════════ */
 
 .grid-section {
@@ -162,7 +163,6 @@ a, button {
   background: var(--border);
 }
 
-/* [FIX #13] background-color only — preserves background-image */
 .grid-lines > * {
   background-color: var(--page-bg);
 }
@@ -205,7 +205,6 @@ a, button {
 
 /* ═══════════════════════════════════════════════════
    BUTTONS
-   [FIX #5] Add .btn-group for flush shared-border pairs
    ═══════════════════════════════════════════════════ */
 
 .btn-group {
@@ -258,14 +257,12 @@ a, button {
   color: var(--text-primary);
 }
 
-/* Inside .btn-group, buttons share the gap border,
-   so remove individual side borders that would double up */
+/* Button group shared borders */
 .btn-group > .btn-primary,
 .btn-group > .btn-secondary {
   border: none;
 }
 
-/* Re-apply the green border visually for primary when inside group */
 .btn-group > .btn-primary {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
@@ -277,7 +274,7 @@ a, button {
 }
 
 .btn-group > .btn-secondary {
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
 .btn-group > .btn-secondary:hover {
@@ -286,7 +283,7 @@ a, button {
 }
 
 /* ═══════════════════════════════════════════════════
-   NAV — [FIX #6] CSS hover instead of JS handlers
+   NAV — CSS hover, no JS handlers needed
    ═══════════════════════════════════════════════════ */
 
 .nav-bar {
@@ -313,7 +310,6 @@ a, button {
   color: var(--text-primary);
 }
 
-/* Icon-only nav items get equal padding */
 .nav-item--icon {
   padding-left: 1rem;
   padding-right: 1rem;
@@ -369,9 +365,8 @@ a, button {
 
 /* ═══════════════════════════════════════════════════
    COMPONENT GRID CELL
-   [FIX #3] Removed border-right / border-bottom.
-   The gap-trick grid handles all borders.
-   Hover now works because no inline style overrides it.
+   Gap-trick grid handles all borders — no border-right
+   or border-bottom on cells.
    ═══════════════════════════════════════════════════ */
 
 .component-cell {
@@ -401,7 +396,7 @@ a, button {
 }
 
 /* ═══════════════════════════════════════════════════
-   LEAF ICON
+   LEAF ICON — sway on hover
    ═══════════════════════════════════════════════════ */
 
 .leaf-sway {
@@ -422,8 +417,6 @@ a, button {
 
 /* ═══════════════════════════════════════════════════
    MOBILE NAV
-   [FIX #8] Sheet is now flex-col + h-full
-   so mt-auto pushes ThemeToggle to bottom
    ═══════════════════════════════════════════════════ */
 
 .mobile-overlay {
@@ -461,7 +454,6 @@ a, button {
   transform: translateX(0);
 }
 
-/* Mobile nav items */
 .mobile-nav-item {
   display: block;
   padding: 1rem 1.5rem;
@@ -479,25 +471,27 @@ a, button {
    SCROLLBAR
    ═══════════════════════════════════════════════════ */
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+::-webkit-scrollbar {
+  width: 10px;
+  height: 6px;
+}
 
-/* ═══════════════════════════════════════════════════
-   REDUCED MOTION
-   ═══════════════════════════════════════════════════ */
+::-webkit-scrollbar-track {
+  background: var(--page-bg);
+  border-left: 1px solid var(--border);
+}
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-left: 1px solid var(--border);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }
 
 /* ═══════════════════════════════════════════════════
    GUTTER DECORATIONS
-   Coordinate labels + crosshair marks for side columns
    ═══════════════════════════════════════════════════ */
 
 .gutter-coord {
@@ -522,7 +516,6 @@ a, button {
   opacity: 0.25;
 }
 
-/* Crosshair — small + shape used at gutter intersections */
 .crosshair {
   position: relative;
   width: 12px;
@@ -551,11 +544,6 @@ a, button {
   bottom: 0;
   width: 1px;
   transform: translateX(-50%);
-}
-
-/* Override .font-display weight when paired with .display-bold */
-.display-bold {
-  font-weight: 600;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -587,77 +575,6 @@ a, button {
 }
 
 /* ═══════════════════════════════════════════════════
-   FALLING LEAVES — button hover effect
-   ═══════════════════════════════════════════════════ */
-
-.btn-leaf-wrap {
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-leaf-wrap > .btn-content {
-  position: relative;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Leaf particles — hidden by default */
-.leaf-particle {
-  position: absolute;
-  top: -14px;
-  z-index: 1;
-  opacity: 0;
-  pointer-events: none;
-  will-change: transform, opacity;
-}
-
-/* Trigger on parent hover */
-.btn-leaf-wrap:hover .leaf-particle {
-  animation: leaf-fall 1.6s ease-in forwards;
-}
-
-/* Stagger each leaf */
-.leaf-particle:nth-child(1) { left: 8%;  animation-delay: 0s; }
-.leaf-particle:nth-child(2) { left: 28%; animation-delay: 0.15s; }
-.leaf-particle:nth-child(3) { left: 50%; animation-delay: 0.3s; }
-.leaf-particle:nth-child(4) { left: 72%; animation-delay: 0.1s; }
-.leaf-particle:nth-child(5) { left: 90%; animation-delay: 0.25s; }
-.leaf-particle:nth-child(6) { left: 40%; animation-delay: 0.4s; }
-
-@keyframes leaf-fall {
-  0% {
-    opacity: 0;
-    transform: translateY(0) rotate(0deg) scale(0.7);
-  }
-  15% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 0.4;
-    transform: translateY(30px) rotate(45deg) translateX(6px) scale(0.85);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(70px) rotate(100deg) translateX(-4px) scale(0.6);
-  }
-}
-
-/* Leaf color per button type */
-.btn-primary .leaf-particle path {
-  fill: var(--accent-dark);
-}
-
-.btn-primary:hover .leaf-particle path {
-  fill: rgba(0, 0, 0, 0.25);
-}
-
-.btn-secondary .leaf-particle path {
-  fill: var(--accent);
-}
-
-/* ═══════════════════════════════════════════════════
    STEP NUMBER — HowItWorks
    ═══════════════════════════════════════════════════ */
 
@@ -668,232 +585,6 @@ a, button {
   color: var(--accent);
   opacity: 0.5;
 }
-
-
-/* ═══════════════════════════════════════════════════
-   LEAF RAIN — fall + pile in container
-   ═══════════════════════════════════════════════════ */
-
-.leaf-rain-wrap {
-  position: relative;
-  overflow: hidden;
-}
-
-/* Keep button text above leaves */
-.leaf-rain-wrap > *:not(.leaf-rain-layer) {
-  position: relative;
-  z-index: 2;
-}
-
-.leaf-rain-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-/* Individual falling leaf */
-.leaf-rain-item {
-  position: absolute;
-  top: -20px;
-  opacity: 0;
-  will-change: transform, opacity;
-}
-
-/* Only animate on parent hover */
-.leaf-rain-wrap:hover .leaf-rain-item {
-  animation: leafRainFall var(--fall-duration, 1.4s) var(--fall-delay, 0s) ease-in forwards;
-}
-
-/* Pile leaves — sit at bottom, fade in on hover */
-.leaf-pile-item {
-  position: absolute;
-  bottom: var(--pile-bottom, -2px);
-  opacity: 0;
-  transform: rotate(var(--pile-rotate, 0deg)) scale(var(--pile-scale, 0.6));
-  transition: opacity 0.6s ease;
-  transition-delay: var(--pile-delay, 0.3s);
-}
-
-.leaf-rain-wrap:hover .leaf-pile-item {
-  opacity: var(--pile-opacity, 0.35);
-}
-
-/* When hover ends, pile fades out slowly */
-.leaf-rain-wrap:not(:hover) .leaf-pile-item {
-  opacity: 0;
-  transition-delay: 0s;
-  transition-duration: 0.8s;
-}
-
-@keyframes leafRainFall {
-  0% {
-    opacity: 0;
-    transform:
-      translateY(0)
-      rotate(var(--fall-start-rotate, -10deg))
-      scale(var(--fall-scale, 0.5));
-  }
-  12% {
-    opacity: var(--fall-opacity, 0.5);
-  }
-  40% {
-    transform:
-      translateY(calc(var(--fall-distance, 50px) * 0.5))
-      rotate(var(--fall-mid-rotate, 30deg))
-      translateX(var(--fall-drift, 4px))
-      scale(var(--fall-scale, 0.5));
-  }
-  70% {
-    opacity: var(--fall-opacity, 0.5);
-    transform:
-      translateY(calc(var(--fall-distance, 50px) * 0.85))
-      rotate(var(--fall-end-rotate, 70deg))
-      translateX(calc(var(--fall-drift, 4px) * -0.5))
-      scale(var(--fall-scale, 0.5));
-  }
-  100% {
-    opacity: 0;
-    transform:
-      translateY(var(--fall-distance, 50px))
-      rotate(var(--fall-end-rotate, 90deg))
-      translateX(var(--fall-drift, 4px))
-      scale(var(--fall-scale, 0.5));
-  }
-}
-
-/* ── Dark mode: brighter leaves ── */
-:root:not([data-theme="light"]) .leaf-rain-item path:first-child {
-  opacity: 0.85;
-}
-
-:root[data-theme="light"] .leaf-rain-item path:first-child {
-  opacity: 0.7;
-}
-
-/* ── On .btn-primary hover (green bg), darken the leaves ── */
-.btn-primary.leaf-rain-wrap:hover .leaf-rain-item path:first-child {
-  filter: brightness(0.6);
-}
-
-.btn-primary.leaf-rain-wrap:hover .leaf-pile-item path:first-child {
-  filter: brightness(0.6);
-}
-
-/* ═══════════════════════════════════════════════════
-   LEAF RAIN — continuous fall + progressive pile fill
-   ═══════════════════════════════════════════════════ */
-
-.leaf-rain-wrap {
-  position: relative;
-  overflow: hidden;
-}
-
-.leaf-rain-wrap > *:not(.leaf-rain-layer) {
-  position: relative;
-  z-index: 2;
-}
-
-.leaf-rain-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-}
-
-/* ── Falling leaves ── */
-.leaf-rain-item {
-  position: absolute;
-  top: -30px;
-  opacity: 0;
-  will-change: transform, opacity;
-}
-
-/* Infinite loop while hovering */
-.leaf-rain-wrap:hover .leaf-rain-item {
-  animation:
-    leafRainFall
-    var(--fall-duration, 1.4s)
-    var(--fall-delay, 0s)
-    ease-in
-    infinite;
-}
-
-@keyframes leafRainFall {
-  0% {
-    opacity: 0;
-    transform:
-      translateY(0)
-      rotate(var(--fall-start-rotate, -10deg))
-      scale(var(--fall-scale, 0.5));
-  }
-  10% {
-    opacity: var(--fall-opacity, 0.55);
-  }
-  50% {
-    opacity: var(--fall-opacity, 0.55);
-    transform:
-      translateY(calc(var(--fall-distance, 60px) * 0.55))
-      rotate(var(--fall-mid-rotate, 35deg))
-      translateX(var(--fall-drift, 5px))
-      scale(var(--fall-scale, 0.5));
-  }
-  85% {
-    opacity: calc(var(--fall-opacity, 0.55) * 0.6);
-  }
-  100% {
-    opacity: 0;
-    transform:
-      translateY(var(--fall-distance, 60px))
-      rotate(var(--fall-end-rotate, 90deg))
-      translateX(calc(var(--fall-drift, 5px) * -0.6))
-      scale(var(--fall-scale, 0.5));
-  }
-}
-
-/* ── Pile leaves — fill bottom → top ── */
-.leaf-pile-item {
-  position: absolute;
-  left: var(--pile-left, 10%);
-  bottom: var(--pile-bottom, 0%);
-  opacity: 0;
-  transform: rotate(var(--pile-rotate, 0deg)) scale(var(--pile-scale, 0.55));
-  will-change: opacity;
-  transition: opacity 0.5s ease;
-  transition-delay: var(--pile-delay, 0.3s);
-}
-
-/* Fade in on hover — stays visible */
-.leaf-rain-wrap:hover .leaf-pile-item {
-  opacity: var(--pile-opacity, 0.35);
-}
-
-/* Fade out when hover ends — fast, no stagger */
-.leaf-rain-wrap:not(:hover) .leaf-pile-item {
-  opacity: 0;
-  transition-delay: 0s;
-  transition-duration: 0.4s;
-}
-
-/* ── Theme-aware leaf brightness ── */
-:root:not([data-theme="light"]) .leaf-rain-item path:first-child,
-:root:not([data-theme="light"]) .leaf-pile-item path:first-child {
-  opacity: 0.9;
-}
-
-:root[data-theme="light"] .leaf-rain-item path:first-child,
-:root[data-theme="light"] .leaf-pile-item path:first-child {
-  opacity: 0.7;
-}
-
-/* On green primary bg, darken leaves for contrast */
-.btn-primary.leaf-rain-wrap:hover .leaf-rain-item path:first-child,
-.btn-primary.leaf-rain-wrap:hover .leaf-pile-item path:first-child {
-  filter: brightness(0.5);
-}
-
-
 
 /* ═══════════════════════════════════════════════════
    CAD HOVER EFFECTS (Drafting tool precision)
@@ -913,23 +604,72 @@ a, button {
   z-index: 20;
 }
 
-/* Show crosshairs on cell hover */
 .cad-hover:hover .cad-crosshair {
   opacity: 1;
 }
 
-/* Draw the + shape */
 .cad-crosshair::before,
 .cad-crosshair::after {
-  content: '';
+  content: "";
   position: absolute;
   background-color: var(--accent);
 }
-.cad-crosshair::before { top: 4px; left: 0; right: 0; height: 1px; }
-.cad-crosshair::after { left: 4px; top: 0; bottom: 0; width: 1px; }
 
-/* Position them exactly on the grid intersections (accounting for 1px border) */
+.cad-crosshair::before {
+  top: 4px;
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.cad-crosshair::after {
+  left: 4px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
 .cad-tl { top: -5px; left: -5px; }
 .cad-tr { top: -5px; right: -5px; }
 .cad-bl { bottom: -5px; left: -5px; }
 .cad-br { bottom: -5px; right: -5px; }
+
+/* ═══════════════════════════════════════════════════
+   REDUCED MOTION
+   ═══════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* In global.css */
+.hero-stagger > * {
+  opacity: 0;
+  animation: hero-in 0.6s ease-out forwards;
+}
+
+.hero-stagger > *:nth-child(1) { animation-delay: 0.1s; }
+.hero-stagger > *:nth-child(2) { animation-delay: 0.25s; }
+.hero-stagger > *:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes hero-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.crosshair-pulse::before,
+.crosshair-pulse::after {
+  animation: xhair-ping 2s ease-out 0.5s both;
+}
+
+@keyframes xhair-ping {
+  0%   { opacity: 0; transform-origin: center; scale: 0.5; }
+  40%  { opacity: 0.4; }
+  100% { opacity: 0.2; scale: 1; }
+}

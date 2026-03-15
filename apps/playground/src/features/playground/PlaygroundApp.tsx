@@ -9,7 +9,7 @@ import {
 } from "react";
 import { parseVrdSafe, VrdParseResult } from "@repo/parser";
 import { toast } from "sonner";
-import { useThemeMode } from "./ui/useThemeMode";
+import { useThemeMode } from "@/features/shared/ui/useThemeMode";
 
 import { PRESETS } from "@/features/playground/constants";
 import { useMonacoSetup } from "@/features/playground/hooks/useMonacoSetup";
@@ -32,7 +32,7 @@ export function PlaygroundApp() {
   const [aiError, setAiError] = useState("");
   const editorRef = useRef<EditorInstance | null>(null);
   const { themeMode, resolvedTheme, setThemeMode } = useThemeMode("dark");
-  const presetsRef = useRef<HTMLDivElement>(null);
+  const presetsRef = useRef<HTMLDivElement | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {

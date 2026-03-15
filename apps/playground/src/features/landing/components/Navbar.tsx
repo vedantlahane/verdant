@@ -2,8 +2,8 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Github, Sun, Moon, Menu, X } from "lucide-react";
 import { Leaf } from "../../playground/components/Leaf";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { ThemeMode } from "@/components/ui/useThemeMode";
+import { ThemeToggle } from "@/features/shared/ui/ThemeToggle";
+import { ThemeMode } from "@/features/shared/ui/useThemeMode";
 
 interface NavbarProps {
   themeMode: ThemeMode;

@@ -1,4 +1,4 @@
-import { PlaygroundApp } from "@/components/PlaygroundApp";
+import { PlaygroundApp } from "@/features/playground/PlaygroundApp";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Wand2, Share2, ImageIcon, Sun, Moon } from "lucide-react";
-import { Leaf } from "./Leaf";
+import { Leaf } from "../../shared/ui/Leaf";
 
 interface TopBarProps {
   onAiClick: () => void;

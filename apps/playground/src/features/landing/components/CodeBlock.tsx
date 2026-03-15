@@ -1,14 +1,16 @@
-import { Leaf } from "../../playground/components/Leaf";
+import { Leaf } from "../../shared/ui/Leaf";
 
 function SyntaxLine({ line }: { line: string }) {
   if (!line) return <span>&nbsp;</span>;
   if (line.startsWith("#")) return <span className="tok-comment">{line}</span>;
 
-  if (line.includes("->")) {
-    const idx = line.indexOf("->");
+  if (line.includes("->") || line.includes("→")) {
+    const splitChar = line.includes("->") ? "->" : "→";
+    const idx = line.indexOf(splitChar);
     const left = line.slice(0, idx).trim();
-    const rest = line.slice(idx + 2);
+    const rest = line.slice(idx + splitChar.length);
     const colonIdx = rest.indexOf(":");
+    
     if (colonIdx >= 0) {
       return (
         <>
@@ -58,7 +60,7 @@ export function CodeBlock({ lines }: { lines: string[] }) {
     <div className="code-block">
       <div className="code-topbar">
         <span>system.vrd</span>
-        <Leaf className="h-3.5 w-3.5" />
+        <Leaf className="h-3 w-3" />
       </div>
       <div className="code-body">
         {lines.map((line, i) => (

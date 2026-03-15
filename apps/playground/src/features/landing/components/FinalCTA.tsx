@@ -1,22 +1,33 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-
 export function FinalCTA() {
   return (
-    <section className="pattern-topo grid-section">
-      <div className="mx-auto  px-6 py-28 md:py-36">
-        <h2 className="font-display max-w-[700px] text-4xl sm:text-5xl md:text-6xl">
-          Your systems are <span style={{ color: "var(--accent)" }}>alive</span>.
-          <br />
-          Let them look like it.
-        </h2>
-        <div className="mt-12">
-          <Link href="/playground" className="btn-primary group">
-            Open Playground
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-          </Link>
+    <section className="grid-section">
+      <div className="frame-grid">
+        {/* ═══ Left Gutter ═══ */}
+        <div className="frame-gutter pattern-dots border-r border-[var(--border)] py-6 opacity-40">
+          <div className="crosshair" />
+          <div className="mt-auto crosshair" />
+        </div>
+
+        {/* ═══ Center Content ═══ */}
+        <div className="pattern-topo flex flex-col h-full justify-center">
+          {/* Heading */}
+          <div className="px-6 py-28 md:py-40 text-center flex flex-col items-center">
+            <h2 className="font-display max-w-[900px] text-[3.5rem] sm:text-5xl md:text-[6.5rem] leading-[1.05] text-[color:var(--text-primary)]">
+              Your systems are <span style={{ color: "var(--accent)" }}>alive</span>. Let them look like it.
+            </h2>
+            
+            <p className="font-body mt-8 text-base md:text-lg max-w-lg leading-7 text-[color:var(--text-secondary)]">
+              Stop drawing boxes. Start growing architecture.
+            </p>
+          </div>
+        </div>
+
+        {/* ═══ Right Gutter ═══ */}
+        <div className="frame-gutter pattern-hatch border-l border-[var(--border)] py-6 opacity-40">
+          <div className="crosshair" />
+          <div className="mt-auto crosshair" />
         </div>
       </div>
     </section>

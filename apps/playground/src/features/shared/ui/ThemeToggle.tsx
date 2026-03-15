@@ -1,40 +1,72 @@
 "use client";
 
-import { Monitor, Moon, Sun } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sun, Moon, Monitor } from "lucide-react";
 import { ThemeMode } from "./useThemeMode";
+
+const OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
+  { value: "light", label: "Light theme", icon: Sun },
+  { value: "dark", label: "Dark theme", icon: Moon },
+  { value: "system", label: "System theme", icon: Monitor },
+];
 
 interface ThemeToggleProps {
   mode: ThemeMode;
-  onChange: (mode: ThemeMode) => void;
-  compact?: boolean;
-  className?: string;
+  onChange: (m: ThemeMode) => void;
 }
 
-// Spec says: ☀️ System 🌙
-const OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "system", label: "System", icon: Monitor },
-  { value: "dark", label: "Dark", icon: Moon },
-];
+export function ThemeToggle({ mode, onChange }: ThemeToggleProps) {
+  const [mounted, setMounted] = useState(false);
 
-export function ThemeToggle({
-  mode,
-  onChange,
-  compact = false,
-  className = "",
-}: ThemeToggleProps) {
+  useEffect(() => setMounted(true), []);
+
+  /* ── Until mounted, render a static placeholder that matches
+       the server HTML exactly (all aria-selected="false") ── */
+  if (!mounted) {
+    return (
+      <div
+        className="inline-flex rounded-full p-1"
+        style={{
+          border: "1px solid var(--border)",
+          background: "var(--surface)",
+        }}
+        role="tablist"
+        aria-label="Theme switcher"
+      >
+        {OPTIONS.map((option) => {
+          const Icon = option.icon;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="tab"
+              className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm transition-colors"
+              style={{ color: "var(--text-muted)" }}
+              aria-selected={false}
+              aria-label={option.label}
+              tabIndex={-1}
+            >
+              <Icon className="h-3.5 w-3.5" />
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div
-      className={[
-        "inline-flex items-center rounded-full border border-[color:var(--border-subtle)] bg-[color:var(--surface-soft)]/85 p-1 text-[color:var(--text-secondary)] shadow-[0_18px_40px_rgba(0,0,0,0.16)] backdrop-blur-xl",
-        className,
-      ].join(" ")}
+      className="inline-flex rounded-full p-1"
+      style={{
+        border: "1px solid var(--border)",
+        background: "var(--surface)",
+      }}
       role="tablist"
       aria-label="Theme switcher"
     >
       {OPTIONS.map((option) => {
+        const isActive = mode === option.value;
         const Icon = option.icon;
-        const isActive = option.value === mode;
 
         return (
           <button
@@ -42,18 +74,19 @@ export function ThemeToggle({
             type="button"
             role="tab"
             onClick={() => onChange(option.value)}
-            className={[
-              "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm transition-all duration-200",
-              compact ? "justify-center" : "",
-              isActive
-                ? "bg-[color:var(--surface-strong)] text-[color:var(--text-primary)] shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
-                : "hover:text-[color:var(--text-primary)]",
-            ].join(" ")}
+            className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm transition-colors"
+            style={{
+              background: isActive ? "var(--elevated)" : "transparent",
+              color: isActive ? "var(--text-primary)" : "var(--text-muted)",
+              boxShadow: isActive
+                ? "0 1px 3px rgba(0,0,0,0.15)"
+                : "none",
+            }}
             aria-selected={isActive}
-            aria-label={`${option.label} theme`}
+            aria-label={option.label}
+            tabIndex={isActive ? 0 : -1}
           >
-            <Icon className="h-4 w-4" />
-            {!compact && <span>{option.label}</span>}
+            <Icon className="h-3.5 w-3.5" />
           </button>
         );
       })}

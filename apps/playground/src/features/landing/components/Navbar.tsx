@@ -1,9 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Github, Sun, Moon, Menu, X } from "lucide-react";
-import { Leaf } from "../../playground/components/Leaf";
+import { Leaf } from "../../shared/ui/Leaf";
 import { ThemeToggle } from "@/features/shared/ui/ThemeToggle";
 import { ThemeMode } from "@/features/shared/ui/useThemeMode";
+import { LeafRain } from "@/features/shared/ui/LeafRain";
 
 interface NavbarProps {
   themeMode: ThemeMode;
@@ -19,11 +22,8 @@ export function Navbar({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => setMounted(true), []);
 
-  // Close mobile nav on escape key
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setMobileOpen(false);
@@ -46,71 +46,110 @@ export function Navbar({
       <header
         className="sticky top-0 z-50"
         style={{
-          borderBottom: "2px solid var(--border)",
+          borderBottom: "1px solid var(--border-strong)",
           background: "var(--page-bg)",
         }}
       >
-        <div className="mx-8 flex  items-center justify-between">
-          <Link href="/" className="group inline-flex items-center gap-2.5">
-            <Leaf />
-            <span className="font-body text-xl lowercase tracking-[0.08em]">
-              verdant
-            </span>
-          </Link>
+        <div className="frame-grid">
+          {/* Left gutter border */}
+          <div
+            className="frame-gutter border-r"
+            style={{ borderColor: "var(--border)" }}
+          />
 
-          <nav className="nav-bar hidden md:flex h-12" aria-label="Main navigation">
-            <a href="#features" className="nav-item">
-              Docs
-            </a>
-            <Link href="/playground" className="nav-item">
-              Playground
-            </Link>
-            <a
-              href="https://github.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="nav-item nav-item--icon"
-              aria-label="GitHub"
+          {/* Center */}
+          <div className="flex h-14 items-center justify-between px-5 md:px-8">
+            <Link
+              href="/"
+              className="group inline-flex items-center gap-2.5"
             >
-              <Github className="h-4 w-4" />
-            </a>
+              <Leaf />
+              <span className="font-body text-xl lowercase tracking-[0.08em]">
+                verdant
+              </span>
+            </Link>
+
+            {/* Desktop nav */}
+            <nav
+              className="nav-bar hidden md:flex h-9"
+              aria-label="Main navigation"
+            >
+              <LeafRain className="nav-item">
+                <a href="#features" className="btn-content">
+                  Docs
+                </a>
+              </LeafRain>
+
+              <LeafRain className="nav-item">
+                <Link href="/playground" className="btn-content">
+                  Playground
+                </Link>
+              </LeafRain>
+
+              <LeafRain className="nav-item nav-item--icon">
+                <a
+                  href="https://github.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-content"
+                  aria-label="GitHub"
+                >
+                  <Github className="h-4 w-4" />
+                </a>
+              </LeafRain>
+
+              <LeafRain className="nav-item nav-item--icon">
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className="btn-content"
+                  aria-label="Toggle theme"
+                >
+                  {mounted ? (
+                    resolvedTheme === "dark" ? (
+                      <Sun className="h-4 w-4" />
+                    ) : (
+                      <Moon className="h-4 w-4" />
+                    )
+                  ) : (
+                    <span className="inline-block h-4 w-4" />
+                  )}
+                </button>
+              </LeafRain>
+            </nav>
+
+            {/* Mobile hamburger */}
             <button
               type="button"
-              onClick={toggle}
-              className="nav-item nav-item--icon"
-              aria-label="Toggle theme"
+              onClick={() => setMobileOpen(true)}
+              className="p-2 md:hidden"
+              style={{ border: "1px solid var(--border)" }}
+              aria-label="Open menu"
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-menu"
             >
-              {mounted ? (
-                resolvedTheme === "dark" ? (
-                  <Sun className="h-4 w-4" />
-                ) : (
-                  <Moon className="h-4 w-4" />
-                )
-              ) : (
-                <span className="inline-block h-4 w-4" />
-              )}
+              <Menu className="h-4 w-4" />
             </button>
-          </nav>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="p-2 md:hidden"
-            style={{ border: "1px solid var(--border)" }}
-            aria-label="Open menu"
-          >
-            <Menu className="h-4 w-4" />
-          </button>
+          {/* Right gutter border */}
+          <div
+            className="frame-gutter border-l"
+            style={{ borderColor: "var(--border)" }}
+          />
         </div>
       </header>
 
+      {/* ── Mobile overlay ── */}
       <div
         className={`mobile-overlay ${mobileOpen ? "open" : ""}`}
         onClick={() => setMobileOpen(false)}
         aria-hidden="true"
       />
 
+      {/* ── Mobile sheet ── */}
       <aside
+        id="mobile-menu"
         className={`mobile-sheet ${mobileOpen ? "open" : ""}`}
         aria-label="Mobile navigation"
         role="dialog"

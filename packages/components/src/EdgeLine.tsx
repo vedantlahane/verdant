@@ -2,9 +2,9 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { QuadraticBezierLine, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { EdgeProps } from './types';
+import { EdgeLineProps } from './types';
 
-export function EdgeLine({ from, to, label, color = '#ffffff', animated, style = 'solid' }: EdgeProps) {
+export function EdgeLine({ from, to, label, color = '#ffffff', animated, style = 'solid' }: EdgeLineProps) {
   const lineRef = useRef<any>(null);
 
   useFrame((state, delta) => {

@@ -1,6 +1,6 @@
 import { useId } from "react";
 
-export function Leaf({ className = "h-5 w-5" }: { className?: string }) {
+export function Leaf({ className = "h-7 w-7" }: { className?: string }) {
   const id = useId();
   const gradientId = `leaf-grad-${id}`;
 

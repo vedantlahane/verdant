@@ -46,19 +46,19 @@ export function Navbar({
       <header
         className="sticky top-0 z-50"
         style={{
-          borderBottom: "1px solid var(--border)",
+          borderBottom: "2px solid var(--border)",
           background: "var(--page-bg)",
         }}
       >
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-[1200px] items-center justify-between">
           <Link href="/" className="group inline-flex items-center gap-2.5">
             <Leaf />
-            <span className="font-body text-base lowercase tracking-[0.08em]">
+            <span className="font-body text-xl lowercase tracking-[0.08em]">
               verdant
             </span>
           </Link>
 
-          <nav className="nav-bar hidden md:flex" aria-label="Main navigation">
+          <nav className="nav-bar hidden md:flex h-12" aria-label="Main navigation">
             <a href="#features" className="nav-item">
               Docs
             </a>

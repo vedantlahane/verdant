@@ -24,7 +24,7 @@ export function LandingPage() {
   return (
     <div
       className="min-h-screen"
-      style={{ background: "var(--page-bg)", color: "var(--text-primary)" }}
+      style={{ background: "var(--page-bg)", color: "var(--text-primary)", borderLeft: "1px solid var(--border)", borderRight: "1px solid var(--border)" }}
     >
       <Navbar
         themeMode={themeMode}

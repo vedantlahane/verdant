@@ -1,8 +1,6 @@
-import { useId } from "react";
-
 export function Leaf({ className = "h-7 w-7", style }: { className?: string; style?: React.CSSProperties }) {
-  const id = useId();
-  const gradientId = `leaf-grad-${id}`;
+  // Use a stable gradient id to avoid SSR/CSR hydration mismatches
+  const gradientId = `leaf-grad`;
 
   return (
     <svg

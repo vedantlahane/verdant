@@ -3,6 +3,7 @@
 import { CodeBlock } from "./CodeBlock";
 import { CODE_LINES, THEMES_LIST } from "../constants";
 import { useAccentTheme } from "@/features/shared/hooks/useAccentTheme";
+import { LeafRain } from "@/features/shared/ui/LeafRain";
 import { ThemeInkSelector } from "../../shared/ui/ThemeInkSelector";
 
 function CadCrosshairs() {
@@ -52,7 +53,7 @@ export function Features() {
 
             <div className="hidden md:block"></div>
             
-            <div className="cad-hover px-6 py-10 md:p-8 lg:p-10 md:col-span-2 hover:bg-[var(--accent-faint)] transition-colors group flex flex-col h-full">
+            <LeafRain className="cad-hover px-6 py-10 md:p-8 lg:p-10 md:col-span-2 hover:bg-[var(--accent-faint)] transition-colors group flex flex-col h-full">
               <CadCrosshairs />
               <p className="section-label mb-6">// syntax</p>
               <h3 className="font-ui font-medium text-xl text-[color:var(--text-primary)]">Syntax you already know</h3>
@@ -62,18 +63,18 @@ export function Features() {
               <div className="mt-10 max-w-md mt-auto relative z-10">
                 <CodeBlock lines={CODE_LINES.slice(0, 6)} />
               </div>
-            </div>
+            </LeafRain>
 
-            <div className="cad-hover px-6 py-10 md:p-8 lg:p-10 hover:bg-[var(--accent-faint)] transition-colors group flex flex-col h-full">
+            <LeafRain className="cad-hover px-6 py-10 md:p-8 lg:p-10 hover:bg-[var(--accent-faint)] transition-colors group flex flex-col h-full">
               <CadCrosshairs />
               <p className="section-label mb-6">// format</p>
               <h3 className="font-ui font-medium text-xl text-[color:var(--text-primary)]">.vrd files</h3>
               <div className="mt-10 p-6 text-center border border-[var(--border-strong)] bg-[var(--page-bg)] mt-auto relative z-10">
                 <span className="font-mono text-sm text-[color:var(--accent)]">system.vrd</span>
               </div>
-            </div>
+            </LeafRain>
 
-            <div className="cad-hover px-6 py-10 md:p-8 lg:p-10 hover:bg-[var(--accent-faint)] transition-colors group flex flex-col h-full">
+            <LeafRain className="cad-hover px-6 py-10 md:p-8 lg:p-10 hover:bg-[var(--accent-faint)] transition-colors group flex flex-col h-full">
               <CadCrosshairs />
               <p className="section-label mb-6">// git</p>
               <h3 className="font-ui font-medium text-xl text-[color:var(--text-primary)]">Git native</h3>
@@ -81,7 +82,7 @@ export function Features() {
                 <div className="px-4 py-3 border-b border-[var(--border)] text-[color:var(--accent)] bg-[var(--accent-faint)]">+ cache redis</div>
                 <div className="px-4 py-3 text-[color:var(--text-muted)]">&nbsp;&nbsp;theme: moss</div>
               </div>
-            </div>
+            </LeafRain>
 
             <div className="hidden md:block pattern-hatch opacity-30"></div>
 
@@ -94,14 +95,14 @@ export function Features() {
 
             <div className="hidden md:block"></div>
 
-            <div className="cad-hover px-6 py-10 md:p-8 lg:p-10 hover:bg-[var(--accent-faint)] transition-colors group flex flex-col h-full">
+            <LeafRain className="cad-hover px-6 py-10 md:p-8 lg:p-10 hover:bg-[var(--accent-faint)] transition-colors group flex flex-col h-full">
               <CadCrosshairs />
               <p className="section-label mb-6">// nodes</p>
               <h3 className="font-ui font-medium text-xl text-[color:var(--text-primary)]">10 ready components</h3>
-            </div>
+            </LeafRain>
 
             {/* Themes Section using Shared Component */}
-            <div className="cad-hover px-6 py-10 md:p-8 lg:p-10 md:col-span-2 flex flex-col h-full relative">
+            <LeafRain className="cad-hover px-6 py-10 md:p-8 lg:p-10 md:col-span-2 flex flex-col h-full relative">
               <CadCrosshairs />
               <p className="section-label mb-6">// themes</p>
               <h3 className="font-ui font-medium text-xl text-[color:var(--text-primary)]">Themes that set the mood</h3>
@@ -113,7 +114,7 @@ export function Features() {
                   columns={4}
                 />
               </div>
-            </div>
+            </LeafRain>
 
             <div className="hidden md:block pattern-hatch opacity-30"></div>
             <div className="hidden md:block"></div>

@@ -1,5 +1,7 @@
 "use client";
 
+import LeafRain from "../../shared/ui/LeafRain";
+
 export function FinalCTA() {
   return (
     <section className="grid-section">
@@ -11,7 +13,7 @@ export function FinalCTA() {
         </div>
 
         {/* ═══ Center Content ═══ */}
-        <div className="pattern-topo flex flex-col h-full justify-center">
+        <LeafRain className="pattern-topo flex flex-col h-full justify-center" spawnInterval={20} maxLeaves={11180}>
           {/* Heading */}
           <div className="px-6 py-28 md:py-40 text-center flex flex-col items-center">
             <h2 className="font-display max-w-[900px] text-[3.5rem] sm:text-5xl md:text-[6.5rem] leading-[1.05] text-[color:var(--text-primary)]">
@@ -22,7 +24,7 @@ export function FinalCTA() {
               Stop drawing boxes. Start growing architecture.
             </p>
           </div>
-        </div>
+        </LeafRain>
 
         {/* ═══ Right Gutter ═══ */}
         <div className="frame-gutter pattern-hatch border-l border-[var(--border)] py-6 opacity-40">

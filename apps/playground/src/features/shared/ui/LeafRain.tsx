@@ -235,14 +235,14 @@ export function LeafRain({
         s.columns = new Array(numCols).fill(0);
       }
 
-      if (!s.sprite) {
-        const cs = getComputedStyle(el);
-        s.sprite = createLeafSprite([
-          cs.getPropertyValue("--accent-light").trim() || "#95D5B2",
-          cs.getPropertyValue("--accent").trim() || "#52B788",
-          cs.getPropertyValue("--accent-dark").trim() || "#2D6A4F",
-        ]);
-      }
+      // (Re)create the sprite on every mouse enter so it reflects
+      // the current CSS custom properties (theme changes).
+      const cs = getComputedStyle(el);
+      s.sprite = createLeafSprite([
+        cs.getPropertyValue("--accent-light").trim() || "#95D5B2",
+        cs.getPropertyValue("--accent").trim() || "#52B788",
+        cs.getPropertyValue("--accent-dark").trim() || "#2D6A4F",
+      ]);
 
       startLoop();
       onMouseEnter?.(e);

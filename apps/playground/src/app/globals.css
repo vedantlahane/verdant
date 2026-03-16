@@ -673,3 +673,16 @@ a, button {
   40%  { opacity: 0.4; }
   100% { opacity: 0.2; scale: 1; }
 }
+
+/* ═══════════════════════════════════════════════════
+   STEP CELL — hover bg for HowItWorks
+   (Tailwind opacity modifier doesn't work on CSS vars)
+   ═══════════════════════════════════════════════════ */
+
+.step-cell {
+  transition: background-color 200ms ease;
+}
+
+.step-cell:hover {
+  background-color: var(--accent-faint);
+}

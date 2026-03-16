@@ -88,7 +88,7 @@ export function Navbar({
 
               <LeafRain className="nav-item nav-item--icon">
                 <a
-                  href="https://github.com/vedantlahane/verdant"
+                  href="https://github.com"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-content"
@@ -175,7 +175,7 @@ export function Navbar({
           {[
             { label: "Documentation", href: "#features" },
             { label: "Playground", href: "/playground" },
-            { label: "GitHub", href: "https://github.com/vedantlahane/verdant" },
+            { label: "GitHub", href: "https://github.com" },
           ].map((item) => (
             <a
               key={item.label}

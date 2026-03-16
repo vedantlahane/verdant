@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { Leaf } from "../../shared/ui/Leaf";
+import CadCrosshairs from "../../shared/ui/CadCrosshairs";
+import LeafRain from "../../shared/ui/LeafRain";
 import { useAccentTheme } from "../../shared/hooks/useAccentTheme";
 import { ThemeInkSelector } from "../../shared/ui/ThemeInkSelector";
 import { THEMES_LIST } from "../constants";
@@ -18,7 +20,8 @@ export function Footer() {
 
         <div className="flex flex-col h-full">
           <div className="grid-lines md:grid-cols-4 bg-[var(--page-bg)]">
-            <div className="px-6 py-12">
+            <div className="px-6 py-12 cad-hover">
+              <CadCrosshairs />
               <div className="group inline-flex items-center gap-2.5">
                 <Leaf className="h-5 w-5" />
                 <span className="font-body text-base lowercase tracking-[0.08em] text-[color:var(--text-primary)]">
@@ -30,7 +33,8 @@ export function Footer() {
               </p>
             </div>
 
-            <div className="px-6 py-12">
+            <div className="px-6 py-12 cad-hover">
+              <CadCrosshairs />
               <p className="section-label mb-6">// product</p>
               <nav className="flex flex-col gap-3">
                 <Link href="/playground" className="font-ui text-sm font-medium transition-colors text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]">
@@ -42,7 +46,8 @@ export function Footer() {
               </nav>
             </div>
 
-            <div className="px-6 py-12">
+            <div className="px-6 py-12 cad-hover">
+              <CadCrosshairs />
               <p className="section-label mb-6">// community</p>
               <nav className="flex flex-col gap-3">
                 <a href="https://github.com" className="font-ui text-sm font-medium transition-colors text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]">
@@ -52,7 +57,8 @@ export function Footer() {
             </div>
 
             {/* Global Theme Selector in Footer */}
-            <div className="px-6 py-12 border-l border-[var(--border)] md:border-l-0">
+            <div className="px-6 py-12 border-l border-[var(--border)] md:border-l-0 cad-hover">
+              <CadCrosshairs />
               <p className="section-label mb-6">// global theme</p>
               <ThemeInkSelector 
                 activeTheme={activeTheme} 
@@ -66,11 +72,11 @@ export function Footer() {
             </div>
           </div>
 
-          <div className="px-6 py-6 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-[var(--border)] bg-[var(--page-bg)]">
+          <LeafRain className="px-6 py-6 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-[var(--border)] bg-[var(--page-bg)]" spawnInterval={30} maxLeaves={120}>
             <p className="font-mono text-xs text-[color:var(--text-muted)]">
               © {new Date().getFullYear()} Verdant. Built for architects.
             </p>
-          </div>
+          </LeafRain>
         </div>
 
         <div className="frame-gutter border-l border-[var(--border)] py-6 opacity-40">

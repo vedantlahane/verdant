@@ -2,19 +2,9 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import LeafRain from "../../shared/ui/LeafRain";
+import CadCrosshairs from "../../shared/ui/CadCrosshairs";
 import { COMPONENTS } from "../constants";
-
-// Reusable CAD crosshairs
-function CadCrosshairs() {
-  return (
-    <>
-      <div className="cad-crosshair cad-tl" />
-      <div className="cad-crosshair cad-tr" />
-      <div className="cad-crosshair cad-bl" />
-      <div className="cad-crosshair cad-br" />
-    </>
-  );
-}
 
 export function ComponentsSection() {
   return (
@@ -110,18 +100,20 @@ export function ComponentsSection() {
 
             {/* ── ROW 5: Bottom CTA ── */}
             <div className=""></div> {/* Left Spacer */}
-            <div className="cad-hover col-span-5 px-8 py-6 flex items-center justify-between group transition-colors hover:bg-[var(--accent-faint)]">
-              <CadCrosshairs />
-              <Link
-                href="/playground"
-                className="inline-flex items-center gap-2 font-ui text-sm font-medium transition-colors text-[color:var(--text-primary)] group-hover:text-[color:var(--accent)] relative z-10"
-              >
-                Try them in the playground <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </Link>
-              <span className="font-mono text-xs text-[color:var(--text-muted)] relative z-10">
-                + Custom node support coming soon
-              </span>
-            </div>
+            <LeafRain className="cad-hover col-span-5 px-8 py-6 group transition-colors hover:bg-[var(--accent-faint)]" spawnInterval={20} maxLeaves={1200}>
+              <div className="w-full flex items-center">
+                <CadCrosshairs />
+                <Link
+                  href="/playground"
+                  className="inline-flex items-center gap-2 font-ui text-sm font-medium transition-colors text-[color:var(--text-primary)] group-hover:text-[color:var(--accent)] relative z-10"
+                >
+                  Try them in the playground <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+                <span className="font-mono text-xs text-[color:var(--text-muted)] relative z-10 ml-auto">
+                  + Custom node support coming soon
+                </span>
+              </div>
+            </LeafRain>
             <div className="pattern-hatch opacity-30"></div> {/* Right Spacer */}
 
             {/* ── ROW 6: Bottom Spacers ── */}

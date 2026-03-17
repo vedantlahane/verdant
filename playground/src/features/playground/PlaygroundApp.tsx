@@ -18,6 +18,8 @@ import { TopBar } from "@/features/playground/components/TopBar";
 import { SchemaPanel } from "@/features/playground/components/SchemaPanel";
 import { CanvasPreview } from "@/features/playground/components/CanvasPreview";
 import { NodeInspector } from "@/features/playground/components/NodeInspector";
+import { AxisGizmo } from "@/features/playground/components/AxisGizmo";
+import type { CameraData } from "@repo/renderer";
 
 /* ── AI history entry ── */
 export interface AiHistoryEntry {
@@ -47,6 +49,15 @@ export function PlaygroundApp() {
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [activePreset, setActivePreset] = useState<string>("simple");
   const [isRendererReady, setIsRendererReady] = useState(false);
+  const [cameraData, setCameraData] = useState<CameraData>({
+    position: [0, 6, 12],
+    fov: 45,
+    axisProjections: {
+      x: [1, 0, 0],
+      y: [0, 0.89, 0.45],
+      z: [0, -0.45, 0.89],
+    },
+  });
 
   // ── AI state ──
   const [aiPrompt, setAiPrompt] = useState("");
@@ -270,6 +281,15 @@ export function PlaygroundApp() {
     [],
   );
 
+  // ── Stable callback for camera changes ──
+  const handleCameraChange = useCallback((data: CameraData) => {
+    setCameraData(data);
+  }, []);
+
+  // ── Camera readout strings ──
+  const camReadout = `cam: ${cameraData.position[0].toFixed(1)}, ${cameraData.position[1].toFixed(1)}, ${cameraData.position[2].toFixed(1)}`;
+  const fovReadout = `fov: ${cameraData.fov}°`;
+
   // ── Derived ──
   const hasContent = nodeCount > 0 || edgeCount > 0;
 
@@ -285,14 +305,19 @@ export function PlaygroundApp() {
         resolvedTheme={(resolvedTheme as "light" | "dark") ?? "dark"}
         errorCount={errorCount}
         onNodeClick={handleNodeClick}
+        onCameraChange={handleCameraChange}
+        selectedNodeId={inspectorTarget?.nodeId ?? null}
         onOpenSchema={() => {
           setSchemaOpen(true);
           setSchemaTab("code");
         }}
       />
 
-      {/* Layer 1: Grid overlay */}
+      {/* Layer 1: Grid overlay (viewport — fades at edges) */}
       <div className="pg-grid" aria-hidden="true" />
+
+      {/* Layer 1.5: Grid-through — ghost lines over ALL UI */}
+      <div className="pg-grid-through" aria-hidden="true" />
 
       {/* Layer 2: Gutter decorations */}
       <div className="pg-gutter pg-gutter--left" aria-hidden="true">
@@ -314,21 +339,9 @@ export function PlaygroundApp() {
         <div className="crosshair" />
       </div>
 
-      {/* Layer 3: Axis gizmo hint */}
+      {/* Layer 3: Dynamic axis gizmo */}
       <div className="pg-axis-gizmo" aria-hidden="true">
-        <svg width="48" height="48" viewBox="0 0 48 48">
-          {/* X axis */}
-          <line x1="24" y1="24" x2="44" y2="24" stroke="#e57373" strokeWidth="1" opacity="0.6" />
-          <text x="46" y="26" fill="#e57373" fontSize="8" opacity="0.6">x</text>
-          {/* Y axis */}
-          <line x1="24" y1="24" x2="24" y2="4" stroke="#81c784" strokeWidth="1" opacity="0.6" />
-          <text x="22" y="2" fill="#81c784" fontSize="8" opacity="0.6">y</text>
-          {/* Z axis */}
-          <line x1="24" y1="24" x2="10" y2="38" stroke="#64b5f6" strokeWidth="1" opacity="0.6" />
-          <text x="4" y="42" fill="#64b5f6" fontSize="8" opacity="0.6">z</text>
-          {/* Origin dot */}
-          <circle cx="24" cy="24" r="1.5" fill="var(--text-muted)" opacity="0.5" />
-        </svg>
+        <AxisGizmo cameraData={cameraData} />
       </div>
 
       {/* Layer 4: Top bar */}
@@ -391,9 +404,12 @@ export function PlaygroundApp() {
           {nodeCount}n · {edgeCount}e
           {errorCount > 0 && <> · {errorCount}⊘</>}
         </span>
-        <span className="pg-status-center">
-          orbit: drag · pan: right · zoom: scroll
+
+        {/* ── Camera readout (center) ── */}
+        <span className="pg-status-cam">
+          {camReadout} · {fovReadout}
         </span>
+
         <span>⌘B schema · ⌘K ai</span>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { R3FErrorBoundary } from "./R3FErrorBoundary";
+import type { CameraData } from "@repo/renderer";
 
 const VerdantRenderer = dynamic(
   () => import("@repo/renderer").then((mod) => mod.VerdantRenderer),
@@ -19,6 +20,8 @@ interface CanvasPreviewProps {
   resolvedTheme: "light" | "dark";
   errorCount: number;
   onNodeClick?: (info: { nodeId: string; screenX: number; screenY: number }) => void;
+  onCameraChange?: (data: CameraData) => void;
+  selectedNodeId?: string | null;
   onOpenSchema?: () => void;
 }
 
@@ -29,6 +32,8 @@ export function CanvasPreview({
   resolvedTheme,
   errorCount,
   onNodeClick,
+  onCameraChange,
+  selectedNodeId,
   onOpenSchema,
 }: CanvasPreviewProps) {
   return (
@@ -68,6 +73,8 @@ export function CanvasPreview({
             height="100%"
             autoRotate
             onNodeClick={onNodeClick}
+            onCameraChange={onCameraChange}
+            selectedNodeId={selectedNodeId}
           />
         </R3FErrorBoundary>
       ) : (

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Code2,
   Sparkles,
@@ -37,6 +38,48 @@ interface SchemaPanelProps {
   editorChildren: React.ReactNode;
 }
 
+/* ── Ruler ticks (generated once) ── */
+const RULER_INTERVAL = 80; // matches viewport grid row height
+const RULER_COUNT = 20;
+
+function RulerMarks() {
+  const ticks = useMemo(() => {
+    const result: { top: number; major: boolean; label: string }[] = [];
+    for (let i = 0; i <= RULER_COUNT; i++) {
+      const top = i * RULER_INTERVAL;
+      result.push({
+        top,
+        major: i % 4 === 0,
+        label: String(i).padStart(2, "0"),
+      });
+    }
+    return result;
+  }, []);
+
+  return (
+    <div className="pg-schema-ruler" aria-hidden="true">
+      {ticks.map((t) => (
+        <div key={t.top}>
+          <div
+            className={`pg-schema-ruler-tick ${
+              t.major ? "pg-schema-ruler-tick--major" : ""
+            }`}
+            style={{ top: t.top }}
+          />
+          {t.major && (
+            <span
+              className="pg-schema-ruler-num"
+              style={{ top: t.top }}
+            >
+              {t.label}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function SchemaPanel({
   open,
   onOpenChange,
@@ -71,297 +114,289 @@ export function SchemaPanel({
         >
           <span>// schema</span>
           {errorCount > 0 && (
-            <span style={{ color: "#e57373" }}>· {errorCount}⊘</span>
+            <span className="pg-schema-toggle-error">
+              · {errorCount}⊘
+            </span>
           )}
         </button>
       )}
 
       {/* ── Panel ── */}
-      <div className={`pg-schema ${open ? "pg-schema--open" : "pg-schema--closed"}`}>
-        {/* ← This wrapper creates the blur bleed + grid lines through panel */}
+      <div
+        className={`pg-schema ${
+          open ? "pg-schema--open" : "pg-schema--closed"
+        }`}
+      >
         <div className="pg-schema-body">
-          {/* Header */}
-          <div className="pg-schema-label">
-          <span className="section-label">// schema</span>
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "var(--text-muted)",
-                cursor: "pointer",
-                padding: "0.25rem",
-                display: "flex",
-              }}
-              aria-label="Close"
-            >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
+          {/* Blur-bleed zone */}
+          <div className="pg-schema-bleed" aria-hidden="true" />
 
-        {/* Tabs: Code / AI */}
-        <div className="pg-schema-tabs">
-          <button
-            type="button"
-            className={`pg-schema-tab ${activeTab === "code" ? "pg-schema-tab--active" : ""}`}
-            onClick={() => onTabChange("code")}
-          >
-            <Code2 style={{ width: 12, height: 12 }} />
-            code
-          </button>
-          <button
-            type="button"
-            className={`pg-schema-tab ${activeTab === "ai" ? "pg-schema-tab--active" : ""}`}
-            onClick={() => onTabChange("ai")}
-          >
-            <Sparkles style={{ width: 12, height: 12 }} />
-            ai
-          </button>
-        </div>
+          {/* Faint grid lines through the panel */}
+          <div className="pg-schema-grid" aria-hidden="true" />
 
-        {/* ═══ Code tab ═══ */}
-        {activeTab === "code" && (
-          <>
-            {/* Presets */}
-            <div className="pg-schema-presets">
-              <div className="relative" ref={presetsRef}>
-                <button
-                  type="button"
-                  onClick={() => onPresetsOpenChange(!presetsOpen)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.375rem",
-                    background: "none",
-                    border: "none",
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "0.7rem",
-                    letterSpacing: "0.08em",
-                    color: "var(--text-secondary)",
-                    cursor: "pointer",
-                  }}
-                >
-                  <span>
-                    {activePreset ? PRESETS[activePreset].label : "Custom"}
-                  </span>
-                  <ChevronDown
-                    style={{
-                      width: 10,
-                      height: 10,
-                      transition: "transform 150ms",
-                      transform: presetsOpen ? "rotate(180deg)" : "rotate(0)",
-                    }}
-                  />
-                </button>
+          {/* Cell-guide vertical lines (code tab stops) */}
+          <div className="pg-schema-cellguide" aria-hidden="true" />
 
-                {presetsOpen && (
-                  <div className="pg-presets-dropdown">
-                    {Object.entries(PRESETS).map(([key, p]) => (
-                      <button
-                        key={key}
-                        onClick={() => onSelectPreset(key)}
-                        className="pg-presets-item"
-                      >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <span
-                            style={{
-                              fontFamily: "var(--font-ui)",
-                              fontSize: "0.75rem",
-                              fontWeight: 500,
-                              color: "var(--text-primary)",
-                            }}
-                          >
-                            {p.label}
-                          </span>
-                          {activePreset === key && (
-                            <Check style={{ width: 10, height: 10, color: "var(--accent)" }} />
-                          )}
-                        </div>
-                        <span
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: "0.6rem",
-                            color: "var(--text-muted)",
-                          }}
-                        >
-                          {p.description}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+          {/* ═══ Drafting decorations ═══ */}
+          {/* Registration corner marks */}
+          <div className="pg-schema-reg-marks" aria-hidden="true">
+            <div className="pg-schema-reg-tl" />
+            <div className="pg-schema-reg-tr" />
+            <div className="pg-schema-reg-bl" />
+            <div className="pg-schema-reg-br" />
+          </div>
 
-              {/* Status dot */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-                <div
-                  style={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: "50%",
-                    background: errorCount > 0 ? "#e57373" : "var(--accent)",
-                  }}
-                />
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "0.6rem",
-                    letterSpacing: "0.1em",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  {errorCount > 0 ? `${errorCount} errors` : "valid"}
-                </span>
-              </div>
-            </div>
+          {/* Left ruler */}
+          <RulerMarks />
 
-            {/* Editor */}
-            <div className="pg-schema-editor">{editorChildren}</div>
-          </>
-        )}
+          {/* Title block (engineering drawing label) */}
+          <div className="pg-schema-titleblock" aria-hidden="true">
+            <span className="pg-schema-titleblock-row">
+              verdant · schema
+            </span>
+            <span className="pg-schema-titleblock-row">
+              rev: {nodeCount}n {edgeCount}e
+            </span>
+            <span className="pg-schema-titleblock-row">
+              scale: 1:1 · {activePreset || "custom"}
+            </span>
+          </div>
 
-        {/* ═══ AI tab ═══ */}
-        {activeTab === "ai" && (
-          <div className="pg-ai-area">
-            {/* Input */}
-            <textarea
-              autoFocus
-              rows={4}
-              value={aiPrompt}
-              onChange={(e) => onAiPromptChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  onAiApply();
-                }
-              }}
-              placeholder="describe what to build or change..."
-              className="pg-ai-input"
-            />
-
-            {/* Error */}
-            {aiError && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.5rem 0.75rem",
-                  borderBottom: "1px solid var(--border)",
-                  fontSize: "0.7rem",
-                  color: "#e57373",
-                }}
-              >
-                <AlertTriangle style={{ width: 12, height: 12, flexShrink: 0 }} />
-                <span style={{ fontFamily: "var(--font-mono)" }}>{aiError}</span>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="pg-ai-actions">
-              <span
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "0.6rem",
-                  color: "var(--text-muted)",
-                }}
-              >
-                ⌘↵ to apply
-              </span>
+          {/* All content */}
+          <div className="pg-schema-content">
+            {/* Header */}
+            <div className="pg-schema-label">
+              <span className="section-label">// schema</span>
               <button
                 type="button"
-                onClick={onAiApply}
-                disabled={isGenerating || !aiPrompt.trim()}
-                className="btn-primary"
-                style={{
-                  padding: "0.375rem 0.75rem",
-                  fontSize: "0.7rem",
-                  opacity: isGenerating || !aiPrompt.trim() ? 0.4 : 1,
-                  cursor: isGenerating || !aiPrompt.trim() ? "not-allowed" : "pointer",
-                }}
+                onClick={() => onOpenChange(false)}
+                className="pg-schema-close"
+                aria-label="Close schema panel"
               >
-                {isGenerating ? (
-                  <>
-                    <Loader2 style={{ width: 12, height: 12, animation: "spin 1s linear infinite" }} />
-                    applying...
-                  </>
-                ) : (
-                  <>Apply →</>
-                )}
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
 
-            {/* History */}
-            {aiHistory.length > 0 && (
+            {/* Tabs */}
+            <div className="pg-schema-tabs">
+              <button
+                type="button"
+                className={`pg-schema-tab ${
+                  activeTab === "code" ? "pg-schema-tab--active" : ""
+                }`}
+                onClick={() => onTabChange("code")}
+              >
+                <Code2 style={{ width: 12, height: 12 }} />
+                code
+              </button>
+              <button
+                type="button"
+                className={`pg-schema-tab ${
+                  activeTab === "ai" ? "pg-schema-tab--active" : ""
+                }`}
+                onClick={() => onTabChange("ai")}
+              >
+                <Sparkles style={{ width: 12, height: 12 }} />
+                ai
+              </button>
+            </div>
+
+            {/* ═══ Code tab ═══ */}
+            {activeTab === "code" && (
               <>
-                <div className="pg-ai-history-label">── history ──</div>
-                <div className="pg-ai-history">
-                  {aiHistory.map((entry) => (
-                    <div key={entry.id} className="pg-ai-history-item">
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: "0.7rem",
-                            color: "var(--text-primary)",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          ✓ {entry.prompt}
-                        </div>
-                        <div
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: "0.6rem",
-                            color: "var(--text-muted)",
-                            marginTop: "0.125rem",
-                          }}
-                        >
-                          {entry.nodesBefore}n·{entry.edgesBefore}e →{" "}
-                          {entry.nodesAfter}n·{entry.edgesAfter}e
-                        </div>
+                {/* Presets row */}
+                <div className="pg-schema-presets">
+                  <div className="relative" ref={presetsRef}>
+                    <button
+                      type="button"
+                      onClick={() => onPresetsOpenChange(!presetsOpen)}
+                      className="pg-schema-presets-btn"
+                    >
+                      <span>
+                        {activePreset
+                          ? PRESETS[activePreset].label
+                          : "Custom"}
+                      </span>
+                      <ChevronDown
+                        className={`pg-schema-presets-chevron ${
+                          presetsOpen
+                            ? "pg-schema-presets-chevron--open"
+                            : ""
+                        }`}
+                      />
+                    </button>
+
+                    {presetsOpen && (
+                      <div className="pg-presets-dropdown">
+                        {Object.entries(PRESETS).map(([key, p]) => (
+                          <button
+                            key={key}
+                            onClick={() => onSelectPreset(key)}
+                            className="pg-presets-item"
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                              }}
+                            >
+                              <span className="pg-presets-item-name">
+                                {p.label}
+                              </span>
+                              {activePreset === key && (
+                                <Check className="pg-presets-item-check" />
+                              )}
+                            </div>
+                            <span className="pg-presets-item-desc">
+                              {p.description}
+                            </span>
+                          </button>
+                        ))}
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAiUndo(entry.id);
-                        }}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "var(--text-muted)",
-                          cursor: "pointer",
-                          padding: "0.25rem",
-                          flexShrink: 0,
-                          transition: "color 150ms ease",
-                        }}
-                        title="Undo this change"
-                      >
-                        <Undo2 style={{ width: 12, height: 12 }} />
-                      </button>
-                    </div>
-                  ))}
+                    )}
+                  </div>
+
+                  {/* Status dot */}
+                  <div className="pg-schema-status-dot">
+                    <div
+                      className={`pg-schema-status-dot-circle ${
+                        errorCount > 0
+                          ? "pg-schema-status-dot-circle--error"
+                          : "pg-schema-status-dot-circle--ok"
+                      }`}
+                    />
+                    <span className="pg-schema-status-dot-label">
+                      {errorCount > 0 ? `${errorCount} errors` : "valid"}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Monaco editor */}
+                <div className="pg-schema-editor">{editorChildren}</div>
               </>
             )}
-          </div>
-        )}
 
-          {/* Status bar */}
-          <div className="pg-schema-status">
-          <span>
-            {nodeCount}n · {edgeCount}e
-          </span>
-          <span>
-            {errorCount > 0 && <>{errorCount}⊘ · </>}
-            {warningCount > 0 && <>{warningCount}⚠ · </>}
-            {errorCount === 0 && warningCount === 0 && "clean · "}
-            {activeTab === "code" ? "editing" : "ai"}
-          </span>
+            {/* ═══ AI tab ═══ */}
+            {activeTab === "ai" && (
+              <div className="pg-ai-area">
+                {/* Input */}
+                <textarea
+                  autoFocus
+                  rows={4}
+                  value={aiPrompt}
+                  onChange={(e) => onAiPromptChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === "Enter" &&
+                      (e.metaKey || e.ctrlKey)
+                    ) {
+                      e.preventDefault();
+                      onAiApply();
+                    }
+                  }}
+                  placeholder="describe what to build or change..."
+                  className="pg-ai-input"
+                />
+
+                {/* Error */}
+                {aiError && (
+                  <div className="pg-ai-error">
+                    <AlertTriangle
+                      style={{ width: 12, height: 12, flexShrink: 0 }}
+                    />
+                    <span>{aiError}</span>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="pg-ai-actions">
+                  <span className="pg-ai-shortcut-hint">⌘↵ to apply</span>
+                  <button
+                    type="button"
+                    onClick={onAiApply}
+                    disabled={isGenerating || !aiPrompt.trim()}
+                    className="btn-primary pg-ai-apply"
+                    style={{
+                      padding: "0.375rem 0.75rem",
+                      fontSize: "0.7rem",
+                      opacity:
+                        isGenerating || !aiPrompt.trim() ? 0.4 : 1,
+                      cursor:
+                        isGenerating || !aiPrompt.trim()
+                          ? "not-allowed"
+                          : "pointer",
+                    }}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2
+                          style={{
+                            width: 12,
+                            height: 12,
+                            animation: "spin 1s linear infinite",
+                          }}
+                        />
+                        applying...
+                      </>
+                    ) : (
+                      <>Apply →</>
+                    )}
+                  </button>
+                </div>
+
+                {/* History */}
+                {aiHistory.length > 0 && (
+                  <>
+                    <div className="pg-ai-history-label">
+                      ── history ──
+                    </div>
+                    <div className="pg-ai-history">
+                      {aiHistory.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="pg-ai-history-item"
+                        >
+                          <div className="pg-ai-history-item-text">
+                            <div className="pg-ai-history-item-prompt">
+                              ✓ {entry.prompt}
+                            </div>
+                            <div className="pg-ai-history-item-stats">
+                              {entry.nodesBefore}n·{entry.edgesBefore}e
+                              → {entry.nodesAfter}n·{entry.edgesAfter}e
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAiUndo(entry.id);
+                            }}
+                            className="pg-ai-history-undo"
+                            title="Undo this change"
+                          >
+                            <Undo2 style={{ width: 12, height: 12 }} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Status bar */}
+            <div className="pg-schema-status">
+              <span>
+                {nodeCount}n · {edgeCount}e
+              </span>
+              <span>
+                {errorCount > 0 && <>{errorCount}⊘ · </>}
+                {warningCount > 0 && <>{warningCount}⚠ · </>}
+                {errorCount === 0 && warningCount === 0 && "clean · "}
+                {activeTab === "code" ? "editing" : "ai"}
+              </span>
+            </div>
           </div>
         </div>
       </div>

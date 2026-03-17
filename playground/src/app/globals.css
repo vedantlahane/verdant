@@ -719,6 +719,52 @@ a, button {
   -webkit-mask-image: radial-gradient(ellipse 85% 80% at 50% 50%, black 30%, transparent 100%);
 }
 
+/* ── Grid-through: ghost lines OVER everything ──
+   Same spacing as the viewport grid, but at z-100
+   so it shows faintly through all UI layers.
+*/
+.pg-grid-through {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right,  var(--border-strong) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border-strong) 1px, transparent 1px);
+  background-size: calc(100vw / 7) 80px;
+  opacity: 0.07;
+}
+
+/* Prevent grid-through from interfering with dropdowns */
+.pg-grid-through {
+  mask-image:
+    linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.6) 0px,       /* topbar: moderate */
+      rgba(0,0,0,0.6) 48px,
+      black 49px,                  /* viewport: full */
+      black calc(100vh - 33px),
+      rgba(0,0,0,0.6) calc(100vh - 32px),  /* status bar: moderate */
+      rgba(0,0,0,0.6) 100vh
+    );
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.6) 0px,
+      rgba(0,0,0,0.6) 48px,
+      black 49px,
+      black calc(100vh - 33px),
+      rgba(0,0,0,0.6) calc(100vh - 32px),
+      rgba(0,0,0,0.6) 100vh
+    );
+}
+
+@media (max-width: 768px) {
+  .pg-grid-through {
+    display: none;
+  }
+}
+
 /* ── Canvas ── */
 .pg-canvas {
   position: fixed;
@@ -837,21 +883,27 @@ a, button {
   color: var(--accent);
 }
 
-/* ── Schema panel — bleeds into canvas ── */
+/* ═══════════════════════════════════════════════════
+   PLAYGROUND SCHEMA PANEL — Blur-bleed edge
+   ═══════════════════════════════════════════════════ */
+
 .pg-schema {
   position: fixed;
-  top: 49px; /* below top bar */
+  top: 49px;
   left: 0;
-  bottom: 33px; /* above status bar */
+  bottom: 33px;
   z-index: 20;
   width: 380px;
   display: flex;
   flex-direction: column;
   transition: transform 250ms ease, opacity 200ms ease;
+
+  /* Let the bleed zone overflow without clipping */
+  overflow: visible;
 }
 
 .pg-schema--closed {
-  transform: translateX(calc(-100% - 1rem));
+  transform: translateX(-100%);
   opacity: 0;
   pointer-events: none;
 }
@@ -861,64 +913,254 @@ a, button {
   opacity: 1;
 }
 
-/* The panel has a solid left portion + blurred fade on right edge */
+/* ── The body: solid panel + bleed zone ── */
+/* ── Schema body: gradient opacity from left → right ──
+   Left 80% is nearly opaque for readability.
+   Right 20% fades to let the 3D scene bleed through.
+*/
 .pg-schema-body {
   position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background: var(--page-bg);
-  border-right: 1px solid var(--border);
+
+  /* No flat background — we layer it via ::before */
+  background: transparent;
 }
 
-/* Blur fade on the right edge — bleeds into canvas */
-.pg-schema-body::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: -40px;
-  bottom: 0;
-  width: 40px;
-  background: linear-gradient(
-    to right,
-    color-mix(in srgb, var(--page-bg) 60%, transparent),
-    transparent
-  );
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* Grid lines visible through panel */
+/* Layer A: graduated background (solid left → transparent right) */
 .pg-schema-body::before {
   content: "";
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
-  background-size: 100% 80px;
-  opacity: 0.15;
+  z-index: -2;
   pointer-events: none;
-  z-index: 0;
+
+  background: linear-gradient(
+    to right,
+    var(--page-bg) 0%,
+    var(--page-bg) 65%,
+    color-mix(in srgb, var(--page-bg) 92%, transparent) 75%,
+    color-mix(in srgb, var(--page-bg) 78%, transparent) 85%,
+    color-mix(in srgb, var(--page-bg) 55%, transparent) 92%,
+    color-mix(in srgb, var(--page-bg) 25%, transparent) 100%
+  );
+
+  /* Blur the 3D scene that shows through the right edge */
+  backdrop-filter: blur(20px) saturate(0.8);
+  -webkit-backdrop-filter: blur(20px) saturate(0.8);
 }
 
-.pg-schema-label {
+/* Layer B: faint vertical border line at panel's logical edge */
+.pg-schema-body::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--border) 10%,
+    var(--border) 90%,
+    transparent 100%
+  );
+  opacity: 0.35;
+}
+
+/* ── Bleed zone: extends PAST the panel into the canvas ──
+   Three effects layered:
+   1. Color wash that fades to transparent
+   2. Backdrop blur that softens the 3D scene
+   3. Grid lines that cross the boundary
+*/
+.pg-schema-bleed {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -80px;       /* wider bleed zone */
+  width: 80px;
+  pointer-events: none;
+  z-index: -1;
+
+  /* Color fade into nothing */
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--page-bg) 45%, transparent) 0%,
+    color-mix(in srgb, var(--page-bg) 25%, transparent) 25%,
+    color-mix(in srgb, var(--page-bg) 10%, transparent) 50%,
+    color-mix(in srgb, var(--page-bg) 3%, transparent) 75%,
+    transparent 100%
+  );
+
+  /* Blur fades out too */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  mask-image: linear-gradient(
+    to right,
+    black 0%,
+    rgba(0, 0, 0, 0.5) 40%,
+    rgba(0, 0, 0, 0.15) 70%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    black 0%,
+    rgba(0, 0, 0, 0.5) 40%,
+    rgba(0, 0, 0, 0.15) 70%,
+    transparent 100%
+  );
+}
+
+/* ── Grid lines that cross the bleed boundary ──
+   These extend from inside the panel OUT into the bleed zone,
+   creating continuity with the viewport grid.
+*/
+.pg-schema-bleed::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60px;  /* start inside the panel's right edge */
+  right: 0;
+  pointer-events: none;
+
+  background-image:
+    linear-gradient(
+      to bottom,
+      var(--border) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to right,
+      var(--border) 1px,
+      transparent 1px
+    );
+  background-size: 100% 80px, calc(100vw / 7) 100%;
+  opacity: 0.05;
+
+  /* Fade: visible on the left, vanish on the right */
+  mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.6) 0%,
+    rgba(0, 0, 0, 0.3) 40%,
+    rgba(0, 0, 0, 0.1) 70%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.6) 0%,
+    rgba(0, 0, 0, 0.3) 40%,
+    rgba(0, 0, 0, 0.1) 70%,
+    transparent 100%
+  );
+}
+
+/* ── Panel internal grid: full viewport-aligned lines ──
+   Horizontal + vertical lines matching the viewport grid.
+   Stronger on the left, fading toward the right bleed zone.
+*/
+.pg-schema-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+
+  background-image:
+    /* Horizontal lines */
+    linear-gradient(
+      to bottom,
+      var(--border) 1px,
+      transparent 1px
+    ),
+    /* Vertical lines — aligned with viewport columns */
+    linear-gradient(
+      to right,
+      var(--border) 1px,
+      transparent 1px
+    );
+  background-size: 100% 80px, calc(100vw / 7) 100%;
+
+  opacity: 0.06;
+
+  /* Compound mask:
+     - Horizontal: fade to transparent at right edge (bleed)
+     - Vertical: slightly stronger in center for code alignment feel
+  */
+  mask-image:
+    linear-gradient(
+      to right,
+      black 0%,
+      black 60%,
+      rgba(0, 0, 0, 0.4) 80%,
+      rgba(0, 0, 0, 0.15) 95%,
+      transparent 100%
+    );
+  -webkit-mask-image:
+    linear-gradient(
+      to right,
+      black 0%,
+      black 60%,
+      rgba(0, 0, 0, 0.4) 80%,
+      rgba(0, 0, 0, 0.15) 95%,
+      transparent 100%
+    );
+}
+
+/* ── All content inside panel sits above the grid ── */
+.pg-schema-content {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Section header ── */
+/* ── Panel sub-sections: slightly transparent ── */
+.pg-schema-label {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0.625rem 0.75rem;
   border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--page-bg) 85%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: relative;
+  z-index: 2;
 }
 
+.pg-schema-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 150ms ease;
+}
+
+.pg-schema-close:hover {
+  color: var(--text-primary);
+}
+
+/* ── Code / AI tabs ── */
 .pg-schema-tabs {
-  position: relative;
-  z-index: 1;
   display: flex;
   border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--page-bg) 80%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: relative;
+  z-index: 2;
 }
 
 .pg-schema-tab {
@@ -932,6 +1174,7 @@ a, button {
   font-size: 0.7rem;
   letter-spacing: 0.1em;
   color: var(--text-muted);
+  border: none;
   border-right: 1px solid var(--border);
   background: transparent;
   cursor: pointer;
@@ -952,27 +1195,160 @@ a, button {
   background: var(--accent-faint);
 }
 
+/* ── Presets bar ── */
 .pg-schema-presets {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--page-bg) 80%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: relative;
+  z-index: 2;
 }
 
+.pg-schema-presets-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  background: none;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.pg-schema-presets-btn:hover {
+  color: var(--text-primary);
+}
+
+.pg-schema-presets-chevron {
+  width: 10px;
+  height: 10px;
+  transition: transform 150ms ease;
+}
+
+.pg-schema-presets-chevron--open {
+  transform: rotate(180deg);
+}
+
+/* ── Presets dropdown ── */
+.pg-presets-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  width: 240px;
+  margin-top: 2px;
+  border: 1px solid var(--border);
+  background: var(--page-bg);
+}
+
+.pg-presets-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.pg-presets-item:last-child {
+  border-bottom: none;
+}
+
+.pg-presets-item:hover {
+  background: var(--accent-faint);
+}
+
+.pg-presets-item-name {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.pg-presets-item-desc {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
+
+.pg-presets-item-check {
+  width: 10px;
+  height: 10px;
+  color: var(--accent);
+}
+
+/* ── Status indicator dot ── */
+.pg-schema-status-dot {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.pg-schema-status-dot-circle {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.pg-schema-status-dot-circle--ok {
+  background: var(--accent);
+}
+
+.pg-schema-status-dot-circle--error {
+  background: #e57373;
+}
+
+.pg-schema-status-dot-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+/* ── Editor area ── */
+/* ── Editor area: ensure Monaco bg is transparent ──
+   Monaco already uses transparent bg from theme config.
+   The content needs subtle left-side contrast reinforcement.
+*/
 .pg-schema-editor {
-  position: relative;
-  z-index: 1;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
-.pg-schema-status {
-  position: relative;
+/* Subtle left gutter reinforcement for code readability */
+.pg-schema-editor::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 48px;  /* line-number gutter area */
   z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--page-bg) 30%, transparent) 0%,
+    transparent 100%
+  );
+}
+
+/* ── Bottom status bar ── */
+.pg-schema-status {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -982,6 +1358,437 @@ a, button {
   font-size: 0.65rem;
   letter-spacing: 0.08em;
   color: var(--text-muted);
+  background: color-mix(in srgb, var(--page-bg) 85%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: relative;
+  z-index: 2;
+}
+
+/* ── AI area ── */
+.pg-ai-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ── AI input + actions: transparent over the grid ── */
+.pg-ai-input {
+  width: 100%;
+  resize: none;
+  padding: 0.75rem;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--page-bg) 60%, transparent);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  outline: none;
+  position: relative;
+  z-index: 1;
+}
+
+.pg-ai-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--page-bg) 70%, transparent);
+  position: relative;
+  z-index: 1;
+}
+
+.pg-ai-history-label {
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  border-bottom: 1px dotted var(--border);
+  background: color-mix(in srgb, var(--page-bg) 60%, transparent);
+  position: relative;
+  z-index: 1;
+}
+
+.pg-ai-history-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  transition: background-color 150ms ease;
+  position: relative;
+  z-index: 1;
+}
+
+.pg-ai-history-item:hover {
+  background: var(--accent-faint);
+}
+
+.pg-ai-history-item-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.pg-ai-history-item-prompt {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pg-ai-history-item-stats {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.pg-ai-history-undo {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  flex-shrink: 0;
+  display: flex;
+  transition: color 150ms ease;
+}
+
+.pg-ai-history-undo:hover {
+  color: var(--accent);
+}
+
+/* ── Collapsed toggle tab ── */
+.pg-schema-toggle {
+  position: fixed;
+  top: 49px;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-left: none;
+  border-top: none;
+  background: var(--page-bg);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.pg-schema-toggle:hover {
+  color: var(--accent);
+  background: var(--accent-faint);
+}
+
+.pg-schema-toggle-error {
+  color: #e57373;
+}
+
+/* ═══════════════════════════════════════════════════
+   BLUEPRINT DRAWER — Drafting sheet overlay
+   ═══════════════════════════════════════════════════ */
+
+/* ── Registration marks: corner brackets on the panel ── */
+.pg-schema-reg-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  overflow: hidden;
+}
+
+/* Shared corner bracket base */
+.pg-schema-reg-marks::before,
+.pg-schema-reg-marks::after,
+.pg-schema-reg-tl,
+.pg-schema-reg-tr,
+.pg-schema-reg-bl,
+.pg-schema-reg-br {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+  opacity: 0.2;
+  transition: opacity 300ms ease;
+}
+
+.pg-schema:hover .pg-schema-reg-tl,
+.pg-schema:hover .pg-schema-reg-tr,
+.pg-schema:hover .pg-schema-reg-bl,
+.pg-schema:hover .pg-schema-reg-br {
+  opacity: 0.45;
+}
+
+/* Top-left */
+.pg-schema-reg-tl {
+  top: 4px;
+  left: 4px;
+  border-top: 1px solid var(--accent);
+  border-left: 1px solid var(--accent);
+}
+
+/* Top-right */
+.pg-schema-reg-tr {
+  top: 4px;
+  right: 4px;
+  border-top: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+}
+
+/* Bottom-left */
+.pg-schema-reg-bl {
+  bottom: 4px;
+  left: 4px;
+  border-bottom: 1px solid var(--accent);
+  border-left: 1px solid var(--accent);
+}
+
+/* Bottom-right */
+.pg-schema-reg-br {
+  bottom: 4px;
+  right: 4px;
+  border-bottom: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+}
+
+/* ── Title block: bottom-left engineering drawing label ── */
+.pg-schema-titleblock {
+  position: absolute;
+  bottom: 36px;       /* above the status bar */
+  left: 8px;
+  z-index: 3;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  opacity: 0.08;
+  transition: opacity 400ms ease;
+}
+
+.pg-schema:hover .pg-schema-titleblock {
+  opacity: 0.18;
+}
+
+.pg-schema-titleblock-row {
+  font-family: var(--font-mono);
+  font-size: 5.5px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--accent);
+  line-height: 1.6;
+}
+
+/* ── Ruler marks along left edge ── */
+.pg-schema-ruler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.pg-schema-ruler-tick {
+  position: absolute;
+  left: 0;
+  width: 5px;
+  height: 1px;
+  background: var(--accent);
+  opacity: 0.1;
+  transition: opacity 300ms ease;
+}
+
+.pg-schema-ruler-tick--major {
+  width: 8px;
+  opacity: 0.18;
+}
+
+.pg-schema:hover .pg-schema-ruler-tick {
+  opacity: 0.15;
+}
+
+.pg-schema:hover .pg-schema-ruler-tick--major {
+  opacity: 0.3;
+}
+
+.pg-schema-ruler-num {
+  position: absolute;
+  left: 10px;
+  font-family: var(--font-mono);
+  font-size: 5px;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  opacity: 0.1;
+  transform: translateY(-50%);
+  transition: opacity 300ms ease;
+}
+
+.pg-schema:hover .pg-schema-ruler-num {
+  opacity: 0.22;
+}
+
+/* ── Drawer slide-out: subtle origin shadow ── */
+.pg-schema--open .pg-schema-body::before {
+  /* Inherited gradient from Idea 2 + add a left-edge paper shadow */
+  box-shadow: inset 6px 0 16px -8px color-mix(in srgb, var(--page-bg) 60%, black);
+}
+
+/* ── Slide-out animation enhancement ── */
+.pg-schema {
+  position: fixed;
+  top: 49px;
+  left: 0;
+  bottom: 33px;
+  z-index: 20;
+  width: 380px;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+
+  /* Smoother, more physical slide — ease-out with slight bounce */
+  transition:
+    transform 350ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 250ms ease;
+}
+
+/* Closed: slide left + slight scale-down for "putting sheet away" feel */
+.pg-schema--closed {
+  transform: translateX(-100%) scaleX(0.98);
+  transform-origin: left center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pg-schema--open {
+  transform: translateX(0) scaleX(1);
+  opacity: 1;
+}
+
+/* ── Grid cells alignment markers ── */
+.pg-schema-cellguide {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+
+  /* Vertical lines at editor tab stops (multiples of ~50px) */
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      transparent,
+      transparent 49px,
+      var(--accent) 49px,
+      var(--accent) 50px
+    );
+  opacity: 0.015;
+  transition: opacity 300ms ease;
+
+  /* Only show within the editor area (skip header/footer) */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 120px,
+    black 140px,
+    black calc(100% - 40px),
+    transparent calc(100% - 20px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 120px,
+    black 140px,
+    black calc(100% - 40px),
+    transparent calc(100% - 20px),
+    transparent 100%
+  );
+}
+
+.pg-schema:hover .pg-schema-cellguide {
+  opacity: 0.03;
+}
+
+/* ── Mobile: disable bleed, restore solid bg ── */
+@media (max-width: 768px) {
+  .pg-schema {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 33px;
+    width: 100%;
+    max-height: 50vh;
+    overflow: hidden;  /* no bleed on mobile */
+  }
+
+  .pg-schema--closed {
+    transform: translateY(100%);
+    /* No scaleX on mobile — simple vertical slide */
+  }
+
+  .pg-schema--open {
+    transform: translateY(0);
+  }
+
+  .pg-schema-bleed {
+    display: none;
+  }
+
+  .pg-schema-body::before {
+    /* Solid on mobile — no gradient */
+    background: var(--page-bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .pg-schema-body::after {
+    display: none;
+  }
+
+  .pg-schema-grid {
+    /* Simpler grid on mobile */
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  .pg-schema-editor::before {
+    display: none;
+  }
+
+  .pg-schema-label,
+  .pg-schema-tabs,
+  .pg-schema-presets,
+  .pg-schema-status {
+    background: var(--page-bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .pg-ai-input,
+  .pg-ai-actions,
+  .pg-ai-history-label {
+    background: transparent;
+  }
+
+  .pg-schema-reg-marks,
+  .pg-schema-titleblock,
+  .pg-schema-ruler,
+  .pg-schema-cellguide {
+    display: none;
+  }
 }
 
 /* ── AI area (inside schema panel) ── */
@@ -1065,7 +1872,9 @@ a, button {
   border: 1px solid var(--border);
   border-left: none;
   border-top: none;
-  background: var(--page-bg);
+  background: color-mix(in srgb, var(--page-bg) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 0.7rem;
@@ -1107,12 +1916,15 @@ a, button {
 }
 
 /* ── Node inspector ── */
+/* ── Node inspector: semi-transparent for grid bleed ── */
 .pg-inspector {
   position: fixed;
   z-index: 30;
   width: 240px;
   border: 1px solid var(--border);
-  background: var(--page-bg);
+  background: color-mix(in srgb, var(--page-bg) 95%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   pointer-events: auto;
 }
 
@@ -1185,6 +1997,7 @@ a, button {
 }
 
 /* ── Bottom status bar ── */
+/* ── Status bar: semi-transparent ── */
 .pg-status {
   position: fixed;
   bottom: 0;
@@ -1201,15 +2014,26 @@ a, button {
   letter-spacing: 0.12em;
   color: var(--text-muted);
   border-top: 1px solid var(--border);
-  background: var(--page-bg);
+  background: color-mix(in srgb, var(--page-bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-.pg-status-center {
+/* ── Camera coordinate readout ── */
+.pg-status-cam {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   color: var(--text-muted);
-  opacity: 0.6;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  transition: opacity 200ms ease;
+}
+
+.pg-status:hover .pg-status-cam {
+  opacity: 1;
+  color: var(--accent);
 }
 
 /* ── Presets dropdown ── */
@@ -1322,7 +2146,19 @@ a, button {
   right: 1rem;
   z-index: 15;
   pointer-events: none;
-  opacity: 0.5;
+  opacity: 0.45;
+  transition: opacity 300ms ease;
+}
+
+/* Brighten when cursor is near (parent area hover) */
+.pg-root:hover .pg-axis-gizmo {
+  opacity: 0.55;
+}
+
+/* Direct hover — make interactive for tooltip potential */
+.pg-axis-gizmo:hover {
+  opacity: 0.85;
+  pointer-events: auto;
 }
 
 /* ── Mobile ── */
@@ -1364,6 +2200,253 @@ a, button {
   }
 
   .pg-axis-gizmo {
+    display: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   PLAYGROUND TOP BAR — Blueprint cells
+   ═══════════════════════════════════════════════════ */
+
+.pg-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  height: 48px;
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.pg-topbar > * {
+  pointer-events: auto;
+}
+
+/* ── Left cluster: brand + label ── */
+.pg-topbar-left {
+  display: flex;
+  align-items: stretch;
+  background: color-mix(in srgb, var(--page-bg) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  /* Right edge connects to the fading middle */
+}
+
+/* ── Middle: transparent, fading vertical lines ── */
+.pg-topbar-mid {
+  flex: 1;
+  position: relative;
+  pointer-events: none;
+
+  /* Vertical lines that fade at both edges */
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      var(--border) 0px,
+      var(--border) 1px,
+      transparent 1px,
+      transparent 200px
+    );
+
+  /* Fade: transparent at edges, faint in the middle */
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.12) 15%,
+    rgba(0, 0, 0, 0.08) 50%,
+    rgba(0, 0, 0, 0.12) 85%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.12) 15%,
+    rgba(0, 0, 0, 0.08) 50%,
+    rgba(0, 0, 0, 0.12) 85%,
+    transparent 100%
+  );
+}
+
+/* A faint horizontal line through the middle of the bar */
+.pg-topbar-mid::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.3;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 20%,
+    black 80%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 20%,
+    black 80%,
+    transparent 100%
+  );
+}
+
+/* ── Right cluster: action buttons ── */
+.pg-topbar-right {
+  display: flex;
+  align-items: stretch;
+  background: color-mix(in srgb, var(--page-bg) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Individual cell (used for every button/link) ── */
+.pg-topbar-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0 1rem;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  border-right: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* First cell in left cluster gets left border */
+.pg-topbar-left .pg-topbar-cell:first-child {
+  border-left: none;
+}
+
+/* Last cell in right cluster loses right border */
+.pg-topbar-right .pg-topbar-cell:last-child {
+  border-right: none;
+}
+
+/* Left border on first right-cluster cell */
+.pg-topbar-right .pg-topbar-cell:first-child {
+  border-left: 1px solid var(--border);
+}
+
+.pg-topbar-cell:hover {
+  color: var(--text-primary);
+  background: var(--accent-faint);
+}
+
+/* ── Cell variants ── */
+.pg-topbar-cell--brand {
+  gap: 0.5rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+
+.pg-topbar-cell--brand:hover {
+  color: var(--text-primary);
+  background: var(--accent-faint);
+}
+
+.pg-topbar-cell--mono {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.pg-topbar-cell--mono:hover {
+  color: var(--text-secondary);
+}
+
+.pg-topbar-cell--accent {
+  color: var(--accent);
+}
+
+.pg-topbar-cell--accent:hover {
+  color: var(--accent);
+  background: var(--accent-faint);
+}
+
+/* Icon-only cell: square-ish */
+.pg-topbar-cell--icon {
+  padding: 0 0.75rem;
+}
+
+/* ── Overflow dropdown ── */
+.pg-overflow-anchor {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.pg-overflow {
+  position: absolute;
+  top: calc(100% + 1px);
+  right: 0;
+  z-index: 60;
+  width: 220px;
+  border: 1px solid var(--border);
+  border-top: none;
+  background: var(--page-bg);
+}
+
+.pg-overflow-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.pg-overflow-item:last-child {
+  border-bottom: none;
+}
+
+.pg-overflow-item:hover {
+  color: var(--text-primary);
+  background: var(--accent-faint);
+}
+
+.pg-overflow-item-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pg-overflow-item-shortcut {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  .pg-topbar-mid {
+    display: none;
+  }
+
+  .pg-topbar-left {
+    flex: 1;
+  }
+
+  .pg-topbar-cell span.pg-topbar-hide-mobile {
     display: none;
   }
 }

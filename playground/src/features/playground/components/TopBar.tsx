@@ -9,8 +9,8 @@ import {
   MoreHorizontal,
   Image,
   RotateCcw,
-  Keyboard,
   Maximize,
+  Keyboard,
 } from "lucide-react";
 import { Leaf } from "../../shared/ui/Leaf";
 
@@ -30,6 +30,7 @@ export function TopBar({
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
 
+  // Close overflow on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (
@@ -43,9 +44,18 @@ export function TopBar({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Close overflow on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOverflowOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   return (
     <header className="pg-topbar">
-      {/* ── Left cells ── */}
+      {/* ═══ Left cluster ═══ */}
       <div className="pg-topbar-left">
         <Link href="/" className="pg-topbar-cell pg-topbar-cell--brand">
           <Leaf />
@@ -56,11 +66,12 @@ export function TopBar({
         </span>
       </div>
 
-      {/* ── Middle: fading grid lines ── */}
-      <div className="pg-topbar-mid" />
+      {/* ═══ Middle: fading blueprint lines ═══ */}
+      <div className="pg-topbar-mid" aria-hidden="true" />
 
-      {/* ── Right cells ── */}
+      {/* ═══ Right cluster ═══ */}
       <div className="pg-topbar-right">
+        {/* Share */}
         <button
           type="button"
           onClick={onShareClick}
@@ -68,13 +79,14 @@ export function TopBar({
           aria-label="Share"
         >
           <Share2 className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Share</span>
+          <span className="pg-topbar-hide-mobile">Share</span>
         </button>
 
+        {/* Theme toggle */}
         <button
           type="button"
           onClick={onThemeToggle}
-          className="pg-topbar-cell"
+          className="pg-topbar-cell pg-topbar-cell--icon"
           aria-label="Toggle theme"
         >
           {resolvedTheme === "dark" ? (
@@ -84,52 +96,72 @@ export function TopBar({
           )}
         </button>
 
-        {/* ── Overflow ── */}
-        <div className="relative" ref={overflowRef}>
+        {/* Overflow menu */}
+        <div className="pg-overflow-anchor" ref={overflowRef}>
           <button
             type="button"
             onClick={() => setOverflowOpen((o) => !o)}
-            className="pg-topbar-cell"
-            aria-label="More"
+            className="pg-topbar-cell pg-topbar-cell--icon"
+            aria-label="More options"
+            aria-expanded={overflowOpen}
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
           </button>
 
           {overflowOpen && (
-            <div className="pg-overflow">
+            <div className="pg-overflow" role="menu">
               <button
                 className="pg-overflow-item"
+                role="menuitem"
                 onClick={() => {
                   onExportPngClick();
                   setOverflowOpen(false);
                 }}
               >
-                <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span className="pg-overflow-item-label">
                   <Image className="h-3.5 w-3.5" />
                   Export PNG
                 </span>
-                <span>⌘⇧E</span>
+                <span className="pg-overflow-item-shortcut">⌘⇧E</span>
               </button>
-              <button className="pg-overflow-item" onClick={() => setOverflowOpen(false)}>
-                <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+
+              <button
+                className="pg-overflow-item"
+                role="menuitem"
+                onClick={() => setOverflowOpen(false)}
+              >
+                <span className="pg-overflow-item-label">
                   <RotateCcw className="h-3.5 w-3.5" />
                   Reset camera
                 </span>
-                <span>⌘R</span>
+                <span className="pg-overflow-item-shortcut">⌘R</span>
               </button>
-              <button className="pg-overflow-item" onClick={() => setOverflowOpen(false)}>
-                <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+
+              <button
+                className="pg-overflow-item"
+                role="menuitem"
+                onClick={() => {
+                  document.documentElement.requestFullscreen?.();
+                  setOverflowOpen(false);
+                }}
+              >
+                <span className="pg-overflow-item-label">
                   <Maximize className="h-3.5 w-3.5" />
                   Fullscreen
                 </span>
-                <span>F</span>
+                <span className="pg-overflow-item-shortcut">F</span>
               </button>
-              <button className="pg-overflow-item" onClick={() => setOverflowOpen(false)}>
-                <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+
+              <button
+                className="pg-overflow-item"
+                role="menuitem"
+                onClick={() => setOverflowOpen(false)}
+              >
+                <span className="pg-overflow-item-label">
                   <Keyboard className="h-3.5 w-3.5" />
                   Shortcuts
                 </span>
-                <span>⌘?</span>
+                <span className="pg-overflow-item-shortcut">⌘?</span>
               </button>
             </div>
           )}

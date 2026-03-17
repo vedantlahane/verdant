@@ -21,18 +21,27 @@ export class R3FErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-          <AlertTriangle className="h-10 w-10 text-amber-400" />
-          <p className="text-sm font-medium text-[color:var(--text-primary)]">
-            Renderer crashed
-          </p>
-          <p className="max-w-xs font-mono text-xs text-[color:var(--text-secondary)]">
+        <div className="pg-empty">
+          <AlertTriangle
+            style={{ width: 32, height: 32, color: "var(--warm)" }}
+          />
+          <span className="pg-empty-title">Renderer crashed.</span>
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "0.7rem",
+              color: "var(--text-muted)",
+              maxWidth: "20rem",
+              textAlign: "center",
+            }}
+          >
             {this.state.error?.message}
-          </p>
+          </span>
           <button
             type="button"
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="mt-2 rounded-full border border-[color:var(--border-subtle)] px-4 py-2 text-xs transition hover:bg-white/5"
+            className="btn-secondary"
+            style={{ marginTop: "0.5rem", fontSize: "0.75rem", padding: "0.5rem 1rem" }}
           >
             Retry
           </button>

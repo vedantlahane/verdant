@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment } from '@react-three/drei';
+import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import * as THREE from 'three';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
 import { VrdAST } from '@repo/parser';
 import { useRendererStore } from './store';
 
@@ -30,31 +31,58 @@ export interface VerdantRendererProps {
   height?: string | number;
   className?: string;
   autoRotate?: boolean;
+  onNodeClick?: (info: {
+    nodeId: string;
+    screenX: number;
+    screenY: number;
+  }) => void;
 }
 
 // ============================================
-// Component Type → React Component Map
+// Node type → Component map
 // ============================================
 
-const NODE_COMPONENT_MAP: Record<string, React.ComponentType<NodeProps>> = {
-  server:   ServerNode,
+const NODE_MAP: Record<string, React.ComponentType<NodeProps>> = {
+  server: ServerNode,
   database: DatabaseNode,
-  cache:    CacheNode,
-  gateway:  GatewayNode,
-  service:  ServiceNode,
-  user:     UserNode,
-  client:   UserNode,
-  queue:    QueueNode,
-  cloud:    CloudNode,
-  storage:  StorageNode,
-  monitor:  MonitorNode,
+  cache: CacheNode,
+  gateway: GatewayNode,
+  service: ServiceNode,
+  user: UserNode,
+  client: UserNode,
+  queue: QueueNode,
+  cloud: CloudNode,
+  storage: StorageNode,
+  monitor: MonitorNode,
 };
 
 // ============================================
-// Scene Content (inside Canvas)
+// Helper: project 3D position → screen coords
 // ============================================
 
-function SceneContent({ autoRotate = true }: { autoRotate?: boolean }) {
+function projectToScreen(
+  worldPos: [number, number, number],
+  camera: THREE.Camera,
+  size: { width: number; height: number },
+): { x: number; y: number } {
+  const vec = new THREE.Vector3(...worldPos);
+  vec.project(camera);
+  return {
+    x: ((vec.x + 1) / 2) * size.width,
+    y: ((-vec.y + 1) / 2) * size.height,
+  };
+}
+
+// ============================================
+// Scene Content (lives inside Canvas)
+// ============================================
+
+interface SceneContentProps {
+  autoRotate: boolean;
+  onNodeClick?: VerdantRendererProps['onNodeClick'];
+}
+
+function SceneContent({ autoRotate, onNodeClick }: SceneContentProps) {
   const {
     ast,
     positions,
@@ -66,11 +94,12 @@ function SceneContent({ autoRotate = true }: { autoRotate?: boolean }) {
     themeColors,
   } = useRendererStore();
 
+  const { camera, size } = useThree();
   const controlsRef = useRef<any>(null);
-  const idleTimerRef = useRef<number>(0);
+  const idleTimerRef = useRef(0);
   const isInteractingRef = useRef(false);
 
-  // Auto-rotation: pause on interaction, resume after 3s idle
+  // ── Auto-rotation: pause on interaction, resume after 3s ──
   useFrame((_, delta) => {
     if (!controlsRef.current || !autoRotate) return;
 
@@ -85,15 +114,33 @@ function SceneContent({ autoRotate = true }: { autoRotate?: boolean }) {
     }
   });
 
-  const handlePointerMissed = () => {
+  // ── Click handler with screen-space projection ──
+  const handleNodeClick = useCallback(
+    (nodeId: string, position: [number, number, number], e: any) => {
+      e.stopPropagation();
+      selectNode(nodeId);
+
+      if (onNodeClick) {
+        const screen = projectToScreen(position, camera, size);
+        onNodeClick({
+          nodeId,
+          screenX: screen.x,
+          screenY: screen.y,
+        });
+      }
+    },
+    [camera, size, selectNode, onNodeClick],
+  );
+
+  const handlePointerMissed = useCallback(() => {
     selectNode(null);
-  };
+  }, [selectNode]);
 
   if (!ast) return null;
 
   return (
     <>
-      {/* Lighting */}
+      {/* ── Lighting ── */}
       <ambientLight intensity={0.5} />
       <directionalLight
         position={[10, 20, 10]}
@@ -103,25 +150,31 @@ function SceneContent({ autoRotate = true }: { autoRotate?: boolean }) {
       />
       <pointLight position={[-10, -10, -10]} intensity={0.3} />
 
-      {/* Ground plane (subtle grid) */}
+      {/* ── Ground grid ── */}
       <gridHelper
         args={[40, 40, themeColors.accent, `${themeColors.accent}22`]}
         position={[0, -2, 0]}
-        rotation={[0, 0, 0]}
       />
 
-      {/* Fog for depth */}
+      {/* ── Fog ── */}
       <fog attach="fog" args={[themeColors.background, 20, 60]} />
 
-      {/* Nodes */}
+      {/* ── Nodes + Edges + Groups ── */}
       <group onPointerMissed={handlePointerMissed}>
+        {/* Nodes */}
         {ast.nodes.map((node) => {
           const position = positions[node.id] || [0, 0, 0];
           const isSelected = selectedNodeId === node.id;
           const isHovered = hoveredNodeId === node.id;
-          const color = getNodeColor(node.type, node.props.color as string);
+          const color = getNodeColor(
+            node.type,
+            node.props.color as string,
+          );
 
-          const commonProps: NodeProps = {
+          const Component =
+            NODE_MAP[node.type.toLowerCase()] || ServerNode;
+
+          const props: NodeProps = {
             label: (node.props.label as string) || node.id,
             position,
             selected: isSelected,
@@ -129,39 +182,36 @@ function SceneContent({ autoRotate = true }: { autoRotate?: boolean }) {
             color,
             size: (node.props.size as string) || 'md',
             glow: node.props.glow === true,
-            onClick: (e) => {
-              e.stopPropagation();
-              selectNode(node.id);
-            },
+            onClick: (e) => handleNodeClick(node.id, position, e),
             onPointerOver: (e) => {
               e.stopPropagation();
               hoverNode(node.id);
+              document.body.style.cursor = 'pointer';
             },
             onPointerOut: () => {
               hoverNode(null);
+              document.body.style.cursor = '';
             },
           };
 
-          const Component =
-            NODE_COMPONENT_MAP[node.type.toLowerCase()] || ServerNode;
-
-          return <Component key={node.id} {...commonProps} />;
+          return <Component key={node.id} {...props} />;
         })}
 
         {/* Edges */}
-        {ast.edges.map((edge, index) => {
+        {ast.edges.map((edge, i) => {
           const fromPos = positions[edge.from];
           const toPos = positions[edge.to];
-
           if (!fromPos || !toPos) return null;
 
           return (
             <EdgeLine
-              key={`edge-${edge.from}-${edge.to}-${index}`}
+              key={`edge-${edge.from}-${edge.to}-${i}`}
               from={fromPos}
               to={toPos}
               label={edge.props.label}
-              animated={edge.props.style === 'animated' || !edge.props.style}
+              animated={
+                edge.props.style === 'animated' || !edge.props.style
+              }
               style={edge.props.style || 'solid'}
               color={edge.props.color || themeColors.edgeDefault}
               width={edge.props.width}
@@ -177,16 +227,21 @@ function SceneContent({ autoRotate = true }: { autoRotate?: boolean }) {
 
           if (childPositions.length === 0) return null;
 
-          // Calculate bounding box
           const padding = 1.5;
-          let minX = Infinity, maxX = -Infinity;
-          let minY = Infinity, maxY = -Infinity;
-          let minZ = Infinity, maxZ = -Infinity;
+          let minX = Infinity,
+            maxX = -Infinity;
+          let minY = Infinity,
+            maxY = -Infinity;
+          let minZ = Infinity,
+            maxZ = -Infinity;
 
           childPositions.forEach(([x, y, z]) => {
-            minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-            minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-            minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+            minZ = Math.min(minZ, z);
+            maxZ = Math.max(maxZ, z);
           });
 
           const cx = (minX + maxX) / 2;
@@ -196,9 +251,11 @@ function SceneContent({ autoRotate = true }: { autoRotate?: boolean }) {
           const sy = maxY - minY + padding * 2;
           const sz = Math.max(maxZ - minZ + padding * 2, 0.1);
 
+          const boxGeo = new THREE.BoxGeometry(sx, sy, sz);
+
           return (
             <group key={`group-${group.id}`}>
-              {/* Bounding box wireframe */}
+              {/* Fill */}
               <mesh position={[cx, cy, cz]}>
                 <boxGeometry args={[sx, sy, sz]} />
                 <meshBasicMaterial
@@ -208,24 +265,21 @@ function SceneContent({ autoRotate = true }: { autoRotate?: boolean }) {
                   depthWrite={false}
                 />
               </mesh>
+              {/* Wireframe */}
               <lineSegments position={[cx, cy, cz]}>
-                <edgesGeometry
-                  args={[new THREE.BoxGeometry(sx, sy, sz)]}
-                />
+                <edgesGeometry args={[boxGeo]} />
                 <lineBasicMaterial
                   color={themeColors.accent}
                   transparent
                   opacity={0.25}
                 />
               </lineSegments>
-              {/* Group label */}
-              {/* TODO: Use Text from @react-three/drei for group label */}
             </group>
           );
         })}
       </group>
 
-      {/* Controls */}
+      {/* ── Controls ── */}
       <OrbitControls
         ref={controlsRef}
         makeDefault
@@ -235,72 +289,55 @@ function SceneContent({ autoRotate = true }: { autoRotate?: boolean }) {
         maxDistance={50}
         autoRotate={autoRotate}
         autoRotateSpeed={0.5}
-        onStart={() => { isInteractingRef.current = true; }}
-        onEnd={() => { isInteractingRef.current = false; }}
+        onStart={() => {
+          isInteractingRef.current = true;
+        }}
+        onEnd={() => {
+          isInteractingRef.current = false;
+        }}
       />
     </>
   );
 }
 
 // ============================================
-// Main Renderer Component
+// Main Renderer
 // ============================================
-
-import * as THREE from 'three';
 
 export function VerdantRenderer({
   ast,
-  theme = 'moss',
-  width = '100%',
-  height = '100%',
+  theme = "moss",
+  width = "100%",
+  height = "100%",
   className,
   autoRotate = true,
+  onNodeClick,
 }: VerdantRendererProps) {
-  const { setAst, setTheme, themeColors } = useRendererStore();
+  const { setAst, setTheme } = useRendererStore();
 
-  useEffect(() => {
-    setAst(ast);
-  }, [ast, setAst]);
+  useEffect(() => { setAst(ast); }, [ast, setAst]);
+  useEffect(() => { setTheme(theme); }, [theme, setTheme]);
 
-  useEffect(() => {
-    setTheme(theme);
-  }, [theme, setTheme]);
+  // Background is ALWAYS page-bg (black or white). No theme-colored backgrounds.
+  const bg = typeof document !== "undefined"
+    ? getComputedStyle(document.documentElement).getPropertyValue("--page-bg").trim() || "#000000"
+    : "#000000";
 
-  const cameraConfig = useMemo(() => {
-    const type = ast.config.camera || 'perspective';
-    return {
-      fov: type === 'perspective' ? 45 : undefined,
-      position: [0, 6, 12] as [number, number, number],
-      orthographic: type === 'orthographic',
-    };
-  }, [ast.config.camera]);
+  const cameraConfig = useMemo(() => ({
+    position: [0, 6, 12] as [number, number, number],
+    fov: ast.config.camera === "orthographic" ? undefined : 45,
+  }), [ast.config.camera]);
 
   return (
-    <div
-      className={className}
-      style={{
-        width,
-        height,
-        background: themeColors.background,
-        borderRadius: '1rem',
-        overflow: 'hidden',
-      }}
-    >
+    <div className={className} style={{ width, height, overflow: "hidden" }}>
       <Canvas
-        style={{ width: '100%', height: '100%' }}
-        camera={{
-          position: cameraConfig.position,
-          fov: cameraConfig.fov || 45,
-        }}
-        gl={{
-          preserveDrawingBuffer: true,
-          antialias: true,
-          alpha: true,
-        }}
+        style={{ width: "100%", height: "100%" }}
+        camera={{ position: cameraConfig.position, fov: cameraConfig.fov || 45 }}
+        gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }}
         dpr={[1, 2]}
       >
-        <color attach="background" args={[themeColors.background]} />
-        <SceneContent autoRotate={autoRotate} />
+        <color attach="background" args={[bg]} />
+        <SceneContent autoRotate={autoRotate} onNodeClick={onNodeClick} />
       </Canvas>
     </div>
   );

@@ -28,14 +28,19 @@ export function Editor({ code, onChange, onMount, theme }: EditorProps) {
         selectionHighlight: true,
         scrollBeyondLastLine: false,
         automaticLayout: true,
-        padding: { top: 16, bottom: 16 },
+        padding: { top: 12, bottom: 12 },
         cursorSmoothCaretAnimation: "on",
         smoothScrolling: true,
         wordWrap: "on",
-        lineHeight: 1.6,
-        glyphMargin: true,
+        lineHeight: 1.7,
+        glyphMargin: false,
         folding: true,
         renderLineHighlight: "all",
+        overviewRulerBorder: false,
+        scrollbar: {
+          verticalScrollbarSize: 6,
+          horizontalScrollbarSize: 6,
+        },
       }}
       onChange={onChange}
       onMount={onMount}

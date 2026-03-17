@@ -1,14 +1,15 @@
+"use client";
+
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { R3FErrorBoundary } from "./R3FErrorBoundary";
-import { VrdParseResult } from "@repo/parser";
 
 const VerdantRenderer = dynamic(
   () => import("@repo/renderer").then((mod) => mod.VerdantRenderer),
   {
     ssr: false,
     loading: () => null,
-  }
+  },
 );
 
 interface CanvasPreviewProps {
@@ -17,6 +18,8 @@ interface CanvasPreviewProps {
   ast: any;
   resolvedTheme: "light" | "dark";
   errorCount: number;
+  onNodeClick?: (info: { nodeId: string; screenX: number; screenY: number }) => void;
+  onOpenSchema?: () => void;
 }
 
 export function CanvasPreview({
@@ -25,18 +28,37 @@ export function CanvasPreview({
   ast,
   resolvedTheme,
   errorCount,
+  onNodeClick,
+  onOpenSchema,
 }: CanvasPreviewProps) {
   return (
-    <div className="playground-canvas">
+    <div className="pg-canvas">
+      {/* Loader */}
       {!isRendererReady && (
-        <div className="playground-loader">
-          <Loader2 className="h-8 w-8 animate-spin text-[color:var(--accent-primary)]" />
-          <span className="mt-3 text-xs uppercase tracking-[0.2em] text-[color:var(--text-muted)]">
-            Initializing scene
+        <div className="pg-canvas-loader">
+          <Loader2
+            style={{
+              width: 24,
+              height: 24,
+              animation: "spin 1s linear infinite",
+              color: "var(--accent)",
+            }}
+          />
+          <span
+            style={{
+              marginTop: "0.75rem",
+              fontFamily: "var(--font-mono)",
+              fontSize: "0.65rem",
+              letterSpacing: "0.2em",
+              color: "var(--text-muted)",
+            }}
+          >
+            initializing scene
           </span>
         </div>
       )}
 
+      {/* 3D Scene or Empty State */}
       {hasContent ? (
         <R3FErrorBoundary>
           <VerdantRenderer
@@ -45,16 +67,39 @@ export function CanvasPreview({
             width="100%"
             height="100%"
             autoRotate
+            onNodeClick={onNodeClick}
           />
         </R3FErrorBoundary>
       ) : (
-        <div className="flex h-full flex-col items-center justify-center gap-4">
-          <div className="h-28 w-28 rounded-full border border-[color:var(--border-subtle)] bg-[radial-gradient(circle,rgba(82,183,136,0.12),transparent_70%)]" />
-          <p className="text-sm text-[color:var(--text-muted)]">
+        <div className="pg-empty">
+          <span className="pg-empty-title">
+            {errorCount > 0 ? "Syntax needs fixing." : "Write something."}
+          </span>
+          <span className="pg-empty-desc">
             {errorCount > 0
-              ? "Fix syntax errors to render"
-              : "Add nodes to see the scene"}
-          </p>
+              ? "Check the schema panel for errors — fix them and your diagram will appear."
+              : "Open the schema panel and describe your system in .vrd syntax. Nodes and edges will render here instantly."}
+          </span>
+          {!errorCount && onOpenSchema && (
+            <div className="btn-group" style={{ marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={onOpenSchema}
+                style={{ fontSize: "0.75rem", padding: "0.5rem 1rem" }}
+              >
+                Open schema
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={onOpenSchema}
+                style={{ fontSize: "0.75rem", padding: "0.5rem 0.75rem" }}
+              >
+                ◁
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

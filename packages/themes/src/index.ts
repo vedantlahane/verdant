@@ -22,6 +22,7 @@ export const THEMES_LIST: Theme[] = [
   ash,
 ];
 
-export { Theme, ThemeColors, THEME_COLORS, DEFAULT_NODE_COLORS };
+export type { Theme, ThemeColors };
+export { THEME_COLORS, DEFAULT_NODE_COLORS };
 
 export const DEFAULT_THEME = moss;

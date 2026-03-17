@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@repo/parser": "workspace:*",
-    "@repo/components": "workspace:*"
+    "@repo/components": "workspace:*",
+    "@repo/themes": "workspace:*"
   }
 }

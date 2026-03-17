@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
+import LeafCursor from "../features/shared/ui/LeafCursor";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -97,6 +98,7 @@ export default function RootLayout({
             `,
           }}
         />
+        <LeafCursor />
         {children}
         <Toaster position="bottom-right" richColors theme="system" />
       </body>

@@ -76,6 +76,12 @@ interface Particle {
   colIndex: number;
   settled: boolean;
   opacity: number;
+  /* ---- reverse fields ---- */
+  savedX: number;
+  savedY: number;
+  savedRotation: number;
+  reversing: boolean;
+  hasSavedPosition: boolean;
 }
 
 export interface LeafRainProps extends HTMLAttributes<HTMLDivElement> {
@@ -100,10 +106,12 @@ export function LeafRain({
   const S = useRef({
     active: false,
     running: false,
+    reversing: false,          // global "some leaves are flying back"
     frame: 0,
     lastSpawn: 0,
     leaves: [] as Particle[],
     columns: [] as number[],
+    savedColumns: [] as number[], // snapshot taken on mouse-leave
     sprite: null as HTMLCanvasElement | null,
   });
 
@@ -113,7 +121,9 @@ export function LeafRain({
   const COL_W = 12;
   const PILE_H = 8;
   const DEG2RAD = Math.PI / 180;
+  const REVERSE_LERP = 0.12;   // how snappy the rewind feels
 
+  /* ------------------------------------------------------------------ */
   const tick = useCallback((time: number) => {
     const s = S.current;
     const { spawnInterval: interval, maxLeaves: cap } = cfg.current;
@@ -144,7 +154,13 @@ export function LeafRain({
     const { leaves, columns, sprite } = s;
     const numCols = columns.length;
 
-    if (s.active && leaves.length < cap && time - s.lastSpawn > interval) {
+    /* ---------- spawn (paused while leaves are reversing) ---------- */
+    if (
+      s.active &&
+      !s.reversing &&
+      leaves.length < cap &&
+      time - s.lastSpawn > interval
+    ) {
       let available: number[] | null = null;
       for (let i = 0; i < numCols; i++) {
         if (columns[i] < h + 20) {
@@ -167,18 +183,46 @@ export function LeafRain({
           colIndex: ci,
           settled: false,
           opacity: 0.4 + Math.random() * 0.6,
+          savedX: 0,
+          savedY: 0,
+          savedRotation: 0,
+          reversing: false,
+          hasSavedPosition: false,
         });
         s.lastSpawn = time;
       }
     }
 
+    /* ---------- update & draw ---------- */
     let alive = 0;
     let anyMoving = false;
+    let anyReversing = false;
 
     for (let i = 0, len = leaves.length; i < len; i++) {
       const p = leaves[i];
 
-      if (!p.settled) {
+      if (p.reversing) {
+        /* ---- fly back to saved position ---- */
+        anyMoving = true;
+        anyReversing = true;
+
+        p.x += (p.savedX - p.x) * REVERSE_LERP;
+        p.y += (p.savedY - p.y) * REVERSE_LERP;
+        p.rotation += (p.savedRotation - p.rotation) * REVERSE_LERP;
+
+        if (
+          Math.abs(p.savedX - p.x) < 0.5 &&
+          Math.abs(p.savedY - p.y) < 0.5
+        ) {
+          p.x = p.savedX;
+          p.y = p.savedY;
+          p.rotation = p.savedRotation;
+          p.reversing = false;
+          p.settled = true;
+          // column space was pre-restored from savedColumns – no increment
+        }
+      } else if (!p.settled) {
+        /* ---- normal falling ---- */
         anyMoving = true;
         p.y += p.speedY;
         p.x = p.baseX + Math.sin(time * p.swaySpeed) * p.swayAmount;
@@ -186,15 +230,16 @@ export function LeafRain({
 
         const floor = h - columns[p.colIndex] - p.size * 0.5;
 
-        if (s.active && p.y >= floor) {
+        if (s.active && !s.reversing && p.y >= floor) {
           p.y = floor;
           p.settled = true;
           columns[p.colIndex] += PILE_H;
         } else if (p.y > h + 100) {
-          continue;
+          continue; // discard
         }
       }
 
+      /* ---- draw ---- */
       const hs = p.size * 0.5;
       ctx.save();
       ctx.globalAlpha = p.opacity;
@@ -207,6 +252,11 @@ export function LeafRain({
     }
     leaves.length = alive;
 
+    /* clear global flag once every leaf finished reversing */
+    if (s.reversing && !anyReversing) {
+      s.reversing = false;
+    }
+
     if (s.active || anyMoving || alive > 0) {
       s.frame = requestAnimationFrame(tick);
     } else {
@@ -215,6 +265,7 @@ export function LeafRain({
     }
   }, []);
 
+  /* ------------------------------------------------------------------ */
   const startLoop = useCallback(() => {
     const s = S.current;
     if (s.running) return;
@@ -222,6 +273,7 @@ export function LeafRain({
     s.frame = requestAnimationFrame(tick);
   }, [tick]);
 
+  /* ------------------------------------------------------------------ */
   const handleMouseEnter = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const s = S.current;
@@ -231,12 +283,28 @@ export function LeafRain({
       if (!el) return;
 
       const numCols = Math.max(1, (el.offsetWidth / COL_W) | 0);
-      if (s.columns.length !== numCols || s.columns[0] < 0) {
-        s.columns = new Array(numCols).fill(0);
+
+      // Are there any leaves we can rewind?
+      const hasReversible = s.leaves.some((p) => p.hasSavedPosition);
+
+      if (hasReversible && s.savedColumns.length === numCols) {
+        // Restore the pile heights and tell every saved leaf to fly back
+        s.columns = [...s.savedColumns];
+        s.reversing = true;
+        for (const p of s.leaves) {
+          if (p.hasSavedPosition) {
+            p.reversing = true;
+            p.settled = false;
+          }
+        }
+      } else {
+        // Fresh start (first hover or container resized)
+        if (s.columns.length !== numCols || s.columns[0] < 0) {
+          s.columns = new Array(numCols).fill(0);
+        }
       }
 
-      // (Re)create the sprite on every mouse enter so it reflects
-      // the current CSS custom properties (theme changes).
+      // (Re)create sprite so theme changes are picked up
       const cs = getComputedStyle(el);
       s.sprite = createLeafSprite([
         cs.getPropertyValue("--accent-light").trim() || "#95D5B2",
@@ -250,20 +318,46 @@ export function LeafRain({
     [onMouseEnter, startLoop]
   );
 
+    /* ------------------------------------------------------------------ */
   const handleMouseLeave = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const s = S.current;
       s.active = false;
+      s.reversing = false;
+
+      // Snapshot the pile so we can restore it on re-entry
+      s.savedColumns = [...s.columns];
       s.columns.fill(-1000);
+
       for (const p of s.leaves) {
+        if (p.settled) {
+          // remember exactly where this leaf sat
+          p.savedX = p.x;
+          p.savedY = p.y;
+          p.savedRotation = p.rotation;
+          p.hasSavedPosition = true;
+        } else if (p.reversing) {
+          // was mid-reverse when user left again —
+          // keep the original saved target, just let it fall now
+          p.reversing = false;
+          p.hasSavedPosition = true; // still has a valid target for next enter
+        } else {
+          // was still falling, never settled — no saved pos
+          p.hasSavedPosition = false;
+        }
+
+        // make every leaf fall
         p.settled = false;
+        p.reversing = false;
         p.speedY = 2 + Math.random() * 4;
       }
+
       onMouseLeave?.(e);
     },
     [onMouseLeave]
   );
 
+  /* ------------------------------------------------------------------ */
   useEffect(() => {
     return () => {
       cancelAnimationFrame(S.current.frame);
@@ -271,6 +365,7 @@ export function LeafRain({
     };
   }, []);
 
+  /* ------------------------------------------------------------------ */
   return (
     <div
       ref={containerRef}

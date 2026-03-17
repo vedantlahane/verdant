@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { THEMES_LIST } from "../../landing/constants";
+import { THEMES_LIST } from "@repo/themes";
 
 interface ThemeInkSelectorProps {
   activeTheme: typeof THEMES_LIST[0];

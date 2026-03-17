@@ -1,6 +1,8 @@
+import { THEMES_LIST } from "@repo/themes";
+
 export const CODE_LINES = [
   "# My Architecture",
-  "theme: moss",
+  `theme: ${THEMES_LIST[0].name}`,
   "",
   "server web-server",
   "database postgres",
@@ -15,13 +17,4 @@ export const COMPONENTS = [
   "cloud", "user", "service", "storage", "monitor",
 ];
 
-export const THEMES_LIST = [
-  { name: "moss", color: "#52B788" },
-  { name: "sage", color: "#84A98C" },
-  { name: "fern", color: "#70E000" },
-  { name: "bloom", color: "#EC4899" },
-  { name: "dusk", color: "#A855F7" },
-  { name: "stone", color: "#64748B" },
-  { name: "ember", color: "#F59E0B" },
-  { name: "frost", color: "#38BDF8" },
-];
+export { THEMES_LIST };

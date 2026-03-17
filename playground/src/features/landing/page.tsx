@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useThemeMode } from "@/features/shared/ui/useThemeMode";
+import { useThemeMode } from "@/features/shared/hooks/useThemeMode";
 import { Navbar } from "@/features/landing/components/Navbar";
 import { Footer } from "@/features/landing/components/Footer";
 import { Hero } from "@/features/landing/components/Hero";

@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Github, Sun, Moon, Menu, X } from "lucide-react";
 import { Leaf } from "../../shared/ui/Leaf";
 import { ThemeToggle } from "@/features/shared/ui/ThemeToggle";
-import { ThemeMode } from "@/features/shared/ui/useThemeMode";
+import { ThemeMode } from "@/features/shared/hooks/useThemeMode";
 import { LeafRain } from "@/features/shared/ui/LeafRain";
 
 interface NavbarProps {

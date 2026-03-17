@@ -9,7 +9,7 @@ import {
 } from "react";
 import { parseVrdSafe, VrdParseResult } from "@repo/parser";
 import { toast } from "sonner";
-import { useThemeMode } from "@/features/shared/ui/useThemeMode";
+import { useThemeMode } from "@/features/shared/hooks/useThemeMode";
 
 import { PRESETS } from "@/features/playground/constants";
 import { useMonacoSetup } from "@/features/playground/hooks/useMonacoSetup";

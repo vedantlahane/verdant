@@ -1,6 +1,7 @@
 packages:
-  - "apps/*"
+  - "playground"
   - "packages/*"
+  - "tools/*"
 allowBuilds:
   sharp: false
   unrs-resolver: false

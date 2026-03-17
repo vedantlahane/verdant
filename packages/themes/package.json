@@ -1,0 +1,17 @@
+{
+  "name": "@repo/themes",
+  "version": "1.0.0",
+  "description": "Shared theme definitions for Verdant",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.32.1"
+}

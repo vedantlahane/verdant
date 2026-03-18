@@ -38,10 +38,11 @@ export function EdgeLine({
   }, [from, to]);
 
   // Animated dash offset
-  useFrame(({ clock }) => {
+  useFrame(() => {
     if (!dashRef.current) return;
     if (animated || style === 'animated') {
-      dashRef.current.material.dashOffset = -clock.getElapsedTime() * 0.5;
+      const elapsed = performance.now() / 1000;
+      dashRef.current.material.dashOffset = -elapsed * 0.5;
     }
   });
 

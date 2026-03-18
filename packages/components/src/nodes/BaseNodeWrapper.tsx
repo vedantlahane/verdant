@@ -28,9 +28,9 @@ export function BaseNodeWrapper({
   const scale = SIZE_SCALE[size] || 1.0;
 
   // Breathing animation: gentle sine wave float
-  useFrame(({ clock }) => {
+  useFrame(() => {
     if (!groupRef.current) return;
-    const t = clock.getElapsedTime();
+    const t = performance.now() / 1000;
     const nodeIndex = position[0] * 7 + position[2] * 13; // unique phase per node
     const breathe = Math.sin(t * 0.8 + nodeIndex) * 0.05;
     groupRef.current.position.y = position[1] + breathe;

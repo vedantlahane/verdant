@@ -314,7 +314,7 @@ export function PlaygroundApp() {
       />
 
       {/* Layer 1: Grid overlay (viewport — fades at edges) */}
-      <div className="pg-grid" aria-hidden="true" />
+      {/* <div className="pg-grid" aria-hidden="true" /> */}
 
       {/* Layer 1.5: Grid-through — ghost lines over ALL UI */}
       <div className="pg-grid-through" aria-hidden="true" />

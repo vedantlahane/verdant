@@ -9,7 +9,14 @@ export interface Position3D {
 }
 
 // ============================================
-// Deterministic seeded random (for consistent layouts)
+// Constants
+// ============================================
+
+/** Minimum world-unit distance between any two nodes */
+const MIN_NODE_DISTANCE = 4.5;
+
+// ============================================
+// Deterministic seeded random
 // ============================================
 
 function seededRandom(seed: number): () => number {
@@ -29,6 +36,48 @@ function hashString(str: string): number {
 }
 
 // ============================================
+// Minimum distance enforcement pass
+// ============================================
+
+function enforceMinimumDistances(
+  positions: Map<string, Position3D>,
+  minDist: number,
+  passes = 10,
+): void {
+  const ids = Array.from(positions.keys());
+
+  for (let pass = 0; pass < passes; pass++) {
+    let anyMoved = false;
+
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = positions.get(ids[i])!;
+        const b = positions.get(ids[j])!;
+
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const dz = a.z - b.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.001;
+
+        if (dist < minDist) {
+          // Push apart symmetrically
+          const pushFactor = (minDist - dist) / (2 * dist);
+          const px = dx * pushFactor;
+          const py = dy * pushFactor;
+          const pz = dz * pushFactor;
+
+          a.x += px; a.y += py; a.z += pz;
+          b.x -= px; b.y -= py; b.z -= pz;
+          anyMoved = true;
+        }
+      }
+    }
+
+    if (!anyMoved) break; // Converged early
+  }
+}
+
+// ============================================
 // Main entry
 // ============================================
 
@@ -36,10 +85,9 @@ export function computeLayout(
   nodes: VrdNode[],
   edges: VrdEdge[],
   layoutType: LayoutType,
-  groups: VrdGroup[] = []
+  groups: VrdGroup[] = [],
 ): Map<string, Position3D> {
   const positions = new Map<string, Position3D>();
-
   if (nodes.length === 0) return positions;
 
   switch (layoutType) {
@@ -55,10 +103,13 @@ export function computeLayout(
       break;
   }
 
-  // Override with user-defined positions
+  // Enforce minimum spacing after layout
+  enforceMinimumDistances(positions, MIN_NODE_DISTANCE);
+
+  // User-defined positions always win
   for (const node of nodes) {
     if (node.props.position) {
-      const p = node.props.position;
+      const p = node.props.position as Position3D;
       positions.set(node.id, { x: p.x, y: p.y, z: p.z });
     }
   }
@@ -67,34 +118,37 @@ export function computeLayout(
 }
 
 // ============================================
-// Grid Layout
+// Grid Layout — 3D: rows on X, columns on Z
 // ============================================
 
 function computeGridLayout(
   nodes: VrdNode[],
-  positions: Map<string, Position3D>
+  positions: Map<string, Position3D>,
 ) {
-  const columns = Math.ceil(Math.sqrt(nodes.length));
-  const spacing = 4;
+  const cols = Math.ceil(Math.sqrt(nodes.length));
+  const spacing = Math.max(MIN_NODE_DISTANCE, 5);
 
   nodes.forEach((node, index) => {
-    const row = Math.floor(index / columns);
-    const col = index % columns;
-    const totalRows = Math.ceil(nodes.length / columns);
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const totalCols = cols;
+    const totalRows = Math.ceil(nodes.length / cols);
 
-    const x = (col - (columns - 1) / 2) * spacing;
-    const y = ((totalRows - 1) / 2 - row) * spacing; // Top to bottom
-    positions.set(node.id, { x, y, z: 0 });
+    positions.set(node.id, {
+      x: (col - (totalCols - 1) / 2) * spacing,
+      y: 0,
+      z: (row - (totalRows - 1) / 2) * spacing,
+    });
   });
 }
 
 // ============================================
-// Circular Layout
+// Circular Layout — flat on XZ plane
 // ============================================
 
 function computeCircularLayout(
   nodes: VrdNode[],
-  positions: Map<string, Position3D>
+  positions: Map<string, Position3D>,
 ) {
   const count = nodes.length;
   if (count === 1) {
@@ -102,183 +156,223 @@ function computeCircularLayout(
     return;
   }
 
-  const spacing = 3;
-  const radius = Math.max((spacing * count) / (2 * Math.PI), 3);
+  const circumference = count * MIN_NODE_DISTANCE;
+  const radius = Math.max(circumference / (2 * Math.PI), 3);
 
   nodes.forEach((node, index) => {
-    const angle = (index / count) * Math.PI * 2 - Math.PI / 2; // Start from top
+    const angle = (index / count) * Math.PI * 2 - Math.PI / 2;
     positions.set(node.id, {
       x: Math.cos(angle) * radius,
-      y: Math.sin(angle) * radius,
-      z: 0,
+      y: 0,
+      z: Math.sin(angle) * radius,
     });
   });
 }
 
 // ============================================
-// Force-Directed Layout (Fruchterman-Reingold)
+// Force-Directed Layout — full 3D (X, Y, Z)
 // ============================================
 
 function computeForceDirectedLayout(
   nodes: VrdNode[],
   edges: VrdEdge[],
   groups: VrdGroup[],
-  positions: Map<string, Position3D>
+  positions: Map<string, Position3D>,
 ) {
-  const area = nodes.length * 25;
-  const k = Math.sqrt(area / Math.max(nodes.length, 1));
-  const iterations = 120;
+  const n = nodes.length;
+  // Area scales with node count; k is the ideal edge length
+  const area = n * 30;
+  const k = Math.max(Math.sqrt(area / Math.max(n, 1)), MIN_NODE_DISTANCE);
+  const iterations = 150;
 
-  // Build group membership lookup: nodeId → groupId
+  // ── Group membership map ──
   const nodeGroupMap = new Map<string, string>();
-  function walkGroups(groupList: VrdGroup[]) {
-    for (const g of groupList) {
-      for (const childId of g.children) {
-        nodeGroupMap.set(childId, g.id);
-      }
+  function walkGroups(list: VrdGroup[]) {
+    for (const g of list) {
+      for (const childId of g.children) nodeGroupMap.set(childId, g.id);
       if (g.groups.length > 0) walkGroups(g.groups);
     }
   }
   walkGroups(groups);
 
-  // Deterministic seed based on node IDs (same input → same layout)
-  const seedStr = nodes.map(n => n.id).join(',');
+  // ── Deterministic 3D initial positions ──
+  const seedStr = nodes.map((n) => n.id).join(',');
   const random = seededRandom(hashString(seedStr));
 
-  // Initialize positions deterministically
   nodes.forEach((node) => {
+    // Spread across all 3 axes initially
     positions.set(node.id, {
-      x: (random() - 0.5) * 6,
-      y: (random() - 0.5) * 6,
-      z: 0, // Keep z=0 for cleaner default view; use y for vertical
+      x: (random() - 0.5) * k * 2,
+      y: (random() - 0.5) * k * 1.2, // Y spread is a bit smaller
+      z: (random() - 0.5) * k * 2,
     });
   });
 
-  // Build adjacency set for quick lookups
-  const edgeSet = new Set<string>();
-  edges.forEach(e => {
-    edgeSet.add(`${e.from}|${e.to}`);
-    edgeSet.add(`${e.to}|${e.from}`);
-  });
-
-  const getDistance = (p1: Position3D, p2: Position3D) => {
-    const dx = p1.x - p2.x;
-    const dy = p1.y - p2.y;
-    const dz = p1.z - p2.z;
+  const dist3 = (a: Position3D, b: Position3D) => {
+    const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
     return Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.001;
   };
 
   for (let iter = 0; iter < iterations; iter++) {
-    const temperature = ((iterations - iter) / iterations) * 2.5;
+    // Temperature cools from 3.0 → 0
+    const temperature = ((iterations - iter) / iterations) * 3.0;
 
-    const displacements = new Map<string, Position3D>();
-    nodes.forEach((n) =>
-      displacements.set(n.id, { x: 0, y: 0, z: 0 })
-    );
+    const disp = new Map<string, Position3D>();
+    nodes.forEach((n) => disp.set(n.id, { x: 0, y: 0, z: 0 }));
 
-    // Repulsive forces between all node pairs
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const v = nodes[i].id;
-        const u = nodes[j].id;
-        const posV = positions.get(v)!;
-        const posU = positions.get(u)!;
+    // ── Repulsive forces ──
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const vi = nodes[i].id, vj = nodes[j].id;
+        const pi = positions.get(vi)!;
+        const pj = positions.get(vj)!;
 
-        const dx = posV.x - posU.x;
-        const dy = posV.y - posU.y;
-        const dz = posV.z - posU.z;
-        const dist = getDistance(posV, posU);
+        const d = dist3(pi, pj);
+        // Stronger repulsion at close range to enforce MIN_NODE_DISTANCE
+        const repulse = (k * k) / d + (d < MIN_NODE_DISTANCE ? (MIN_NODE_DISTANCE - d) * 5 : 0);
 
-        const repulseForce = (k * k) / dist;
-        const fx = (dx / dist) * repulseForce;
-        const fy = (dy / dist) * repulseForce;
-        const fz = (dz / dist) * repulseForce;
+        const dx = (pi.x - pj.x) / d;
+        const dy = (pi.y - pj.y) / d;
+        const dz = (pi.z - pj.z) / d;
 
-        const dispV = displacements.get(v)!;
-        const dispU = displacements.get(u)!;
-
-        dispV.x += fx; dispV.y += fy; dispV.z += fz;
-        dispU.x -= fx; dispU.y -= fy; dispU.z -= fz;
+        const di = disp.get(vi)!;
+        const dj = disp.get(vj)!;
+        di.x += dx * repulse; di.y += dy * repulse; di.z += dz * repulse;
+        dj.x -= dx * repulse; dj.y -= dy * repulse; dj.z -= dz * repulse;
       }
     }
 
-    // Attractive forces along edges
-    edges.forEach((edge) => {
-      const posV = positions.get(edge.from);
-      const posU = positions.get(edge.to);
-      if (!posV || !posU) return;
+    // ── Attractive forces along edges ──
+    for (const edge of edges) {
+      const pf = positions.get(edge.from);
+      const pt = positions.get(edge.to);
+      if (!pf || !pt) continue;
 
-      const dx = posV.x - posU.x;
-      const dy = posV.y - posU.y;
-      const dz = posV.z - posU.z;
-      const dist = getDistance(posV, posU);
+      const d = dist3(pf, pt);
+      const attract = (d * d) / k;
 
-      const attractForce = (dist * dist) / k;
-      const fx = (dx / dist) * attractForce;
-      const fy = (dy / dist) * attractForce;
-      const fz = (dz / dist) * attractForce;
+      const dx = (pf.x - pt.x) / d;
+      const dy = (pf.y - pt.y) / d;
+      const dz = (pf.z - pt.z) / d;
 
-      const dispV = displacements.get(edge.from)!;
-      const dispU = displacements.get(edge.to)!;
+      const df = disp.get(edge.from)!;
+      const dt = disp.get(edge.to)!;
+      df.x -= dx * attract; df.y -= dy * attract; df.z -= dz * attract;
+      dt.x += dx * attract; dt.y += dy * attract; dt.z += dz * attract;
+    }
 
-      dispV.x -= fx; dispV.y -= fy; dispV.z -= fz;
-      dispU.x += fx; dispU.y += fy; dispU.z += fz;
-    });
-
-    // Group cohesion: nodes in same group attract each other more
+    // ── Group cohesion ──
     if (nodeGroupMap.size > 0) {
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
           const gI = nodeGroupMap.get(nodes[i].id);
           const gJ = nodeGroupMap.get(nodes[j].id);
-          if (gI && gJ && gI === gJ) {
-            const posV = positions.get(nodes[i].id)!;
-            const posU = positions.get(nodes[j].id)!;
-            const dx = posV.x - posU.x;
-            const dy = posV.y - posU.y;
-            const dz = posV.z - posU.z;
-            const dist = getDistance(posV, posU);
+          if (!gI || gI !== gJ) continue;
 
-            // Extra attraction for same-group nodes
-            const groupForce = (dist * dist) / (k * 0.5);
-            const fx = (dx / dist) * groupForce;
-            const fy = (dy / dist) * groupForce;
-            const fz = (dz / dist) * groupForce;
+          const pi = positions.get(nodes[i].id)!;
+          const pj = positions.get(nodes[j].id)!;
+          const d = dist3(pi, pj);
+          const groupAttract = (d * d) / (k * 0.5);
 
-            const dispV = displacements.get(nodes[i].id)!;
-            const dispU = displacements.get(nodes[j].id)!;
+          const dx = (pi.x - pj.x) / d;
+          const dy = (pi.y - pj.y) / d;
+          const dz = (pi.z - pj.z) / d;
 
-            dispV.x -= fx; dispV.y -= fy; dispV.z -= fz;
-            dispU.x += fx; dispU.y += fy; dispU.z += fz;
-          }
+          const di = disp.get(nodes[i].id)!;
+          const dj = disp.get(nodes[j].id)!;
+          di.x -= dx * groupAttract; di.y -= dy * groupAttract; di.z -= dz * groupAttract;
+          dj.x += dx * groupAttract; dj.y += dy * groupAttract; dj.z += dz * groupAttract;
         }
       }
     }
 
-    // Apply displacements clamped by temperature
-    nodes.forEach((node) => {
-      const id = node.id;
-      const pos = positions.get(id)!;
-      const disp = displacements.get(id)!;
+    // ── Apply displacements clamped by temperature ──
+    for (const node of nodes) {
+      const pos = positions.get(node.id)!;
+      const d = disp.get(node.id)!;
+      const dLen = Math.sqrt(d.x * d.x + d.y * d.y + d.z * d.z) || 1;
+      const scale = Math.min(dLen, temperature) / dLen;
 
-      const dispLen =
-        Math.sqrt(disp.x * disp.x + disp.y * disp.y + disp.z * disp.z) || 1;
+      pos.x += d.x * scale;
+      pos.y += d.y * scale;
+      pos.z += d.z * scale;
 
-      const clampedLen = Math.min(dispLen, temperature);
-      pos.x += (disp.x / dispLen) * clampedLen;
-      pos.y += (disp.y / dispLen) * clampedLen;
-      pos.z += (disp.z / dispLen) * clampedLen;
-
-      // Gentle gravity toward origin
+      // Gentle centering gravity
       pos.x *= 0.995;
       pos.y *= 0.995;
       pos.z *= 0.995;
-    });
+    }
+  }
+}
+
+// ============================================
+// New nodes — stable placement near neighbors
+// Uses deterministic offset based on node id hash
+// so repeated typing doesn't randomize position
+// ============================================
+
+export function computePositionsForNewNodes(
+  newNodes: VrdNode[],
+  existingPositions: Record<string, [number, number, number]>,
+  edges: VrdEdge[],
+): Record<string, [number, number, number]> {
+  const result: Record<string, [number, number, number]> = {};
+
+  for (const node of newNodes) {
+    // Deterministic offset so typing doesn't re-randomize
+    const rng = seededRandom(hashString(node.id));
+    const offsetX = (rng() - 0.5) * MIN_NODE_DISTANCE * 1.5;
+    const offsetY = (rng() - 0.5) * MIN_NODE_DISTANCE * 0.8;
+    const offsetZ = (rng() - 0.5) * MIN_NODE_DISTANCE * 1.5;
+
+    // Find a connected neighbor that's already placed
+    const connectedEdge = edges.find(
+      (e) => e.from === node.id || e.to === node.id,
+    );
+    const neighborId = connectedEdge
+      ? connectedEdge.from === node.id
+        ? connectedEdge.to
+        : connectedEdge.from
+      : null;
+
+    const neighborPos = neighborId ? existingPositions[neighborId] : null;
+
+    if (neighborPos) {
+      result[node.id] = [
+        neighborPos[0] + offsetX,
+        neighborPos[1] + offsetY,
+        neighborPos[2] + offsetZ,
+      ];
+    } else {
+      // Centroid of existing nodes + deterministic offset
+      const allPos = Object.values(existingPositions);
+      if (allPos.length > 0) {
+        const cx = allPos.reduce((s, p) => s + p[0], 0) / allPos.length;
+        const cy = allPos.reduce((s, p) => s + p[1], 0) / allPos.length;
+        const cz = allPos.reduce((s, p) => s + p[2], 0) / allPos.length;
+        result[node.id] = [cx + offsetX * 2, cy + offsetY, cz + offsetZ * 2];
+      } else {
+        result[node.id] = [offsetX * 2, offsetY, offsetZ * 2];
+      }
+    }
   }
 
-  // Snap z near-zero (keep diagrams flat unless user specifies z)
-  nodes.forEach((node) => {
-    const pos = positions.get(node.id)!;
-    if (Math.abs(pos.z) < 0.5) pos.z = 0;
-  });
+  // After placing new nodes, enforce minimum distances among all
+  const allPositions = new Map<string, Position3D>();
+  for (const [id, pos] of Object.entries(existingPositions)) {
+    allPositions.set(id, { x: pos[0], y: pos[1], z: pos[2] });
+  }
+  for (const [id, pos] of Object.entries(result)) {
+    allPositions.set(id, { x: pos[0], y: pos[1], z: pos[2] });
+  }
+
+  enforceMinimumDistances(allPositions, MIN_NODE_DISTANCE, 20);
+
+  // Write corrected positions back to result only for new nodes
+  for (const node of newNodes) {
+    const corrected = allPositions.get(node.id)!;
+    result[node.id] = [corrected.x, corrected.y, corrected.z];
+  }
+
+  return result;
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 
 // ============================================
@@ -23,16 +23,11 @@ interface MeasurementLinesProps {
   accentColor?: string;
 }
 
-// ============================================
-// Dashed line material (shared)
-// ============================================
-
-const DASH_SCALE = 0.15;
 const DASH_SIZE = 0.3;
-const GAP_SIZE = 0.2;
+const GAP_SIZE  = 0.2;
 
 // ============================================
-// Single dimension line
+// Single Dimension Line
 // ============================================
 
 function DimensionLine({
@@ -42,21 +37,87 @@ function DimensionLine({
   direction,
   accentColor,
 }: MeasurementLine & { accentColor: string }) {
-  const groupRef = useRef<THREE.Group>(null);
-  const { camera } = useThree();
+  const lineColor = direction === "outgoing" ? accentColor : "#e57373";
 
-  // ── Geometry ──
-  const lineGeo = useMemo(() => {
+  // ── Main line geometry (with computeLineDistances for dashes) ──
+  const { lineGeo, lineMat } = useMemo(() => {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute(
       "position",
       new THREE.Float32BufferAttribute([...from, ...to], 3),
     );
-    geo.computeBoundingSphere();
-    return geo;
-  }, [from, to]);
 
-  // ── Distance ──
+        // Required for LineDashedMaterial to render dashes
+    const tmpLine = new THREE.Line(geo);
+    tmpLine.computeLineDistances();
+    const finalGeo = tmpLine.geometry;
+
+    const mat = new THREE.LineDashedMaterial({
+      color: lineColor,
+      dashSize: DASH_SIZE,
+      gapSize: GAP_SIZE,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+
+    return { lineGeo: finalGeo, lineMat: mat };
+  }, [from, to, lineColor]);
+
+  // ── Dispose on unmount ──
+  useEffect(() => {
+    return () => {
+      lineGeo.dispose();
+      lineMat.dispose();
+    };
+  }, [lineGeo, lineMat]);
+
+  // ── Wing geometry (perpendicular ticks at each end) ──
+  const { wingGeo, wingMat } = useMemo(() => {
+    const dir = new THREE.Vector3(
+      to[0] - from[0],
+      to[1] - from[1],
+      to[2] - from[2],
+    ).normalize();
+
+    const up = new THREE.Vector3(0, 1, 0);
+    let perp = new THREE.Vector3().crossVectors(dir, up);
+    if (perp.lengthSq() < 0.001) {
+      perp = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(1, 0, 0));
+    }
+    perp.normalize().multiplyScalar(0.2);
+
+    const W = 0.2;
+    const verts: number[] = [
+      // Wing at "from"
+      from[0] + perp.x * W, from[1] + perp.y * W, from[2] + perp.z * W,
+      from[0] - perp.x * W, from[1] - perp.y * W, from[2] - perp.z * W,
+      // Wing at "to"
+      to[0] + perp.x * W, to[1] + perp.y * W, to[2] + perp.z * W,
+      to[0] - perp.x * W, to[1] - perp.y * W, to[2] - perp.z * W,
+    ];
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+
+    const mat = new THREE.LineBasicMaterial({
+      color: lineColor,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+
+    return { wingGeo: geo, wingMat: mat };
+  }, [from, to, lineColor]);
+
+  useEffect(() => {
+    return () => {
+      wingGeo.dispose();
+      wingMat.dispose();
+    };
+  }, [wingGeo, wingMat]);
+
+  // ── Distance (world units) ──
   const distance = useMemo(() => {
     const dx = to[0] - from[0];
     const dy = to[1] - from[1];
@@ -64,129 +125,52 @@ function DimensionLine({
     return Math.sqrt(dx * dx + dy * dy + dz * dz);
   }, [from, to]);
 
-  // ── Midpoint (for label) ──
-  const midpoint = useMemo<[number, number, number]>(
-    () => [
+  // ── Label position: midpoint + slight offset perpendicular to line ──
+  const labelPos = useMemo<[number, number, number]>(() => {
+    return [
       (from[0] + to[0]) / 2,
-      (from[1] + to[1]) / 2,
+      (from[1] + to[1]) / 2 + 0.35,
       (from[2] + to[2]) / 2,
-    ],
-    [from, to],
-  );
-
-  // ── Offset midpoint slightly upward so label doesn't overlap the line ──
-  const labelPos = useMemo<[number, number, number]>(
-    () => [midpoint[0], midpoint[1] + 0.3, midpoint[2]],
-    [midpoint],
-  );
-
-  // ── Perpendicular offset for dimension-line "wings" ──
-  const wingGeo = useMemo(() => {
-    const dir = new THREE.Vector3(
-      to[0] - from[0],
-      to[1] - from[1],
-      to[2] - from[2],
-    ).normalize();
-
-    // Get a perpendicular vector (cross with world up, fallback to right)
-    const up = new THREE.Vector3(0, 1, 0);
-    let perp = new THREE.Vector3().crossVectors(dir, up);
-    if (perp.lengthSq() < 0.001) {
-      perp = new THREE.Vector3().crossVectors(
-        dir,
-        new THREE.Vector3(1, 0, 0),
-      );
-    }
-    perp.normalize().multiplyScalar(0.2);
-
-    const wingSize = 0.2;
-    const verts: number[] = [];
-
-    // Wing at "from" end
-    verts.push(
-      from[0] + perp.x * wingSize,
-      from[1] + perp.y * wingSize,
-      from[2] + perp.z * wingSize,
-      from[0] - perp.x * wingSize,
-      from[1] - perp.y * wingSize,
-      from[2] - perp.z * wingSize,
-    );
-
-    // Wing at "to" end
-    verts.push(
-      to[0] + perp.x * wingSize,
-      to[1] + perp.y * wingSize,
-      to[2] + perp.z * wingSize,
-      to[0] - perp.x * wingSize,
-      to[1] - perp.y * wingSize,
-      to[2] - perp.z * wingSize,
-    );
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(verts, 3),
-    );
-    return geo;
+    ];
   }, [from, to]);
 
-  // ── Animate opacity in ──
-  const materialRef = useRef<THREE.LineDashedMaterial>(null);
-  const wingMatRef = useRef<THREE.LineBasicMaterial>(null);
-  const opacityRef = useRef(0);
+  // ── Animate opacity in on mount — drive via ref to avoid React re-renders ──
+  const opacityRef  = useRef(0);
+  const labelDivRef = useRef<HTMLDivElement>(null);
 
   useFrame((_, delta) => {
     opacityRef.current = Math.min(1, opacityRef.current + delta * 4);
-    const o = opacityRef.current * 0.5;
-    if (materialRef.current) materialRef.current.opacity = o;
-    if (wingMatRef.current) wingMatRef.current.opacity = o * 0.8;
+    const o = opacityRef.current;
+
+    // Drive Three.js material opacity directly (no setState)
+    lineMat.opacity  = o * 0.55;
+    wingMat.opacity  = o * 0.45;
+
+    // Drive HTML label opacity via DOM ref (no setState)
+    if (labelDivRef.current) {
+      labelDivRef.current.style.opacity = String(o);
+    }
   });
 
-  const lineColor =
-    direction === "outgoing" ? accentColor : "#e57373";
-
   return (
-    <group ref={groupRef}>
-      {/* ── Dashed measurement line ── */}
-      <lineSegments geometry={lineGeo}>
-        {/* @ts-ignore */}
-        <lineDashedMaterial
-          ref={materialRef}
-          color={lineColor}
-          dashSize={DASH_SIZE}
-          gapSize={GAP_SIZE}
-          scale={DASH_SCALE}
-          transparent
-          opacity={0}
-          depthWrite={false}
-        />
-      </lineSegments>
+    <group>
+      {/* ── Dashed line ── */}
+      <lineSegments geometry={lineGeo} material={lineMat} />
 
-      {/* ── End wings (perpendicular ticks) ── */}
-      <lineSegments geometry={wingGeo}>
-        <lineBasicMaterial
-          ref={wingMatRef}
-          color={lineColor}
-          transparent
-          opacity={0}
-          depthWrite={false}
-        />
-      </lineSegments>
+      {/* ── End wings ── */}
+      <lineSegments geometry={wingGeo} material={wingMat} />
 
-      {/* ── Distance label (HTML overlay) ── */}
+      {/* ── Label ── */}
       <Html
         position={labelPos}
         center
         distanceFactor={18}
-        style={{
-          pointerEvents: "none",
-          userSelect: "none",
-          opacity: opacityRef.current,
-          transition: "opacity 200ms ease",
-        }}
+        style={{ pointerEvents: "none", userSelect: "none" }}
       >
         <div
+          ref={labelDivRef}
           style={{
+            opacity: 0,  // start hidden; useFrame drives it via ref
             fontFamily: "var(--font-mono)",
             fontSize: "9px",
             letterSpacing: "0.12em",

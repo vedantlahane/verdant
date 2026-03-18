@@ -1,9 +1,14 @@
 import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import * as THREE from 'three';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { extend, Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { VrdAST } from '@repo/parser';
+import { VrdAST, VrdGroup } from '@repo/parser';
 import { useRendererStore } from './store';
+
+import { ThemeColors } from '@repo/themes';
+
+// Register custom geometries — required for <edgesGeometry />
+extend({ EdgesGeometry: THREE.EdgesGeometry });
 
 import {
   ServerNode,
@@ -624,58 +629,14 @@ function SceneContent({
         })}
 
         {/* Group bounding boxes */}
-        {ast.groups.map((group) => {
-          const childPositions = group.children
-            .map((id) => positions[id])
-            .filter(Boolean) as [number, number, number][];
-
-          if (childPositions.length === 0) return null;
-
-          const padding = 1.5;
-          let minX = Infinity, maxX = -Infinity;
-          let minY = Infinity, maxY = -Infinity;
-          let minZ = Infinity, maxZ = -Infinity;
-
-          childPositions.forEach(([x, y, z]) => {
-            minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-            minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-            minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
-          });
-
-          const cx = (minX + maxX) / 2;
-          const cy = (minY + maxY) / 2;
-          const cz = (minZ + maxZ) / 2;
-          const sx = maxX - minX + padding * 2;
-          const sy = maxY - minY + padding * 2;
-          const sz = Math.max(maxZ - minZ + padding * 2, 0.1);
-
-          const boxGeo = new THREE.BoxGeometry(sx, sy, sz);
-
-          return (
-            <group key={`group-${group.id}`}>
-              {/* Fill */}
-              <mesh position={[cx, cy, cz]}>
-                <boxGeometry args={[sx, sy, sz]} />
-                <meshBasicMaterial
-                  color={themeColors.accent}
-                  transparent
-                  opacity={0.04}
-                  depthWrite={false}
-                />
-              </mesh>
-              {/* Wireframe edges */}
-              <lineSegments position={[cx, cy, cz]}>
-                {/* @ts-ignore */}
-                <edgesGeometry args={[boxGeo]} />
-                <lineBasicMaterial
-                  color={themeColors.accent}
-                  transparent
-                  opacity={0.2}
-                />
-              </lineSegments>
-            </group>
-          );
-        })}
+        {ast.groups.map((group) => (
+          <GroupBox
+            key={`group-${group.id}`}
+            group={group}
+            positions={positions}
+            themeColors={themeColors}
+          />
+        ))}
       </group>
 
       {/* ── Controls ── */}
@@ -692,6 +653,74 @@ function SceneContent({
         onEnd={() => { isInteractingRef.current = false; }}
       />
     </>
+  );
+}
+
+// ============================================
+// Group Bounding Box Component
+// ============================================
+
+interface GroupBoxProps {
+  group: VrdGroup;
+  positions: Record<string, [number, number, number]>;
+  themeColors: ThemeColors;
+}
+
+function GroupBox({ group, positions, themeColors }: GroupBoxProps) {
+  const childPositions = useMemo(() => 
+    group.children
+      .map((id) => positions[id])
+      .filter(Boolean) as [number, number, number][],
+    [group.children, positions]
+  );
+
+  if (childPositions.length === 0) return null;
+
+  const padding = 1.5;
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
+
+  childPositions.forEach(([x, y, z]) => {
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+  });
+
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const cz = (minZ + maxZ) / 2;
+  const sx = maxX - minX + padding * 2;
+  const sy = maxY - minY + padding * 2;
+  const sz = Math.max(maxZ - minZ + padding * 2, 0.1);
+
+  // ── IMPORTANT: Use useMemo for geometries to avoid huge memory leaks ──
+  const boxGeo = useMemo(() => new THREE.BoxGeometry(sx, sy, sz), [sx, sy, sz]);
+  useEffect(() => () => boxGeo.dispose(), [boxGeo]);
+
+  const edgesGeo = useMemo(() => new THREE.EdgesGeometry(boxGeo), [boxGeo]);
+  useEffect(() => () => edgesGeo.dispose(), [edgesGeo]);
+
+  return (
+    <group>
+      {/* Fill */}
+      <mesh position={[cx, cy, cz]} geometry={boxGeo}>
+        <meshBasicMaterial
+          color={themeColors.accent}
+          transparent
+          opacity={0.04}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* Wireframe edges */}
+      <lineSegments position={[cx, cy, cz]} geometry={edgesGeo}>
+        <lineBasicMaterial
+          color={themeColors.accent}
+          transparent
+          opacity={0.2}
+        />
+      </lineSegments>
+    </group>
   );
 }
 

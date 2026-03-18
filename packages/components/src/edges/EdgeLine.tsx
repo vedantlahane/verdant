@@ -81,7 +81,9 @@ export function EdgeLine({
           to[1] + (from[1] - to[1]) * 0.05 + 0.05,
           to[2] + (from[2] - to[2]) * 0.05,
         ]}
-        lookAt={new THREE.Vector3(...to)}
+        onUpdate={(self) => {
+          self.lookAt(new THREE.Vector3(...to));
+        }}
       >
         <coneGeometry args={[0.06, 0.15, 6]} />
         <meshBasicMaterial color={color} transparent opacity={0.8} />

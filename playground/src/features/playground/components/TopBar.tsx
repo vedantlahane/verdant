@@ -141,7 +141,9 @@ export function TopBar({
                 className="pg-overflow-item"
                 role="menuitem"
                 onClick={() => {
-                  document.documentElement.requestFullscreen?.();
+                  document.documentElement.requestFullscreen?.()?.catch((err) => {
+                    console.warn("Fullscreen request failed:", err);
+                  });
                   setOverflowOpen(false);
                 }}
               >

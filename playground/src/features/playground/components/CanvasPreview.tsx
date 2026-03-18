@@ -6,7 +6,13 @@ import { R3FErrorBoundary } from "./R3FErrorBoundary";
 import type { CameraData } from "@repo/renderer";
 
 const VerdantRenderer = dynamic(
-  () => import("@repo/renderer").then((mod) => mod.VerdantRenderer),
+  () => 
+    import("@repo/renderer")
+      .then((mod) => mod.VerdantRenderer)
+      .catch((err) => {
+        console.error("Failed to load VerdantRenderer:", err);
+        throw err;
+      }),
   {
     ssr: false,
     loading: () => null,

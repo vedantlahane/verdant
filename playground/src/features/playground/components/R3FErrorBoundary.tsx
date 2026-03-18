@@ -33,9 +33,13 @@ export class R3FErrorBoundary extends React.Component<
               color: "var(--text-muted)",
               maxWidth: "20rem",
               textAlign: "center",
+              whiteSpace: "pre-wrap",
             }}
           >
-            {this.state.error?.message}
+            {this.state.error?.message || 
+              (typeof this.state.error === 'object' 
+                ? JSON.stringify(this.state.error, null, 2) 
+                : String(this.state.error))}
           </span>
           <button
             type="button"

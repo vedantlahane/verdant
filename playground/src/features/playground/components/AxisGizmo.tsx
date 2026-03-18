@@ -17,10 +17,10 @@ interface AxisRender {
   opacity: number;
 }
 
-const SIZE = 56;
+const SIZE = 76;
 const CX = SIZE / 2;
 const CY = SIZE / 2;
-const RADIUS = 18;
+const RADIUS = 26;
 
 const AXES_DEF = [
   { id: "x", color: "#e57373", label: "X" },

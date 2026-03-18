@@ -2,7 +2,7 @@
 
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { NodeProps, SIZE_SCALE } from '../types';
 
@@ -90,19 +90,26 @@ export function BaseNodeWrapper({
       {/* Actual node geometry (passed as children) */}
       {children}
 
-      {/* Floating label below */}
-      <Text
+      {/* Floating label below (HTML overlay avoids Troika font worker parsing) */}
+      <Html
         position={[0, -1.2, 0]}
-        fontSize={0.28}
-        color="#ffffff"
-        anchorX="center"
-        anchorY="top"
-        outlineWidth={0.02}
-        outlineColor="#000000"
-        maxWidth={3}
+        center
+        transform
+        sprite
+        pointerEvents="none"
       >
-        {label}
-      </Text>
+        <div
+          style={{
+            color: '#ffffff',
+            fontSize: '12px',
+            lineHeight: 1,
+            whiteSpace: 'nowrap',
+            textShadow: '0 0 2px #000000, 0 0 6px #000000',
+          }}
+        >
+          {label}
+        </div>
+      </Html>
     </group>
   );
 }

@@ -1,5 +1,5 @@
 export { VerdantRenderer } from './VerdantRenderer';
-export type { VerdantRendererProps, CameraData } from './VerdantRenderer';
+export type { VerdantRendererProps, CameraData, CursorData } from './VerdantRenderer';
 export { useRendererStore } from './store';
 export type { RendererState } from './store';
 export { computeLayout } from './layout';

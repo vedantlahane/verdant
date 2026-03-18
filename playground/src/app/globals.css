@@ -2025,15 +2025,41 @@ a, button {
   left: 50%;
   transform: translateX(-50%);
   color: var(--text-muted);
-  opacity: 0.7;
+  opacity: 0.92;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.035em;
+  white-space: nowrap;
+  z-index: 2;
   transition: opacity 200ms ease;
 }
 
 .pg-status:hover .pg-status-cam {
   opacity: 1;
   color: var(--accent);
+}
+
+.pg-status-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  z-index: 3;
+}
+
+.pg-status-toggle {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--page-bg) 88%, transparent);
+  color: var(--text-secondary);
+  padding: 0.12rem 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  cursor: pointer;
+}
+
+.pg-status-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
 }
 
 /* ── Presets dropdown ── */
@@ -2146,13 +2172,15 @@ a, button {
   right: 1rem;
   z-index: 15;
   pointer-events: none;
-  opacity: 0.45;
+  opacity: 0.62;
+  transform: scale(1.06);
+  transform-origin: bottom right;
   transition: opacity 300ms ease;
 }
 
 /* Brighten when cursor is near (parent area hover) */
 .pg-root:hover .pg-axis-gizmo {
-  opacity: 0.55;
+  opacity: 0.78;
 }
 
 /* Direct hover — make interactive for tooltip potential */

@@ -19,7 +19,7 @@ import { SchemaPanel } from "@/features/playground/components/SchemaPanel";
 import { CanvasPreview } from "@/features/playground/components/CanvasPreview";
 import { NodeInspector } from "@/features/playground/components/NodeInspector";
 import { AxisGizmo } from "@/features/playground/components/AxisGizmo";
-import type { CameraData } from "@repo/renderer";
+import type { CameraData, CursorData } from "@repo/renderer";
 
 /* ── AI history entry ── */
 export interface AiHistoryEntry {
@@ -49,6 +49,7 @@ export function PlaygroundApp() {
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [activePreset, setActivePreset] = useState<string>("simple");
   const [isRendererReady, setIsRendererReady] = useState(false);
+  const [showCoordinateSystem, setShowCoordinateSystem] = useState(true);
   const [cameraData, setCameraData] = useState<CameraData>({
     position: [0, 6, 12],
     fov: 45,
@@ -58,6 +59,7 @@ export function PlaygroundApp() {
       z: [0, -0.45, 0.89],
     },
   });
+  const [cursorData, setCursorData] = useState<CursorData | null>(null);
 
   // ── AI state ──
   const [aiPrompt, setAiPrompt] = useState("");
@@ -286,9 +288,16 @@ export function PlaygroundApp() {
     setCameraData(data);
   }, []);
 
+  const handleCursorMove = useCallback((data: CursorData | null) => {
+    setCursorData(data);
+  }, []);
+
   // ── Camera readout strings ──
   const camReadout = `cam: ${cameraData.position[0].toFixed(1)}, ${cameraData.position[1].toFixed(1)}, ${cameraData.position[2].toFixed(1)}`;
   const fovReadout = `fov: ${cameraData.fov}°`;
+  const cursorReadout = cursorData
+    ? `cursor: (${cursorData.x.toFixed(1)}, ${cursorData.y.toFixed(1)}, ${cursorData.z.toFixed(1)})`
+    : "cursor: (-, -, -)";
 
   // ── Derived ──
   const hasContent = nodeCount > 0 || edgeCount > 0;
@@ -304,8 +313,10 @@ export function PlaygroundApp() {
         ast={parseResult.ast}
         resolvedTheme={(resolvedTheme as "light" | "dark") ?? "dark"}
         errorCount={errorCount}
+        showCoordinateSystem={showCoordinateSystem}
         onNodeClick={handleNodeClick}
         onCameraChange={handleCameraChange}
+        onCursorMove={handleCursorMove}
         selectedNodeId={inspectorTarget?.nodeId ?? null}
         onOpenSchema={() => {
           setSchemaOpen(true);
@@ -316,8 +327,7 @@ export function PlaygroundApp() {
       {/* Layer 1: Grid overlay (viewport — fades at edges) */}
       {/* <div className="pg-grid" aria-hidden="true" /> */}
 
-      {/* Layer 1.5: Grid-through — ghost lines over ALL UI */}
-      <div className="pg-grid-through" aria-hidden="true" />
+      {/* Layer 1.5: removed ghost grid-through overlay */}
 
       {/* Layer 2: Gutter decorations */}
       <div className="pg-gutter pg-gutter--left" aria-hidden="true">
@@ -340,9 +350,11 @@ export function PlaygroundApp() {
       </div>
 
       {/* Layer 3: Dynamic axis gizmo */}
-      <div className="pg-axis-gizmo" aria-hidden="true">
-        <AxisGizmo cameraData={cameraData} />
-      </div>
+      {showCoordinateSystem && (
+        <div className="pg-axis-gizmo" aria-hidden="true">
+          <AxisGizmo cameraData={cameraData} />
+        </div>
+      )}
 
       {/* Layer 4: Top bar */}
       <TopBar
@@ -400,14 +412,21 @@ export function PlaygroundApp() {
 
       {/* Layer 7: Bottom status bar */}
       <div className="pg-status">
-        <span>
+        <span className="pg-status-left">
           {nodeCount}n · {edgeCount}e
           {errorCount > 0 && <> · {errorCount}⊘</>}
+          <button
+            type="button"
+            className="pg-status-toggle"
+            onClick={() => setShowCoordinateSystem((v) => !v)}
+          >
+            {showCoordinateSystem ? "hide coords" : "show coords"}
+          </button>
         </span>
 
         {/* ── Camera readout (center) ── */}
         <span className="pg-status-cam">
-          {camReadout} · {fovReadout}
+          {camReadout} · {fovReadout}{showCoordinateSystem ? ` · ${cursorReadout}` : ""}
         </span>
 
         <span>⌘B schema · ⌘K ai</span>

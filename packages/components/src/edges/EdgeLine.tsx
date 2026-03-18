@@ -2,7 +2,7 @@
 
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, Line } from '@react-three/drei';
+import { Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { EdgeLineProps } from '../types';
 
@@ -92,17 +92,25 @@ export function EdgeLine({
 
       {/* Label */}
       {label && (
-        <Text
+        <Html
           position={midpoint}
-          fontSize={0.22}
-          color={color}
-          anchorX="center"
-          anchorY="bottom"
-          outlineWidth={0.015}
-          outlineColor="#000000"
+          center
+          transform
+          sprite
+          pointerEvents="none"
         >
-          {label}
-        </Text>
+          <div
+            style={{
+              color,
+              fontSize: '11px',
+              lineHeight: 1,
+              whiteSpace: 'nowrap',
+              textShadow: '0 0 2px #000000, 0 0 6px #000000',
+            }}
+          >
+            {label}
+          </div>
+        </Html>
       )}
     </group>
   );

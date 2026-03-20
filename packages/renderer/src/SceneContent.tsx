@@ -50,7 +50,8 @@ export function SceneContent({
 
   // Cursor tracking reusable objects
   const cursorRaycaster = useMemo(() => new THREE.Raycaster(), []);
-  const cursorPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
+  const cursorPlaneRef = useRef(new THREE.Plane());
+  const cursorNormalRef = useRef(new THREE.Vector3());
   const cursorPoint = useMemo(() => new THREE.Vector3(), []);
 
   const activeNodeId = externalSelectedId ?? selectedNodeId;
@@ -89,6 +90,18 @@ export function SceneContent({
       idleTimerRef.current += delta;
       controlsRef.current.autoRotate = idleTimerRef.current > 3;
     }
+  });
+
+  // ── Cursor plane sync ──
+  useFrame(() => {
+    if (!controlsRef.current) return;
+
+    camera.getWorldDirection(cursorNormalRef.current);
+    const target = controlsRef.current.target as THREE.Vector3;
+    cursorPlaneRef.current.setFromNormalAndCoplanarPoint(
+      cursorNormalRef.current,
+      target,
+    );
   });
 
   // ── Callbacks ──
@@ -146,7 +159,7 @@ export function SceneContent({
       );
 
       cursorRaycaster.setFromCamera(ndc, camera);
-      const hit = cursorRaycaster.ray.intersectPlane(cursorPlane, cursorPoint);
+      const hit = cursorRaycaster.ray.intersectPlane(cursorPlaneRef.current, cursorPoint);
       if (!hit) {
         onCursorMove(null);
         return;
@@ -168,7 +181,7 @@ export function SceneContent({
       canvas.removeEventListener('pointermove', handleMove);
       canvas.removeEventListener('pointerleave', handleLeave);
     };
-  }, [camera, cursorPlane, cursorPoint, cursorRaycaster, gl, onCursorMove]);
+  }, [camera, cursorPoint, cursorRaycaster, gl, onCursorMove]);
 
   // ── View persistence handler ──
   const handleControlsChange = useCallback(() => {

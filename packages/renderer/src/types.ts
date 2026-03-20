@@ -2,6 +2,8 @@
 export interface CameraData {
   position: [number, number, number];
   fov: number;
+  distance: number;
+  effectiveFov: number;
   axisProjections: {
     x: [number, number, number];
     y: [number, number, number];

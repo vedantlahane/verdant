@@ -53,7 +53,7 @@ function lineMat(color: string, opacity: number): THREE.LineBasicMaterial {
   });
 }
 
-function meshMat(color: string, opacity: number, side = THREE.DoubleSide): THREE.MeshBasicMaterial {
+function meshMat(color: string, opacity: number, side: THREE.Side = THREE.DoubleSide): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
     color,
     transparent: true,

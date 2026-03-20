@@ -49,6 +49,8 @@ export function usePlaygroundState(): PlaygroundState {
   const [cameraData, setCameraData] = useState<CameraData>({
     position: [0, 6, 12],
     fov: 45,
+    distance: 14.0,
+    effectiveFov: 45,
     axisProjections: {
       x: [1, 0, 0],
       y: [0, 0.89, 0.45],

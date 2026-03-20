@@ -21,7 +21,7 @@ export function StatusBar() {
     [cameraData.position],
   );
 
-  const fovReadout = `fov: ${cameraData.fov}°`;
+  const zoomReadout = `dist: ${cameraData.distance.toFixed(1)} · fov: ${cameraData.fov}° · effFov: ${cameraData.effectiveFov.toFixed(1)}°`;
 
   const cursorReadout = cursorData
     ? `cursor: (${cursorData.x.toFixed(1)}, ${cursorData.y.toFixed(1)}, ${cursorData.z.toFixed(1)})`
@@ -42,7 +42,7 @@ export function StatusBar() {
       </span>
 
       <span className="pg-status-cam">
-        {camReadout} · {fovReadout}
+        {camReadout} · {zoomReadout}
         {showCoordinateSystem ? ` · ${cursorReadout}` : ""}
       </span>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { CameraData } from "@repo/renderer";
+import type { CameraData } from "@verdant/renderer";
 
 interface AxisGizmoProps {
   cameraData: CameraData;

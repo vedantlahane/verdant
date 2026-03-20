@@ -1,4 +1,4 @@
-import { VrdNode, VrdEdge, VrdGroup } from '@repo/parser';
+import { VrdNode, VrdEdge, VrdGroup } from '@verdant/parser';
 
 export type LayoutType = 'auto' | 'grid' | 'circular';
 

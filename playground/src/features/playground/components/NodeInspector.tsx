@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { X } from "lucide-react";
-import type { VrdAST } from "@repo/parser";
+import type { VrdAST } from "@verdant/parser";
 import type { InspectorTarget } from "../PlaygroundApp";
 
 interface NodeInspectorProps {

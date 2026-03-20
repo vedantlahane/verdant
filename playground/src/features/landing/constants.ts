@@ -1,4 +1,4 @@
-import { THEMES_LIST } from "@repo/themes";
+import { THEMES_LIST } from "@verdant/themes";
 
 export const CODE_LINES = [
   "# My Architecture",

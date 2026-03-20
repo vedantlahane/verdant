@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseVrdSafe } from "@repo/parser";
+import { parseVrdSafe } from "@verdant/parser";
 
 // ── OpenAI client (lazy init) ──────────────────────
 

@@ -1,4 +1,4 @@
-import { KNOWN_NODE_TYPES } from "@repo/parser";
+import { KNOWN_NODE_TYPES } from "@verdant/parser";
 
 export const PRESETS: Record<
   string,

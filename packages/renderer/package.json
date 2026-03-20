@@ -1,5 +1,5 @@
 {
-  "name": "@repo/renderer",
+  "name": "@verdant/renderer",
   "version": "1.0.0",
   "description": "",
   "main": "./src/index.tsx",
@@ -26,8 +26,9 @@
     "zustand": "^5.0.11"
   },
   "dependencies": {
-    "@repo/parser": "workspace:*",
-    "@repo/components": "workspace:*",
-    "@repo/themes": "workspace:*"
+    "@verdant/parser": "workspace:*",
+    "@verdant/primitives": "workspace:*",
+    "@verdant/themes": "workspace:*",
+    "@verdant/nodes": "workspace:*"
   }
 }

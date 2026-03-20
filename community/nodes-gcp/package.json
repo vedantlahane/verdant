@@ -1,0 +1,13 @@
+{
+  "name": "@verdant/nodes-gcp",
+  "version": "1.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@verdant/nodes": "workspace:*"
+  }
+}

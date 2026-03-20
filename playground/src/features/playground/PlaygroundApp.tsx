@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { parseVrdSafe, VrdParseResult } from "@repo/parser";
+import { parseVrdSafe, VrdParseResult } from "@verdant/parser";
 import { toast } from "sonner";
 import { useThemeMode } from "@/features/shared/hooks/useThemeMode";
 
@@ -19,7 +19,7 @@ import { SchemaPanel } from "@/features/playground/components/SchemaPanel";
 import { CanvasPreview } from "@/features/playground/components/CanvasPreview";
 import { NodeInspector } from "@/features/playground/components/NodeInspector";
 import { AxisGizmo } from "@/features/playground/components/AxisGizmo";
-import type { CameraData, CursorData } from "@repo/renderer";
+import type { CameraData, CursorData } from "@verdant/renderer";
 
 /* ── AI history entry ── */
 export interface AiHistoryEntry {

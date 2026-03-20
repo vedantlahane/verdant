@@ -8,25 +8,6 @@ importers:
 
   .:
     devDependencies:
-      turbo:
-        specifier: ^2.8.16
-        version: 2.8.16
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  packages/components:
-    dependencies:
-      '@react-three/drei':
-        specifier: ^10.7.7
-        version: 10.7.7(@react-three/fiber@9.5.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.183.2))(@types/react@19.2.14)(@types/three@0.183.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.183.2)
-      '@types/three':
-        specifier: ^0.183.1
-        version: 0.183.1
-    devDependencies:
-      '@react-three/fiber':
-        specifier: ^9.5.0
-        version: 9.5.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.183.2)
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
@@ -36,9 +17,54 @@ importers:
       react:
         specifier: ^19.2.4
         version: 19.2.4
-      three:
-        specifier: ^0.183.2
-        version: 0.183.2
+      react-dom:
+        specifier: ^19.2.4
+        version: 19.2.4(react@19.2.4)
+      turbo:
+        specifier: ^2.8.16
+        version: 2.8.16
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  community/nodes-aws:
+    dependencies:
+      '@verdant/nodes':
+        specifier: workspace:*
+        version: link:../../packages/nodes
+
+  community/nodes-docker:
+    dependencies:
+      '@verdant/nodes':
+        specifier: workspace:*
+        version: link:../../packages/nodes
+
+  community/nodes-gcp:
+    dependencies:
+      '@verdant/nodes':
+        specifier: workspace:*
+        version: link:../../packages/nodes
+
+  community/nodes-hardware:
+    dependencies:
+      '@verdant/nodes':
+        specifier: workspace:*
+        version: link:../../packages/nodes
+
+  community/nodes-k8s:
+    dependencies:
+      '@verdant/nodes':
+        specifier: workspace:*
+        version: link:../../packages/nodes
+
+  packages/nodes:
+    dependencies:
+      '@react-three/drei':
+        specifier: ^10.7.7
+        version: 10.7.7(@react-three/fiber@9.5.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.183.2))(@types/react@19.2.14)(@types/three@0.183.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.183.2)
+      '@verdant/primitives':
+        specifier: workspace:*
+        version: link:../primitives
 
   packages/parser:
     devDependencies:
@@ -46,15 +72,46 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/node@20.19.37)(jiti@2.6.1)(lightningcss@1.31.1)
 
+  packages/primitives:
+    dependencies:
+      '@react-three/drei':
+        specifier: ^10.7.7
+        version: 10.7.7(@react-three/fiber@9.5.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.183.2))(@types/react@19.2.14)(@types/three@0.183.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.183.2)
+      '@react-three/fiber':
+        specifier: ^8 || ^9
+        version: 9.5.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.183.2)
+      '@types/three':
+        specifier: ^0.183.1
+        version: 0.183.1
+      three:
+        specifier: ^0.180 || ^0.183
+        version: 0.183.2
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      react:
+        specifier: ^19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.2.4
+        version: 19.2.4(react@19.2.4)
+
   packages/renderer:
     dependencies:
-      '@repo/components':
+      '@verdant/nodes':
         specifier: workspace:*
-        version: link:../components
-      '@repo/parser':
+        version: link:../nodes
+      '@verdant/parser':
         specifier: workspace:*
         version: link:../parser
-      '@repo/themes':
+      '@verdant/primitives':
+        specifier: workspace:*
+        version: link:../primitives
+      '@verdant/themes':
         specifier: workspace:*
         version: link:../themes
     devDependencies:
@@ -86,6 +143,12 @@ importers:
         specifier: ^5.0.11
         version: 5.0.11(@types/react@19.2.14)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
 
+  packages/sdk:
+    dependencies:
+      react:
+        specifier: ^18 || ^19
+        version: 19.2.4
+
   packages/themes: {}
 
   playground:
@@ -99,16 +162,19 @@ importers:
       '@react-three/fiber':
         specifier: ^9.5.0
         version: 9.5.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.183.2)
-      '@repo/components':
+      '@verdant/nodes':
         specifier: workspace:*
-        version: link:../packages/components
-      '@repo/parser':
+        version: link:../packages/nodes
+      '@verdant/parser':
         specifier: workspace:*
         version: link:../packages/parser
-      '@repo/renderer':
+      '@verdant/primitives':
+        specifier: workspace:*
+        version: link:../packages/primitives
+      '@verdant/renderer':
         specifier: workspace:*
         version: link:../packages/renderer
-      '@repo/themes':
+      '@verdant/themes':
         specifier: workspace:*
         version: link:../packages/themes
       gsap:
@@ -4324,7 +4390,7 @@ snapshots:
       eslint: 9.39.4(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1))
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.4(jiti@2.6.1))
       eslint-plugin-react: 7.37.5(eslint@9.39.4(jiti@2.6.1))
       eslint-plugin-react-hooks: 7.0.1(eslint@9.39.4(jiti@2.6.1))
@@ -4357,7 +4423,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -4372,7 +4438,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.6.1)):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9

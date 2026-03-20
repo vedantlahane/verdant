@@ -3,11 +3,11 @@
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { R3FErrorBoundary } from "./R3FErrorBoundary";
-import type { CameraData, CursorData } from "@repo/renderer";
+import type { CameraData, CursorData } from "@verdant/renderer";
 
 const VerdantRenderer = dynamic(
   () => 
-    import("@repo/renderer")
+    import("@verdant/renderer")
       .then((mod) => mod.VerdantRenderer)
       .catch((err) => {
         console.error("Failed to load VerdantRenderer:", err);

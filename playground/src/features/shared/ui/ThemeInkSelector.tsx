@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { THEMES_LIST } from "@repo/themes";
+import { THEMES_LIST } from "@verdant/themes";
 
 interface ThemeInkSelectorProps {
   activeTheme: typeof THEMES_LIST[0];

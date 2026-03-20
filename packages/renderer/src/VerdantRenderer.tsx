@@ -8,9 +8,9 @@ import React, {
 import * as THREE from 'three';
 import { extend, Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { VrdAST, VrdGroup } from '@repo/parser';
+import { VrdAST, VrdGroup } from '@verdant/parser';
 import { useRendererStore } from './store';
-import { ThemeColors } from '@repo/themes';
+import { ThemeColors } from '@verdant/themes';
 
 extend({ EdgesGeometry: THREE.EdgesGeometry });
 
@@ -25,9 +25,9 @@ import {
   CloudNode,
   StorageNode,
   MonitorNode,
-  EdgeLine,
-  NodeProps,
-} from '@repo/components';
+} from '@verdant/nodes';
+
+import { BaseEdge as EdgeLine, NodeProps } from '@verdant/primitives';
 
 import { MeasurementLinesGroup, MeasurementLine } from './MeasurementLines';
 

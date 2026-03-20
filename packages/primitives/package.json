@@ -1,0 +1,27 @@
+{
+  "name": "@verdant/primitives",
+  "version": "1.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "typecheck": "tsc --noEmit"
+  },
+  "packageManager": "pnpm@10.32.1",
+  "peerDependencies": {
+    "react": "^18 || ^19",
+    "three": "^0.180 || ^0.183",
+    "@react-three/fiber": "^8 || ^9"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@types/three": "^0.183.1"
+  },
+  "devDependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3"
+  }
+}

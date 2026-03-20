@@ -1,5 +1,5 @@
 {
-  "name": "@repo/themes",
+  "name": "@verdant/themes",
   "version": "1.0.0",
   "description": "Shared theme definitions for Verdant",
   "main": "./src/index.ts",

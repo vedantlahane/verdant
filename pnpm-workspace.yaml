@@ -1,6 +1,7 @@
 packages:
   - "playground"
   - "packages/*"
+  - "community/*"
   - "tools/*"
 allowBuilds:
   sharp: false

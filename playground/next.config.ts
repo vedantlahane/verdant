@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@repo/parser", "@repo/renderer", "@repo/components"],
+  transpilePackages: [
+    "@verdant/parser",
+    "@verdant/renderer",
+    "@verdant/primitives",
+    "@verdant/nodes",
+  ],
 };
 
 export default nextConfig;

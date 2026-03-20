@@ -1,5 +1,5 @@
 {
-  "name": "@repo/parser",
+  "name": "@verdant/parser",
   "version": "1.0.0",
   "description": "",
   "main": "./src/index.ts",

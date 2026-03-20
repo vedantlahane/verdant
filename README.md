@@ -22,7 +22,8 @@ verdant/
 │       │   └── public/      # Static assets
 │       └── package.json
 ├── packages/
-│   ├── components/          # React components for 3D nodes/edges
+│   ├── primitives/          # Base 3D primitives (BaseNode, BaseEdge, shapes)
+│   ├── nodes/               # Concrete node components (Server, Database, Cache...)
 │   ├── parser/              # .vrd syntax parser
 │   └── renderer/            # React Three Fiber renderer
 ├── pnpm-workspace.yaml      # Monorepo config
@@ -62,12 +63,19 @@ cd packages/parser && pnpm build
 
 ## Key Packages
 
-### `@verdant/components`
-React components for rendering architecture nodes (Server, Database, Cache, etc.) and edges in a canvas-based diagram.
+### `@verdant/primitives` and `@verdant/nodes`
+The functionality formerly exported from `@verdant/components` has been split:
+
+- `@verdant/primitives` — base primitives and types (`BaseNode`, `BaseEdge`, shapes, types).
+- `@verdant/nodes` — concrete node components exported for convenience (`ServerNode`, `DatabaseNode`, `CacheNode`, etc.).
 
 **Usage:**
 ```tsx
-import { ServerNode, DatabaseNode } from "@verdant/components";
+// primitives
+import { BaseNode, Shapes } from "@verdant/primitives";
+
+// concrete nodes
+import { ServerNode, DatabaseNode } from "@verdant/nodes";
 ```
 
 ### `@verdant/parser`

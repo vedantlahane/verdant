@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useMonaco } from "@monaco-editor/react";
-import { VrdParseResult } from "@repo/parser";
+import { VrdParseResult } from "@verdant/parser";
 import {
   NODE_TYPES,
   CONFIG_KEYS,

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { VrdAST, VrdDiagnostic } from '@repo/parser';
+import { VrdAST, VrdDiagnostic } from '@verdant/parser';
 import { computeLayout, computePositionsForNewNodes, LayoutType } from './layout';
-import { ThemeColors, THEME_COLORS, DEFAULT_NODE_COLORS } from '@repo/themes';
+import { ThemeColors, THEME_COLORS, DEFAULT_NODE_COLORS } from '@verdant/themes';
 
 const STORAGE_PREFIX = 'verdant:renderer:v1:';
 let persistTimer: number | null = null;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { THEMES_LIST } from "@repo/themes";
+import { THEMES_LIST } from "@verdant/themes";
 
 const ACCENT_STORAGE_KEY = "verdant-accent-theme";
 

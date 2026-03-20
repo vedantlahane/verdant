@@ -1,66 +1,19 @@
 import { create } from 'zustand';
 import { VrdAST, VrdDiagnostic } from '@verdant/parser';
-import { computeLayout, computePositionsForNewNodes, LayoutType } from './layout';
 import { ThemeColors, THEME_COLORS, DEFAULT_NODE_COLORS } from '@verdant/themes';
+import { computeLayout, computePositionsForNewNodes, LayoutType } from './layout';
+import {
+  readPersistedState,
+  writePersistedState,
+} from './store.persistence';
+import { sanitizePosition } from './utils';
 
-const STORAGE_PREFIX = 'verdant:renderer:v1:';
-let persistTimer: number | null = null;
-
-interface PersistedRendererState {
-  positions: Record<string, [number, number, number]>;
-  selectedNodeId: string | null;
-  themeName: string;
-}
-
-function getAstSignature(ast: VrdAST): string {
-  const nodes = ast.nodes.map((n) => n.id).sort().join('|');
-  const edges = ast.edges
-    .map((e) => `${e.from}->${e.to}:${String(e.props.label ?? '')}`)
-    .sort()
-    .join('|');
-  return `${nodes}__${edges}`;
-}
-
-function getStorageKey(ast: VrdAST): string {
-  return `${STORAGE_PREFIX}${getAstSignature(ast)}`;
-}
-
-function readPersistedState(ast: VrdAST): PersistedRendererState | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(getStorageKey(ast));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as PersistedRendererState;
-    if (!parsed || typeof parsed !== 'object') return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function writePersistedState(
-  ast: VrdAST,
-  positions: Record<string, [number, number, number]>,
-  selectedNodeId: string | null,
-  themeName: string,
-): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const payload: PersistedRendererState = {
-      positions,
-      selectedNodeId,
-      themeName,
-    };
-    window.localStorage.setItem(getStorageKey(ast), JSON.stringify(payload));
-  } catch {
-    // Ignore persistence failures (quota/private mode).
-  }
-}
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
 function schedulePersist(get: () => RendererState): void {
   if (typeof window === 'undefined') return;
-  if (persistTimer) window.clearTimeout(persistTimer);
-  persistTimer = window.setTimeout(() => {
+  if (persistTimer !== null) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
     const state = get();
     if (!state.ast) return;
     writePersistedState(
@@ -69,16 +22,15 @@ function schedulePersist(get: () => RendererState): void {
       state.selectedNodeId,
       state.themeName,
     );
-  }, 150);
+  }, 300);
 }
 
-// ============================================
-// Store interface
-// ============================================
+// ── Store interface ──
 
 export interface RendererState {
   // Data
   ast: VrdAST | null;
+  nodeIndex: Map<string, import('@verdant/parser').VrdNode>;
   positions: Record<string, [number, number, number]>;
   diagnostics: VrdDiagnostic[];
 
@@ -102,8 +54,8 @@ export interface RendererState {
 }
 
 export const useRendererStore = create<RendererState>((set, get) => ({
-  // ── Initial state ──
   ast: null,
+  nodeIndex: new Map(),
   positions: {},
   diagnostics: [],
   selectedNodeId: null,
@@ -112,14 +64,12 @@ export const useRendererStore = create<RendererState>((set, get) => ({
   themeName: 'moss',
   themeColors: THEME_COLORS['moss'],
 
-  // ── setAst: preserve positions for existing nodes ──
   setAst: (ast, diagnostics = []) => {
     const layoutType = (ast.config.layout as LayoutType) || 'auto';
     const prevPositions = get().positions;
     const prevAst = get().ast;
     const persisted = readPersistedState(ast);
 
-    // Compare by node IDs only — label/prop changes should NOT re-layout
     const prevIds = new Set(prevAst?.nodes.map((n) => n.id) ?? []);
     const nextIds = new Set(ast.nodes.map((n) => n.id));
 
@@ -129,21 +79,25 @@ export const useRendererStore = create<RendererState>((set, get) => ({
     );
 
     let finalPositions: Record<string, [number, number, number]>;
-
     const isFirstLoad = !prevAst || Object.keys(prevPositions).length === 0;
 
     if (isFirstLoad) {
       finalPositions = {};
 
-      // Try persisted positions first for this exact diagram signature.
+      // Restore persisted positions
       if (persisted?.positions) {
         for (const node of ast.nodes) {
           const saved = persisted.positions[node.id];
-          if (saved) finalPositions[node.id] = saved;
+          if (saved && Array.isArray(saved) && saved.length === 3) {
+            const [x, y, z] = saved;
+            if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
+              finalPositions[node.id] = [x, y, z];
+            }
+          }
         }
       }
 
-      // Compute defaults only for nodes missing persisted positions.
+      // Compute layout for nodes missing persisted positions
       const missingNodes = ast.nodes.filter((n) => !finalPositions[n.id]);
       if (missingNodes.length > 0) {
         const computed = computeLayout(
@@ -155,19 +109,17 @@ export const useRendererStore = create<RendererState>((set, get) => ({
         for (const node of missingNodes) {
           const pos = computed.get(node.id);
           if (!pos) continue;
-          finalPositions[node.id] = [pos.x, pos.y, pos.z];
+          const safe = sanitizePosition(pos.x, pos.y, pos.z);
+          finalPositions[node.id] = [safe.x, safe.y, safe.z];
         }
       }
     } else {
-      // Preserve existing positions
       finalPositions = { ...prevPositions };
 
-      // Remove deleted nodes
       for (const id of removedIds) {
         delete finalPositions[id];
       }
 
-      // Place only new nodes
       if (newNodes.length > 0) {
         const newPos = computePositionsForNewNodes(
           newNodes,
@@ -182,35 +134,40 @@ export const useRendererStore = create<RendererState>((set, get) => ({
     for (const node of ast.nodes) {
       if (node.props.position) {
         const p = node.props.position as { x: number; y: number; z: number };
-        finalPositions[node.id] = [p.x, p.y, p.z];
+        const safe = sanitizePosition(p.x, p.y, p.z);
+        finalPositions[node.id] = [safe.x, safe.y, safe.z];
       }
     }
 
+    // Theme
     const configTheme =
       (ast.config.theme as string) ||
       persisted?.themeName ||
       get().themeName;
     const themeColors = THEME_COLORS[configTheme] || THEME_COLORS['moss'];
 
-    // Preserve selection only if node still exists
+    // Selection preservation
     const prevSelected = get().selectedNodeId;
-    const selectionValid = prevSelected
-      ? nextIds.has(prevSelected)
-      : false;
-
+    const selectionValid = prevSelected ? nextIds.has(prevSelected) : false;
     const persistedSelected = persisted?.selectedNodeId;
     const persistedSelectionValid = persistedSelected
       ? nextIds.has(persistedSelected)
       : false;
-
     const finalSelectedNodeId: string | null = selectionValid
-      ? prevSelected ?? null
+      ? prevSelected!
       : persistedSelectionValid
-        ? persistedSelected ?? null
+        ? persistedSelected!
         : null;
+
+    // Build node index
+    const nodeIndex = new Map<string, import('@verdant/parser').VrdNode>();
+    for (const node of ast.nodes) {
+      nodeIndex.set(node.id, node);
+    }
 
     set({
       ast,
+      nodeIndex,
       positions: finalPositions,
       diagnostics,
       selectedNodeId: finalSelectedNodeId,
@@ -226,15 +183,17 @@ export const useRendererStore = create<RendererState>((set, get) => ({
     set({ selectedNodeId: id });
     schedulePersist(get);
   },
+
   hoverNode: (id) => set({ hoveredNodeId: id }),
+
   setDraggingNode: (id) => set({ draggingNodeId: id }),
 
-  // Called every frame during drag — only update positions map
-  updateNodePosition: (id, position) =>
-    (set((state) => ({
+  updateNodePosition: (id, position) => {
+    set((state) => ({
       positions: { ...state.positions, [id]: position },
-    })),
-    schedulePersist(get)),
+    }));
+    schedulePersist(get);
+  },
 
   setTheme: (name) => {
     const themeColors = THEME_COLORS[name] || THEME_COLORS['moss'];

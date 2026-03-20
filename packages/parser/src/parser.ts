@@ -2,82 +2,33 @@ import type {
   VrdAST,
   VrdNode,
   VrdEdge,
-  VrdEdgeProps,
   VrdGroup,
-  VrdConfig,
-  VrdNodeProps,
   VrdParseResult,
   VrdDiagnostic,
 } from './types';
-import { VrdParserError, KNOWN_NODE_TYPES } from './types';
+import { VrdParserError, KNOWN_NODE_TYPES_SET } from './types';
+import {
+  EDGE_INLINE_RE,
+  EDGE_BLOCK_RE,
+  BIDI_EDGE_INLINE_RE,
+  BIDI_EDGE_BLOCK_RE,
+  GROUP_START_RE,
+  NODE_BLOCK_RE,
+  NODE_INLINE_RE,
+  KV_RE,
+  stripInlineComment,
+  measureIndent,
+} from './patterns';
+import { parseValue, parsePosition, parseWidth } from './values';
+import { validateAst } from './validate';
 
 // ============================================
-// Regex Patterns
-// ============================================
-
-// edge:         `web-server -> postgres: "queries"`
-// edge block:   `web-server -> postgres:`  (colon at end = block follows)
-const EDGE_INLINE_RE = /^([\w.-]+)\s*->\s*([\w.-]+)(?:\s*:\s*"([^"]*)")?$/;
-const EDGE_BLOCK_RE  = /^([\w.-]+)\s*->\s*([\w.-]+)\s*:$/;
-
-// group:        `group backend "Backend Services":`
-const GROUP_START_RE = /^group\s+([\w-]+)(?:\s+"([^"]*)")?\s*:$/;
-
-// node + block: `server web-server:`
-const NODE_BLOCK_RE = /^([\w-]+)\s+([\w-]+)\s*:$/;
-
-// node inline:  `server web-server`
-const NODE_INLINE_RE = /^([\w-]+)\s+([\w-]+)$/;
-
-// key: value
-const KV_RE = /^([\w-]+)\s*:\s*(.+)$/;
-
-// ============================================
-// Value Parser
-// ============================================
-
-function parseValue(raw: string): unknown {
-  const trimmed = raw.trim();
-
-  // Quoted string
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-
-  // Booleans
-  if (trimmed === 'true') return true;
-  if (trimmed === 'false') return false;
-
-  // Numbers
-  if (trimmed !== '' && !isNaN(Number(trimmed))) {
-    return Number(trimmed);
-  }
-
-  // Plain string
-  return trimmed;
-}
-
-/**
- * Parse a `position: x,y,z` value into an object.
- * Supports: `1,2,3` or `1, 2, 3`
- */
-function parsePosition(raw: string): { x: number; y: number; z: number } | null {
-  const parts = raw.split(',').map(s => s.trim());
-  if (parts.length !== 3) return null;
-  const nums = parts.map(Number);
-  if (nums.some(isNaN)) return null;
-  return { x: nums[0], y: nums[1], z: nums[2] };
-}
-
-// ============================================
-// Scope Stack Types
+// Scope Stack
 // ============================================
 
 interface ScopeBase {
   indent: number;
+  line: number;
 }
 
 interface RootScope extends ScopeBase {
@@ -102,20 +53,17 @@ interface EdgeScope extends ScopeBase {
 type Scope = RootScope | GroupScope | NodeScope | EdgeScope;
 
 // ============================================
-// Known Types Set (for validation warnings)
+// Public API
 // ============================================
 
-const KNOWN_TYPES_SET = new Set<string>(KNOWN_NODE_TYPES);
-
-// ============================================
-// Main Parser
-// ============================================
-
+/**
+ * Parse .vrd source into an AST. Throws on first error.
+ * Use `parseVrdSafe` for non-throwing variant with diagnostics.
+ */
 export function parseVrd(input: string): VrdAST {
   const result = parseVrdSafe(input);
 
-  // Throw on errors (backward compatible)
-  const errors = result.diagnostics.filter(d => d.severity === 'error');
+  const errors = result.diagnostics.filter((d) => d.severity === 'error');
   if (errors.length > 0) {
     throw new VrdParserError(errors[0].message, errors[0].line);
   }
@@ -123,6 +71,10 @@ export function parseVrd(input: string): VrdAST {
   return result.ast;
 }
 
+/**
+ * Parse .vrd source into an AST with diagnostics.
+ * Never throws — all issues reported via diagnostics array.
+ */
 export function parseVrdSafe(input: string): VrdParseResult {
   const ast: VrdAST = {
     config: {},
@@ -132,16 +84,19 @@ export function parseVrdSafe(input: string): VrdParseResult {
   };
 
   const diagnostics: VrdDiagnostic[] = [];
-  const lines = input.split('\n');
 
-  // Scope stack — tracks nesting context
-  const stack: Scope[] = [{ type: 'root', indent: -1 }];
+  // ── Normalize input ──
+  const normalized = normalizeInput(input);
+  const lines = normalized.split('\n');
 
-  // Group lookup for nesting and children tracking
+  // ── Tracking structures ──
+  const stack: Scope[] = [{ type: 'root', indent: -1, line: 0 }];
   const groupMap = new Map<string, VrdGroup>();
-
-  // Track all declared node IDs for edge validation
+  const nodeMap = new Map<string, VrdNode>();
   const declaredNodeIds = new Set<string>();
+  let tabWarningEmitted = false;
+
+  // ── Helpers ──
 
   function currentScope(): Scope {
     return stack[stack.length - 1];
@@ -154,25 +109,72 @@ export function parseVrdSafe(input: string): VrdParseResult {
     return null;
   }
 
-  function addDiag(line: number, severity: VrdDiagnostic['severity'], message: string) {
-    diagnostics.push({ line, severity, message });
+  function diag(
+    line: number,
+    severity: VrdDiagnostic['severity'],
+    message: string,
+    col?: number,
+  ): void {
+    diagnostics.push({ line, severity, message, col });
   }
+
+  function resolveFullId(localId: string, parentGroup: GroupScope | null): string {
+    return parentGroup ? `${parentGroup.groupId}.${localId}` : localId;
+  }
+
+  function registerNode(
+    node: VrdNode,
+    lineNum: number,
+    parentGroup: GroupScope | null,
+  ): void {
+    // Duplicate ID check
+    if (declaredNodeIds.has(node.id)) {
+      diag(
+        lineNum,
+        'warning',
+        `Duplicate node ID "${node.id}". Previous declaration will be overwritten.`,
+      );
+      // Remove the old one from ast.nodes to avoid duplicates
+      const oldIndex = ast.nodes.findIndex((n) => n.id === node.id);
+      if (oldIndex !== -1) ast.nodes.splice(oldIndex, 1);
+    }
+
+    ast.nodes.push(node);
+    nodeMap.set(node.id, node);
+    declaredNodeIds.add(node.id);
+
+    // Register in parent group
+    if (parentGroup) {
+      const group = groupMap.get(parentGroup.groupId);
+      if (group && !group.children.includes(node.id)) {
+        group.children.push(node.id);
+      }
+    }
+  }
+
+  // ── Main parse loop ──
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
     const originalLine = lines[i];
 
-    // Skip blanks, separators, comments
-    const trimmed = originalLine.trim();
-    if (trimmed === '' || trimmed === '---' || trimmed.startsWith('#')) {
-      continue;
+    // Strip inline comments
+    const commentStripped = stripInlineComment(originalLine);
+
+    // Measure indent
+    const { indent, hasTabs } = measureIndent(commentStripped);
+    if (hasTabs && !tabWarningEmitted) {
+      diag(lineNum, 'info', 'Tab characters detected. Normalizing to 2 spaces per tab.');
+      tabWarningEmitted = true;
     }
 
-    // Calculate indentation
-    const leadingSpaces = originalLine.match(/^(\s*)/);
-    const indent = leadingSpaces ? leadingSpaces[1].length : 0;
+    // Trim
+    const trimmed = commentStripped.trim();
 
-    // Pop scope stack when we dedent
+    // Skip blanks, separators
+    if (trimmed === '' || trimmed === '---') continue;
+
+    // Pop scope stack on dedent
     while (stack.length > 1 && currentScope().indent >= indent) {
       stack.pop();
     }
@@ -180,38 +182,73 @@ export function parseVrdSafe(input: string): VrdParseResult {
     const scope = currentScope();
     let match: RegExpMatchArray | null;
 
-    // ── 1. Edge Block (with properties following) ──
+    // ── 1. Bidirectional Edge Block ──
+    match = trimmed.match(BIDI_EDGE_BLOCK_RE);
+    if (match) {
+      const edge: VrdEdge = {
+        from: match[1],
+        to: match[2],
+        props: { bidirectional: true },
+        loc: { line: lineNum, col: indent + 1 },
+      };
+      ast.edges.push(edge);
+      stack.push({ type: 'edge', edgeIndex: ast.edges.length - 1, indent, line: lineNum });
+      continue;
+    }
+
+    // ── 2. Bidirectional Edge Inline ──
+    match = trimmed.match(BIDI_EDGE_INLINE_RE);
+    if (match) {
+      const edge: VrdEdge = {
+        from: match[1],
+        to: match[2],
+        props: { bidirectional: true },
+        loc: { line: lineNum, col: indent + 1 },
+      };
+      if (match[3] !== undefined) edge.props.label = match[3];
+      ast.edges.push(edge);
+      continue;
+    }
+
+    // ── 3. Directed Edge Block ──
     match = trimmed.match(EDGE_BLOCK_RE);
     if (match) {
-      const from = match[1];
-      const to = match[2];
-      const edge: VrdEdge = { from, to, props: {} };
+      const edge: VrdEdge = {
+        from: match[1],
+        to: match[2],
+        props: {},
+        loc: { line: lineNum, col: indent + 1 },
+      };
       ast.edges.push(edge);
-      stack.push({ type: 'edge', edgeIndex: ast.edges.length - 1, indent });
+      stack.push({ type: 'edge', edgeIndex: ast.edges.length - 1, indent, line: lineNum });
       continue;
     }
 
-    // ── 2. Edge Inline ──
+    // ── 4. Directed Edge Inline ──
     match = trimmed.match(EDGE_INLINE_RE);
     if (match) {
-      const from = match[1];
-      const to = match[2];
-      const label = match[3]; // may be undefined
-      const edge: VrdEdge = { from, to, props: {} };
-      if (label !== undefined) {
-        edge.props.label = label;
-      }
+      const edge: VrdEdge = {
+        from: match[1],
+        to: match[2],
+        props: {},
+        loc: { line: lineNum, col: indent + 1 },
+      };
+      if (match[3] !== undefined) edge.props.label = match[3];
       ast.edges.push(edge);
       continue;
     }
 
-    // ── 3. Group Start ──
+    // ── 5. Group Start ──
     match = trimmed.match(GROUP_START_RE);
     if (match) {
       const groupId = match[1];
       const label = match[2] || undefined;
 
-      // Determine parent group for nesting
+      // Duplicate group check
+      if (groupMap.has(groupId)) {
+        diag(lineNum, 'warning', `Duplicate group ID "${groupId}". Previous group will be merged.`);
+      }
+
       const parentGroupScope = findParentGroup();
       const parentGroupId = parentGroupScope?.groupId;
 
@@ -221,164 +258,383 @@ export function parseVrdSafe(input: string): VrdParseResult {
         children: [],
         groups: [],
         parentGroupId,
+        props: {},
+        loc: { line: lineNum, col: indent + 1 },
       };
 
-      // Register in map
       groupMap.set(groupId, group);
 
-      // If nested, add to parent's sub-groups
       if (parentGroupId && groupMap.has(parentGroupId)) {
         groupMap.get(parentGroupId)!.groups.push(group);
       } else {
-        // Top-level group
         ast.groups.push(group);
       }
 
-      stack.push({ type: 'group', groupId, indent });
+      stack.push({ type: 'group', groupId, indent, line: lineNum });
       continue;
     }
 
-    // ── 4. Node Block (with properties following) ──
+    // ── 6. Node Block ──
     match = trimmed.match(NODE_BLOCK_RE);
     if (match) {
       const type = match[1];
       const localId = match[2];
 
-      // Warn if unknown type
-      if (!KNOWN_TYPES_SET.has(type)) {
-        addDiag(lineNum, 'warning', `Unknown component type "${type}". Known types: ${[...KNOWN_TYPES_SET].join(', ')}`);
+      if (!KNOWN_NODE_TYPES_SET.has(type)) {
+        diag(
+          lineNum,
+          'warning',
+          `Unknown node type "${type}". It will be rendered with a default shape.`,
+        );
       }
 
       const parentGroup = findParentGroup();
-      const groupId = parentGroup?.groupId;
-      const fullId = groupId ? `${groupId}.${localId}` : localId;
+      const fullId = resolveFullId(localId, parentGroup);
 
-      const node: VrdNode = { id: fullId, type, props: {} };
-      if (groupId) {
-        node.groupId = groupId;
-        // Track in group's children
-        if (groupMap.has(groupId)) {
-          groupMap.get(groupId)!.children.push(fullId);
-        }
-      }
+      const node: VrdNode = {
+        id: fullId,
+        type,
+        props: {},
+        groupId: parentGroup?.groupId,
+        loc: { line: lineNum, col: indent + 1 },
+      };
 
-      ast.nodes.push(node);
-      declaredNodeIds.add(fullId);
-      stack.push({ type: 'node', nodeId: fullId, indent });
+      registerNode(node, lineNum, parentGroup);
+      stack.push({ type: 'node', nodeId: fullId, indent, line: lineNum });
       continue;
     }
 
-    // ── 5. Node Inline (no properties) ──
+    // ── 7. Node Inline ──
     match = trimmed.match(NODE_INLINE_RE);
     if (match) {
       const type = match[1];
       const localId = match[2];
 
-      // Avoid matching config keys that look like "word word"
-      // Config keys always have `:` — but NODE_INLINE_RE already
-      // excludes lines with `:` since \w doesn't include `:`.
-
-      // However, we should skip if inside an edge/node scope
-      // and the "type" looks like a property name.
-      // This is handled by scope — if we're inside a node or edge
-      // scope, a bare two-word line is unusual. We'll let it create
-      // a node but warn.
+      // Contextual safety: warn if appears inside a node or edge block
       if (scope.type === 'node' || scope.type === 'edge') {
-        addDiag(lineNum, 'warning', `Two-word line "${trimmed}" found inside ${scope.type} block. Did you mean to use "key: value" syntax?`);
-      }
-
-      if (!KNOWN_TYPES_SET.has(type)) {
-        addDiag(lineNum, 'warning', `Unknown component type "${type}". Known types: ${[...KNOWN_TYPES_SET].join(', ')}`);
-      }
-
-      const parentGroup = findParentGroup();
-      const groupId = parentGroup?.groupId;
-      const fullId = groupId ? `${groupId}.${localId}` : localId;
-
-      const node: VrdNode = { id: fullId, type, props: {} };
-      if (groupId) {
-        node.groupId = groupId;
-        if (groupMap.has(groupId)) {
-          groupMap.get(groupId)!.children.push(fullId);
+        diag(
+          lineNum,
+          'warning',
+          `"${trimmed}" looks like a node declaration inside a ${scope.type} block. ` +
+          `Did you mean "key: value" syntax?`,
+        );
+        // Don't continue — fall through to KV check below.
+        // This avoids creating accidental nodes from typos like `size large`
+        // inside a node block (should be `size: large`).
+      } else {
+        if (!KNOWN_NODE_TYPES_SET.has(type)) {
+          diag(
+            lineNum,
+            'warning',
+            `Unknown node type "${type}". It will be rendered with a default shape.`,
+          );
         }
-      }
 
-      ast.nodes.push(node);
-      declaredNodeIds.add(fullId);
-      continue;
+        const parentGroup = findParentGroup();
+        const fullId = resolveFullId(localId, parentGroup);
+
+        const node: VrdNode = {
+          id: fullId,
+          type,
+          props: {},
+          groupId: parentGroup?.groupId,
+          loc: { line: lineNum, col: indent + 1 },
+        };
+
+        registerNode(node, lineNum, parentGroup);
+        continue;
+      }
     }
 
-    // ── 6. Key-Value (config, node props, edge props) ──
+    // ── 8. Key-Value ──
     match = trimmed.match(KV_RE);
     if (match) {
       const key = match[1];
       const rawVal = match[2].trim();
 
-      if (scope.type === 'root') {
-        // Top-level config
-        ast.config[key] = parseValue(rawVal) as string;
-      } else if (scope.type === 'node') {
-        // Node property
-        const node = findNodeById(ast, scope.nodeId);
-        if (node) {
-          if (key === 'position') {
-            const pos = parsePosition(rawVal);
-            if (pos) {
-              node.props.position = pos;
-            } else {
-              addDiag(lineNum, 'error', `Invalid position format "${rawVal}". Expected: x,y,z (three numbers)`);
-            }
-          } else if (key === 'glow') {
-            node.props.glow = rawVal === 'true';
-          } else {
-            node.props[key] = parseValue(rawVal);
+      switch (scope.type) {
+        case 'root':
+          handleConfigKV(key, rawVal, lineNum, ast, diag);
+          break;
+
+        case 'node': {
+          const node = nodeMap.get(scope.nodeId);
+          if (node) {
+            handleNodeKV(key, rawVal, lineNum, node, diag);
           }
+          break;
         }
-      } else if (scope.type === 'edge') {
-        // Edge property
-        const edge = ast.edges[scope.edgeIndex];
-        if (edge) {
-          if (key === 'width') {
-            edge.props.width = Number(parseValue(rawVal));
-          } else {
-            (edge.props as Record<string, unknown>)[key] = parseValue(rawVal);
+
+        case 'edge': {
+          const edge = ast.edges[scope.edgeIndex];
+          if (edge) {
+            handleEdgeKV(key, rawVal, lineNum, edge, diag);
           }
+          break;
         }
-      } else if (scope.type === 'group') {
-        // Config-like keys inside group scope — could be group metadata
-        // For now, warn
-        addDiag(lineNum, 'warning', `Key-value "${key}: ${rawVal}" inside group scope is not standard. Did you mean to declare a node?`);
+
+        case 'group': {
+          const group = groupMap.get(scope.groupId);
+          if (group) {
+            handleGroupKV(key, rawVal, lineNum, group, diag);
+          }
+          break;
+        }
       }
       continue;
     }
 
-    // ── 7. Nothing matched → syntax error ──
-    addDiag(lineNum, 'error', `Invalid syntax: "${trimmed}"`);
+    // ── 9. Nothing matched ──
+    diag(lineNum, 'error', `Unrecognized syntax: "${trimmed}"`);
   }
 
   // ── Post-parse validation ──
-
-  // Validate edge references
-  for (const edge of ast.edges) {
-    if (!declaredNodeIds.has(edge.from)) {
-      addDiag(0, 'warning', `Edge references unknown node "${edge.from}"`);
-    }
-    if (!declaredNodeIds.has(edge.to)) {
-      addDiag(0, 'warning', `Edge references unknown node "${edge.to}"`);
-    }
-  }
+  const validationDiags = validateAst(ast, declaredNodeIds);
+  diagnostics.push(...validationDiags);
 
   return { ast, diagnostics };
 }
 
 // ============================================
-// Helpers
+// Input normalization
 // ============================================
 
-function findNodeById(ast: VrdAST, id: string): VrdNode | undefined {
-  // Search backwards (most recently added is most likely)
-  for (let j = ast.nodes.length - 1; j >= 0; j--) {
-    if (ast.nodes[j].id === id) return ast.nodes[j];
+function normalizeInput(input: string): string {
+  // Normalize line endings
+  let normalized = input.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Remove BOM
+  if (normalized.charCodeAt(0) === 0xfeff) {
+    normalized = normalized.substring(1);
   }
-  return undefined;
+
+  return normalized;
+}
+
+// ============================================
+// KV Handlers
+// ============================================
+
+type DiagFn = (
+  line: number,
+  severity: VrdDiagnostic['severity'],
+  message: string,
+  col?: number,
+) => void;
+
+// ── Config KV ──
+
+function handleConfigKV(
+  key: string,
+  rawVal: string,
+  lineNum: number,
+  ast: VrdAST,
+  diag: DiagFn,
+): void {
+  const val = parseValue(rawVal);
+
+  switch (key) {
+    case 'layout':
+      if (typeof val === 'string') {
+        ast.config.layout = val as VrdAST['config']['layout'];
+      } else {
+        diag(lineNum, 'warning', `Layout value should be a string, got ${typeof val}`);
+      }
+      break;
+
+    case 'camera':
+      if (typeof val === 'string') {
+        ast.config.camera = val as VrdAST['config']['camera'];
+      } else {
+        diag(lineNum, 'warning', `Camera value should be a string, got ${typeof val}`);
+      }
+      break;
+
+    default:
+      ast.config[key] = val as string;
+      break;
+  }
+}
+
+// ── Node KV ──
+
+const KNOWN_NODE_PROPS: ReadonlySet<string> = new Set([
+  'label', 'color', 'size', 'glow', 'icon', 'position',
+  'description', 'status', 'opacity', 'scale',
+]);
+
+function handleNodeKV(
+  key: string,
+  rawVal: string,
+  lineNum: number,
+  node: VrdNode,
+  diag: DiagFn,
+): void {
+  switch (key) {
+    case 'position': {
+      const pos = parsePosition(rawVal);
+      if (pos) {
+        node.props.position = pos;
+      } else {
+        diag(
+          lineNum,
+          'error',
+          `Invalid position "${rawVal}" on node "${node.id}". Expected: x,y,z (three numbers)`,
+        );
+      }
+      break;
+    }
+
+    case 'glow':
+      node.props.glow = rawVal.trim() === 'true';
+      break;
+
+    case 'size': {
+      const val = parseValue(rawVal);
+      node.props.size = val as typeof node.props.size;
+      break;
+    }
+
+    case 'label': {
+      const val = parseValue(rawVal);
+      node.props.label = typeof val === 'string' ? val : String(val);
+      break;
+    }
+
+    case 'color':
+      node.props.color = rawVal.trim();
+      break;
+
+    case 'icon':
+      node.props.icon = rawVal.trim();
+      break;
+
+    case 'opacity': {
+      const val = Number(rawVal);
+      if (Number.isFinite(val) && val >= 0 && val <= 1) {
+        node.props.opacity = val;
+      } else {
+        diag(lineNum, 'warning', `Invalid opacity "${rawVal}". Expected 0-1.`);
+      }
+      break;
+    }
+
+    case 'scale': {
+      const val = Number(rawVal);
+      if (Number.isFinite(val) && val > 0) {
+        node.props.scale = val;
+      } else {
+        diag(lineNum, 'warning', `Invalid scale "${rawVal}". Expected positive number.`);
+      }
+      break;
+    }
+
+    default:
+      if (!KNOWN_NODE_PROPS.has(key)) {
+        diag(
+          lineNum,
+          'info',
+          `Unknown node property "${key}" on "${node.id}". It will be stored but may not be rendered.`,
+        );
+      }
+      node.props[key] = parseValue(rawVal);
+      break;
+  }
+}
+
+// ── Edge KV ──
+
+const KNOWN_EDGE_PROPS: ReadonlySet<string> = new Set([
+  'label', 'style', 'color', 'width', 'bidirectional',
+  'fromPort', 'toPort', 'description',
+]);
+
+function handleEdgeKV(
+  key: string,
+  rawVal: string,
+  lineNum: number,
+  edge: VrdEdge,
+  diag: DiagFn,
+): void {
+  switch (key) {
+    case 'label': {
+      const val = parseValue(rawVal);
+      edge.props.label = typeof val === 'string' ? val : String(val);
+      break;
+    }
+
+    case 'style':
+      edge.props.style = rawVal.trim() as typeof edge.props.style;
+      break;
+
+    case 'color':
+      edge.props.color = rawVal.trim();
+      break;
+
+    case 'width': {
+      const w = parseWidth(rawVal);
+      if (w !== null) {
+        edge.props.width = w;
+      } else {
+        diag(lineNum, 'warning', `Invalid edge width "${rawVal}". Expected positive number.`);
+      }
+      break;
+    }
+
+    case 'bidirectional':
+      edge.props.bidirectional = rawVal.trim() === 'true';
+      break;
+
+    case 'fromPort':
+      edge.props.fromPort = rawVal.trim();
+      break;
+
+    case 'toPort':
+      edge.props.toPort = rawVal.trim();
+      break;
+
+    default:
+      if (!KNOWN_EDGE_PROPS.has(key)) {
+        diag(
+          lineNum,
+          'info',
+          `Unknown edge property "${key}". It will be stored but may not be rendered.`,
+        );
+      }
+      (edge.props as Record<string, unknown>)[key] = parseValue(rawVal);
+      break;
+  }
+}
+
+// ── Group KV ──
+
+function handleGroupKV(
+  key: string,
+  rawVal: string,
+  lineNum: number,
+  group: VrdGroup,
+  diag: DiagFn,
+): void {
+  switch (key) {
+    case 'label':
+      group.label = typeof parseValue(rawVal) === 'string'
+        ? parseValue(rawVal) as string
+        : String(parseValue(rawVal));
+      break;
+
+    case 'color':
+    case 'style':
+    case 'description':
+      group.props[key] = parseValue(rawVal);
+      break;
+
+    default:
+      diag(
+        lineNum,
+        'info',
+        `Unknown group property "${key}" on group "${group.id}".`,
+      );
+      group.props[key] = parseValue(rawVal);
+      break;
+  }
 }

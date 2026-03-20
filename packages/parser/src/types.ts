@@ -1,31 +1,148 @@
 // ============================================
-// Verdant AST Types — v2.0
-// Matches context document specification
+// Verdant AST Types — v3.0
 // ============================================
 
-/** Known built-in component types */
-export const KNOWN_NODE_TYPES = [
-  'server', 'database', 'cache', 'gateway', 'service',
-  'user', 'cloud', 'queue', 'storage', 'monitor',
-  // Client alias
-  'client',
-] as const;
+// ── Known built-in node types, organized by category ──
 
-export type KnownNodeType = typeof KNOWN_NODE_TYPES[number];
+export const NODE_TYPE_CATEGORIES = {
+  compute: [
+    'server', 'service', 'microservice', 'function', 'lambda',
+    'container', 'pod', 'worker', 'vm', 'task', 'instance', 'process',
+  ],
+  storage: [
+    'database', 'cache', 'storage', 'bucket', 'datalake',
+    'warehouse', 'filesystem', 'volume', 'table', 'datastore',
+  ],
+  network: [
+    'gateway', 'loadbalancer', 'proxy', 'firewall', 'cdn',
+    'dns', 'router', 'switch', 'api', 'endpoint', 'ingress',
+  ],
+  messaging: [
+    'queue', 'topic', 'stream', 'bus', 'broker', 'pubsub', 'event',
+  ],
+  cloud: [
+    'cloud', 'region', 'zone', 'vpc', 'subnet',
+    'cluster', 'namespace', 'network',
+  ],
+  client: [
+    'user', 'client', 'browser', 'mobile',
+    'iot', 'device', 'desktop', 'app',
+  ],
+  observability: [
+    'monitor', 'logger', 'tracer', 'alerter',
+    'dashboard', 'metric',
+  ],
+  security: [
+    'auth', 'vault', 'waf', 'certificate',
+    'identity', 'secret', 'kms', 'sso',
+  ],
+  cicd: [
+    'pipeline', 'registry', 'artifact',
+    'build', 'deploy', 'repository',
+  ],
+  generic: [
+    'webhook', 'cron', 'scheduler', 'config',
+    'mesh', 'sidecar', 'plugin',
+  ],
+} as const;
 
-/** Valid layout options */
+// Flatten all categories into a single array
+function flattenCategories(): readonly string[] {
+  const all: string[] = [];
+  for (const entries of Object.values(NODE_TYPE_CATEGORIES)) {
+    for (const t of entries) {
+      all.push(t);
+    }
+  }
+  return Object.freeze(all);
+}
+
+export const KNOWN_NODE_TYPES: readonly string[] = flattenCategories();
+
+/** Fast lookup set — used internally by parser */
+export const KNOWN_NODE_TYPES_SET: ReadonlySet<string> = new Set(KNOWN_NODE_TYPES);
+
+export type KnownNodeType = (typeof NODE_TYPE_CATEGORIES)[keyof typeof NODE_TYPE_CATEGORIES][number];
+
+// ── Shape mapping hints (used by NodeRegistry / tooling) ──
+
+export const NODE_TYPE_SHAPE_HINTS: Record<string, string> = {
+  // Compute → cube
+  server: 'cube', service: 'cube', microservice: 'cube', worker: 'cube',
+  task: 'cube', instance: 'cube', process: 'cube', build: 'cube',
+  deploy: 'cube', config: 'cube', plugin: 'cube',
+
+  // Functions → pentagon
+  function: 'pentagon', lambda: 'pentagon', webhook: 'pentagon',
+  cron: 'pentagon', scheduler: 'pentagon',
+
+  // Storage → cylinder
+  database: 'cylinder', storage: 'cylinder', bucket: 'cylinder',
+  datalake: 'cylinder', warehouse: 'cylinder', filesystem: 'cylinder',
+  volume: 'cylinder', table: 'cylinder', datastore: 'cylinder',
+  repository: 'cylinder', artifact: 'cylinder',
+
+  // Network → diamond
+  gateway: 'diamond', api: 'diamond', endpoint: 'diamond',
+  loadbalancer: 'diamond', proxy: 'diamond', ingress: 'diamond',
+
+  // Messaging → torus
+  queue: 'torus', topic: 'torus', stream: 'torus', bus: 'torus',
+  broker: 'torus', pubsub: 'torus', event: 'torus',
+
+  // Client → sphere
+  user: 'sphere', client: 'sphere', browser: 'sphere', mobile: 'sphere',
+  desktop: 'sphere', device: 'sphere', iot: 'sphere', app: 'sphere',
+  cloud: 'sphere',
+
+  // Monitoring → hexagon
+  cache: 'hexagon', monitor: 'hexagon', metric: 'hexagon',
+  dashboard: 'hexagon', logger: 'hexagon', tracer: 'hexagon',
+  alerter: 'hexagon',
+
+  // Security → octagon
+  auth: 'octagon', vault: 'octagon', waf: 'octagon',
+  certificate: 'octagon', identity: 'octagon', secret: 'octagon',
+  kms: 'octagon', sso: 'octagon', firewall: 'octagon',
+
+  // Infrastructure → ring
+  cdn: 'ring', dns: 'ring', router: 'ring', switch: 'ring',
+  mesh: 'ring', sidecar: 'ring', vpc: 'ring', subnet: 'ring',
+  cluster: 'ring', namespace: 'ring', network: 'ring',
+  region: 'ring', zone: 'ring',
+
+  // Container → box
+  container: 'box', pod: 'box', vm: 'box',
+  pipeline: 'box', registry: 'box',
+};
+
+// ── Enums ──
+
 export type LayoutType = 'auto' | 'grid' | 'circular';
-
-/** Valid camera options */
 export type CameraType = 'perspective' | 'orthographic';
-
-/** Valid size options */
-export type NodeSize = 'sm' | 'md' | 'lg' | 'xl';
-
-/** Valid edge styles */
+export type NodeSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 export type EdgeStyle = 'solid' | 'dashed' | 'animated' | 'dotted';
 
-// ---- Config ----
+export type ShapeType =
+  | 'cube'
+  | 'cylinder'
+  | 'diamond'
+  | 'sphere'
+  | 'torus'
+  | 'hexagon'
+  | 'pentagon'
+  | 'octagon'
+  | 'ring'
+  | 'box';
+
+// ── Source Location (optional, for tooling) ──
+
+export interface SourceLocation {
+  line: number;
+  col: number;
+}
+
+// ── Config ──
 
 export interface VrdConfig {
   theme?: string;
@@ -35,7 +152,26 @@ export interface VrdConfig {
   [key: string]: unknown;
 }
 
-// ---- Nodes ----
+/** Config keys we recognize (for validation) */
+export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set([
+  'theme', 'layout', 'camera', 'pack', 'title', 'description',
+]);
+
+/** Valid layout values */
+export const VALID_LAYOUTS: ReadonlySet<string> = new Set(['auto', 'grid', 'circular']);
+
+/** Valid camera values */
+export const VALID_CAMERAS: ReadonlySet<string> = new Set(['perspective', 'orthographic']);
+
+/** Valid size values */
+export const VALID_SIZES: ReadonlySet<string> = new Set(['xs', 'sm', 'md', 'lg', 'xl']);
+
+/** Valid edge style values */
+export const VALID_EDGE_STYLES: ReadonlySet<string> = new Set([
+  'solid', 'dashed', 'animated', 'dotted',
+]);
+
+// ── Nodes ──
 
 export interface VrdNodeProps {
   label?: string;
@@ -52,34 +188,42 @@ export interface VrdNode {
   type: string;
   props: VrdNodeProps;
   groupId?: string;
+  loc?: SourceLocation;
 }
 
-// ---- Edges ----
+// ── Edges ──
 
 export interface VrdEdgeProps {
   label?: string;
   style?: EdgeStyle;
   color?: string;
   width?: number;
+  bidirectional?: boolean;
+  fromPort?: string;
+  toPort?: string;
+  [key: string]: unknown;
 }
 
 export interface VrdEdge {
   from: string;
   to: string;
   props: VrdEdgeProps;
+  loc?: SourceLocation;
 }
 
-// ---- Groups ----
+// ── Groups ──
 
 export interface VrdGroup {
   id: string;
   label?: string;
-  children: string[];       // node IDs
-  groups: VrdGroup[];       // nested sub-groups
-  parentGroupId?: string;   // if nested
+  children: string[];
+  groups: VrdGroup[];
+  parentGroupId?: string;
+  props: Record<string, unknown>;
+  loc?: SourceLocation;
 }
 
-// ---- AST Root ----
+// ── AST Root ──
 
 export interface VrdAST {
   config: VrdConfig;
@@ -88,12 +232,13 @@ export interface VrdAST {
   groups: VrdGroup[];
 }
 
-// ---- Diagnostics ----
+// ── Diagnostics ──
 
 export type DiagnosticSeverity = 'error' | 'warning' | 'info';
 
 export interface VrdDiagnostic {
   line: number;
+  col?: number;
   severity: DiagnosticSeverity;
   message: string;
 }
@@ -103,11 +248,14 @@ export interface VrdParseResult {
   diagnostics: VrdDiagnostic[];
 }
 
-// ---- Error ----
+// ── Error ──
 
 export class VrdParserError extends Error {
-  constructor(message: string, public line: number) {
+  public readonly line: number;
+
+  constructor(message: string, line: number) {
     super(`[Line ${line}] ${message}`);
     this.name = 'VrdParserError';
+    this.line = line;
   }
 }

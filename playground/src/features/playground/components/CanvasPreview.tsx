@@ -3,14 +3,15 @@
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { R3FErrorBoundary } from "./R3FErrorBoundary";
+import type { VrdAST } from "@verdant/parser";
 import type { CameraData, CursorData } from "@verdant/renderer";
 
 const VerdantRenderer = dynamic(
-  () => 
+  () =>
     import("@verdant/renderer")
       .then((mod) => mod.VerdantRenderer)
       .catch((err) => {
-        console.error("Failed to load VerdantRenderer:", err);
+        console.error("[Verdant] Failed to load renderer:", err);
         throw err;
       }),
   {
@@ -22,10 +23,10 @@ const VerdantRenderer = dynamic(
 interface CanvasPreviewProps {
   isRendererReady: boolean;
   hasContent: boolean;
-  ast: any;
+  ast: VrdAST;
   resolvedTheme: "light" | "dark";
   errorCount: number;
-  showCoordinateSystem?: boolean;
+  showCoordinateSystem: boolean;
   onNodeClick?: (info: { nodeId: string; screenX: number; screenY: number }) => void;
   onCameraChange?: (data: CameraData) => void;
   onCursorMove?: (data: CursorData | null) => void;
@@ -39,7 +40,7 @@ export function CanvasPreview({
   ast,
   resolvedTheme,
   errorCount,
-  showCoordinateSystem = true,
+  showCoordinateSystem,
   onNodeClick,
   onCameraChange,
   onCursorMove,
@@ -48,7 +49,7 @@ export function CanvasPreview({
 }: CanvasPreviewProps) {
   return (
     <div className="pg-canvas">
-      {/* Loader */}
+      {/* Loading state */}
       {!isRendererReady && (
         <div className="pg-canvas-loader">
           <Loader2
@@ -90,35 +91,52 @@ export function CanvasPreview({
           />
         </R3FErrorBoundary>
       ) : (
-        <div className="pg-empty">
-          <span className="pg-empty-title">
-            {errorCount > 0 ? "Syntax needs fixing." : "Write something."}
-          </span>
-          <span className="pg-empty-desc">
-            {errorCount > 0
-              ? "Check the schema panel for errors — fix them and your diagram will appear."
-              : "Open the schema panel and describe your system in .vrd syntax. Nodes and edges will render here instantly."}
-          </span>
-          {!errorCount && onOpenSchema && (
-            <div className="btn-group" style={{ marginTop: "0.5rem" }}>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={onOpenSchema}
-                style={{ fontSize: "0.75rem", padding: "0.5rem 1rem" }}
-              >
-                Open schema
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={onOpenSchema}
-                style={{ fontSize: "0.75rem", padding: "0.5rem 0.75rem" }}
-              >
-                ◁
-              </button>
-            </div>
-          )}
+        <EmptyState
+          errorCount={errorCount}
+          onOpenSchema={onOpenSchema}
+        />
+      )}
+    </div>
+  );
+}
+
+function EmptyState({
+  errorCount,
+  onOpenSchema,
+}: {
+  errorCount: number;
+  onOpenSchema?: () => void;
+}) {
+  const hasErrors = errorCount > 0;
+
+  return (
+    <div className="pg-empty">
+      <span className="pg-empty-title">
+        {hasErrors ? "Syntax needs fixing." : "Write something."}
+      </span>
+      <span className="pg-empty-desc">
+        {hasErrors
+          ? "Check the schema panel for errors — fix them and your diagram will appear."
+          : "Open the schema panel and describe your system in .vrd syntax. Nodes and edges will render here instantly."}
+      </span>
+      {!hasErrors && onOpenSchema && (
+        <div className="btn-group" style={{ marginTop: "0.5rem" }}>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={onOpenSchema}
+            style={{ fontSize: "0.75rem", padding: "0.5rem 1rem" }}
+          >
+            Open schema
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={onOpenSchema}
+            style={{ fontSize: "0.75rem", padding: "0.5rem 0.75rem" }}
+          >
+            ◁
+          </button>
         </div>
       )}
     </div>

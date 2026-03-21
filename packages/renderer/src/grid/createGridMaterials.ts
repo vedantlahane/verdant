@@ -135,7 +135,7 @@ interface Palette {
 }
 
 const DARK_PALETTE: Palette = {
-  gridColor: '#ffffff',
+  gridColor: '#fdfeff38',
   gridMinorOpacity: 0.14,
   gridMajorOpacity: 0.26,
   yzColor: '#81c784',
@@ -144,7 +144,7 @@ const DARK_PALETTE: Palette = {
   yzMajorOpacity: 0.14,
   xyMinorOpacity: 0.07,
   xyMajorOpacity: 0.14,
-  xzPanelColor: '#90a4ae',
+  xzPanelColor: '#10224a',
   yzPanelColor: '#81c784',
   xyPanelColor: '#64b5f6',
   xzPanelOpacity: 0.05,
@@ -166,7 +166,7 @@ const DARK_PALETTE: Palette = {
 };
 
 const LIGHT_PALETTE: Palette = {
-  gridColor: '#1f2937',
+  gridColor: 'rgba(163, 156, 211, 0.84)',
   gridMinorOpacity: 0.30,
   gridMajorOpacity: 0.48,
   yzColor: '#1b5e20',
@@ -175,7 +175,7 @@ const LIGHT_PALETTE: Palette = {
   yzMajorOpacity: 0.22,
   xyMinorOpacity: 0.12,
   xyMajorOpacity: 0.22,
-  xzPanelColor: '#1f2937',
+  xzPanelColor: '#ffffff',
   yzPanelColor: '#2e7d32',
   xyPanelColor: '#1565c0',
   xzPanelOpacity: 0.08,
@@ -221,13 +221,13 @@ export function createGridMaterials(isDark: boolean): GridMaterials {
     ring: meshMat(p.originColor, p.ringOpacity),
     sphere: meshMat(p.originColor, p.sphereOpacity, THREE.FrontSide),
 
-    tickX: meshMat('#e57373', p.tickOpacityXY),
-    tickY: meshMat('#81c784', p.tickOpacityXY),
-    tickZ: meshMat('#64b5f6', p.tickOpacityZ),
+    tickX: meshMat('#f08e8e', p.tickOpacityXY),
+    tickY: meshMat('#acf1b0', p.tickOpacityXY),
+    tickZ: meshMat('#84c3f6', p.tickOpacityZ),
 
     arrowX: meshMat('#e57373', p.arrowOpacityXY),
-    arrowY: meshMat('#81c784', p.arrowOpacityXY),
-    arrowZ: meshMat('#64b5f6', p.arrowOpacityZ),
+    arrowY: meshMat('#adeeb0', p.arrowOpacityXY),
+    arrowZ: meshMat('#88c2f2', p.arrowOpacityZ),
     arrowZFar: meshMat('#1e88e5', p.arrowOpacityZFar),
   };
 }

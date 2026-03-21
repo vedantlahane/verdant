@@ -6,22 +6,25 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc -w",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "packageManager": "pnpm@10.32.1",
   "peerDependencies": {
+    "@react-three/fiber": "^8 || ^9",
     "react": "^18 || ^19",
-    "three": "^0.180 || ^0.183",
-    "@react-three/fiber": "^8 || ^9"
+    "three": "^0.180 || ^0.183"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@types/three": "^0.183.1"
   },
   "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "fast-check": "^4.6.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3"
+    "vitest": "^3.2.4"
   }
 }

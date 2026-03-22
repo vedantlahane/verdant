@@ -23,15 +23,17 @@ export function useMonacoMarkers(
     if (!model) return;
 
     const diagnostics = parseResult.diagnostics;
+    const lineCount = model.getLineCount();
 
-    // Build markers from diagnostics that have valid line numbers
+    // Build markers from diagnostics that have valid line numbers within model bounds
     const markers = diagnostics
-      .filter((d) => d.line > 0)
+      .filter((d) => d.line > 0 && d.line <= lineCount)
       .map((d) => {
         const lineLength = model.getLineLength(d.line);
+        const startCol = Math.min(d.col ?? 1, lineLength + 1);
         return {
           startLineNumber: d.line,
-          startColumn: d.col ?? 1,
+          startColumn: startCol,
           endLineNumber: d.line,
           endColumn: lineLength + 1,
           message: d.message,

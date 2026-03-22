@@ -111,18 +111,19 @@ export function useAiGeneration({
 
   const undoAi = useCallback(
     (entryId: string) => {
-      const idx = aiHistory.findIndex((h) => h.id === entryId);
-      if (idx === -1) return;
+      setAiHistory((prev) => {
+        const idx = prev.findIndex((h) => h.id === entryId);
+        if (idx === -1) return prev;
 
-      const entry = aiHistory[idx];
-      setCode(entry.codeBefore);
+        const entry = prev[idx];
+        setCode(entry.codeBefore);
+        toast.success("Reverted to previous state");
 
-      // Remove this entry and all newer entries (lower indices)
-      setAiHistory((prev) => prev.slice(idx + 1));
-
-      toast.success("Reverted to previous state");
+        // Remove this entry and all newer entries (lower indices)
+        return prev.slice(idx + 1);
+      });
     },
-    [aiHistory, setCode],
+    [setCode],
   );
 
   return {

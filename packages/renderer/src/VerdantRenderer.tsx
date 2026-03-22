@@ -163,10 +163,12 @@ const MinimapOverlay = React.memo(function MinimapOverlay({
   const ast = useRendererStore((s) => s.ast);
   const positions = useRendererStore((s) => s.positions);
   const getNodeColor = useRendererStore((s) => s.getNodeColor);
+  const themeColors = useRendererStore((s) => s.themeColors);
 
-  const nodes = useMemo(() => {
-    if (!ast) return [];
-    return ast.nodes.map((node) => ({
+  const { nodes, edges, groups } = useMemo(() => {
+    if (!ast) return { nodes: [], edges: [], groups: [] };
+
+    const resNodes = ast.nodes.map((node) => ({
       id: node.id,
       position: (positions[node.id] ?? ORIGIN) as [number, number, number],
       color: getNodeColor(
@@ -174,11 +176,67 @@ const MinimapOverlay = React.memo(function MinimapOverlay({
         node.props.color as string | undefined,
       ),
     }));
-  }, [ast, positions, getNodeColor]);
+
+    const resEdges = ast.edges.map((edge) => ({
+      fromPosition: (positions[edge.from] ?? ORIGIN) as [number, number, number],
+      toPosition: (positions[edge.to] ?? ORIGIN) as [number, number, number],
+      color: themeColors.edgeDefault || 'rgba(255,255,255,0.25)',
+    }));
+
+    // Helper to collect descendants
+    const getGroupNodeIds = (g: typeof ast.groups[number]): string[] => {
+      let ids = [...g.children];
+      for (const childGroup of g.groups) ids = ids.concat(getGroupNodeIds(childGroup));
+      return ids;
+    };
+
+    const flatGroups: Array<typeof ast.groups[number]> = [];
+    const getSubtreeGroups = (gs: typeof ast.groups) => {
+      for (const g of gs) {
+        flatGroups.push(g);
+        getSubtreeGroups(g.groups);
+      }
+    };
+    getSubtreeGroups(ast.groups);
+
+    const resGroups = flatGroups.map((g) => {
+      const gNodes = getGroupNodeIds(g);
+      let minX = Infinity, minZ = Infinity;
+      let maxX = -Infinity, maxZ = -Infinity;
+      let hasValid = false;
+
+      for (const id of gNodes) {
+        const p = positions[id];
+        if (p) {
+          hasValid = true;
+          if (p[0] < minX) minX = p[0];
+          if (p[0] > maxX) maxX = p[0];
+          if (p[2] < minZ) minZ = p[2];
+          if (p[2] > maxZ) maxZ = p[2];
+        }
+      }
+
+      if (!hasValid) {
+        return { id: g.id, bounds: { min: [0, 0] as [number, number], max: [0, 0] as [number, number] }, color: themeColors.accent };
+      }
+
+      const padding = 2.5;
+      return {
+        id: g.id,
+        bounds: {
+          min: [minX - padding, minZ - padding] as [number, number],
+          max: [maxX + padding, maxZ + padding] as [number, number],
+        },
+        color: themeColors.accent,
+      };
+    });
+
+    return { nodes: resNodes, edges: resEdges, groups: resGroups };
+  }, [ast, positions, getNodeColor, themeColors]);
 
   if (!config) return null;
 
-  return <Minimap nodes={nodes} config={config} />;
+  return <Minimap nodes={nodes} edges={edges} groups={groups} config={config} />;
 });
 
 // ═══════════════════════════════════════════════════════════════════

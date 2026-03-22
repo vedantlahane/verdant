@@ -9,7 +9,7 @@ import {
   Sun,
   Moon,
   MoreHorizontal,
-  Image,
+  ImageIcon,
   RotateCcw,
   Maximize,
   Keyboard,
@@ -44,6 +44,8 @@ interface TopBarProps {
   // Layout
   readonly activeLayout?: LayoutType;
   readonly onLayoutChange?: (layout: LayoutType) => void;
+  readonly activeLayoutDirection?: 'TB' | 'LR';
+  readonly onLayoutDirectionChange?: (dir: 'TB' | 'LR') => void;
   // Toggles
   readonly minimapEnabled?: boolean;
   readonly onMinimapToggle?: () => void;
@@ -91,20 +93,15 @@ const OVERFLOW_ITEMS: readonly OverflowItemDef[] = Object.freeze([
     shortcut: "?",
   }),
 ]);
-
 const EXPORT_FORMATS: readonly { id: ExportFormat; label: string }[] = Object.freeze([
   Object.freeze({ id: "png" as const, label: "PNG" }),
   Object.freeze({ id: "svg" as const, label: "SVG" }),
   Object.freeze({ id: "gltf" as const, label: "GLTF" }),
 ]);
 
-const LAYOUT_OPTIONS: readonly { value: LayoutType; label: string }[] = Object.freeze([
-  Object.freeze({ value: "auto" as LayoutType, label: "auto" }),
-  Object.freeze({ value: "grid" as LayoutType, label: "grid" }),
-  Object.freeze({ value: "circular" as LayoutType, label: "circular" }),
-  Object.freeze({ value: "hierarchical" as LayoutType, label: "hierarchical" }),
-  Object.freeze({ value: "forced" as LayoutType, label: "forced" }),
-]);
+// Platform-aware modifier key label
+const MOD_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌘" : "Ctrl+";
+
 
 // ── GitHubIcon (static SVG, memoized) ──
 
@@ -145,6 +142,8 @@ export const TopBar = memo(function TopBar({
   onExport,
   activeLayout = "auto",
   onLayoutChange,
+  activeLayoutDirection = 'TB',
+  onLayoutDirectionChange,
   minimapEnabled = false,
   onMinimapToggle,
   postProcessingEnabled = false,
@@ -264,19 +263,31 @@ export const TopBar = memo(function TopBar({
           <Maximize2 className="h-3.5 w-3.5" />
         </button>
 
-        {/* Layout selector */}
-        <select
-          value={activeLayout}
-          onChange={handleLayoutChange}
-          className="pg-topbar-select"
-          aria-label="Layout algorithm"
-        >
-          {LAYOUT_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+        <div className="pg-topbar-select-group">
+          <select
+            value={activeLayout}
+            onChange={handleLayoutChange}
+            className="pg-topbar-select"
+            aria-label="Layout mode"
+          >
+            <option value="auto">Auto</option>
+            <option value="hierarchical">Hierarchical</option>
+            <option value="forced">Force Directed</option>
+            <option value="circular">Circular</option>
+            <option value="grid">Grid</option>
+          </select>
+
+          {activeLayout === 'hierarchical' && (
+            <select
+              value={activeLayoutDirection}
+              onChange={(e) => onLayoutDirectionChange?.(e.target.value as 'TB' | 'LR')}
+              className="pg-topbar-select pg-topbar-select--small"
+            >
+              <option value="TB">Vertical</option>
+              <option value="LR">Horizontal</option>
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Middle spacer */}
@@ -339,11 +350,11 @@ export const TopBar = memo(function TopBar({
                   onClick={() => handleExport(fmt.id)}
                 >
                   <span className="pg-overflow-item-label">
-                    <Image className="h-3.5 w-3.5" />
+                    <ImageIcon className="h-3.5 w-3.5" />
                     {fmt.label}
                   </span>
                   {fmt.id === "png" && (
-                    <span className="pg-overflow-item-shortcut">⌘⇧E</span>
+                    <span className="pg-overflow-item-shortcut">{MOD_KEY}⇧E</span>
                   )}
                 </button>
               ))}
@@ -427,6 +438,7 @@ function topBarPropsAreEqual(prev, next) {
     prev.canUndo === next.canUndo &&
     prev.canRedo === next.canRedo &&
     prev.activeLayout === next.activeLayout &&
+    prev.activeLayoutDirection === next.activeLayoutDirection &&
     prev.minimapEnabled === next.minimapEnabled &&
     prev.postProcessingEnabled === next.postProcessingEnabled &&
     prev.gridSnapEnabled === next.gridSnapEnabled &&
@@ -438,6 +450,7 @@ function topBarPropsAreEqual(prev, next) {
     prev.onZoomToFit === next.onZoomToFit &&
     prev.onExport === next.onExport &&
     prev.onLayoutChange === next.onLayoutChange &&
+    prev.onLayoutDirectionChange === next.onLayoutDirectionChange &&
     prev.onMinimapToggle === next.onMinimapToggle &&
     prev.onPostProcessingToggle === next.onPostProcessingToggle &&
     prev.onGridSnapToggle === next.onGridSnapToggle &&

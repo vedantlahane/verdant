@@ -29,9 +29,13 @@ export const StatusBar = memo(function StatusBar() {
   } = usePlayground();
 
   const camReadout = useMemo(
-    () =>
-      `cam: ${cameraData.position[0].toFixed(1)}, ${cameraData.position[1].toFixed(1)}, ${cameraData.position[2].toFixed(1)}`,
-    [cameraData.position],
+    () => {
+      const [x, y, z] = cameraData.position;
+      return `cam: ${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}`;
+    },
+    // Destructure to primitives to avoid object-reference churn
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cameraData.position[0], cameraData.position[1], cameraData.position[2]],
   );
 
   const zoomReadout = useMemo(
@@ -45,7 +49,9 @@ export const StatusBar = memo(function StatusBar() {
       cursorData
         ? `cursor: (${cursorData.x.toFixed(1)}, ${cursorData.y.toFixed(1)}, ${cursorData.z.toFixed(1)})`
         : "cursor: (-, -, -)",
-    [cursorData],
+    // Use individual numeric coords to avoid object-reference dep
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cursorData?.x, cursorData?.y, cursorData?.z],
   );
 
   const selectionReadout = useMemo(
@@ -73,10 +79,9 @@ export const StatusBar = memo(function StatusBar() {
       </span>
 
       <span className="pg-status-info">
-        {selectionReadout} · {undoDepth} undo · {layoutName} · {fps}fps
+        <span>{selectionReadout} · {undoDepth} undo · {layoutName} · {fps}fps</span>
+        <span className="pg-status-shortcuts">⌘B schema · ⌘K ai</span>
       </span>
-
-      <span>⌘B schema · ⌘K ai</span>
     </div>
   );
 });

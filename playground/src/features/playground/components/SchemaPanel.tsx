@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useMemo, useCallback, memo } from "react";
+import { useMemo, useCallback, memo, useState, useEffect, useRef } from "react";
 import {
   Code2,
   Sparkles,
@@ -16,6 +16,7 @@ import {
 import { PRESETS } from "../constants/presets";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import type { AiHistoryEntry } from "../types";
+import type { VrdDiagnostic } from "@verdant/parser";
 
 // ── Types ──
 
@@ -24,14 +25,17 @@ interface SchemaPanelProps {
   readonly onOpenChange: (open: boolean) => void;
   readonly activeTab: "code" | "ai";
   readonly onTabChange: (tab: "code" | "ai") => void;
+  readonly code: string;
   readonly errorCount: number;
   readonly warningCount: number;
+  readonly diagnostics: readonly VrdDiagnostic[];
   readonly nodeCount: number;
   readonly edgeCount: number;
   readonly presetsOpen: boolean;
   readonly onPresetsOpenChange: (open: boolean) => void;
   readonly activePreset: string;
   readonly onSelectPreset: (key: string) => void;
+  readonly onNewCode: () => void;
   readonly presetsRef: React.RefObject<HTMLDivElement | null>;
   readonly aiPrompt: string;
   readonly onAiPromptChange: (value: string) => void;
@@ -74,7 +78,7 @@ const AI_ERROR_ICON_STYLE = Object.freeze({
 } as const) as React.CSSProperties;
 
 const RULER_INTERVAL = 80;
-const RULER_COUNT = 20;
+const RULER_COUNT = 60; // Increased to ensure scrolling demo
 
 // ── Sub-components ──
 
@@ -106,24 +110,34 @@ const TabButton = memo(function TabButton({
 const CodeTabContent = memo(function CodeTabContent({
   presetsOpen,
   onPresetsOpenChange,
-  activePreset,
   onSelectPreset,
+  onNewCode,
   presetsRef,
   errorCount,
   editorChildren,
+  logs,
+  activePreset,
 }: {
   readonly presetsOpen: boolean;
   readonly onPresetsOpenChange: (open: boolean) => void;
   readonly activePreset: string;
   readonly onSelectPreset: (key: string) => void;
+  readonly onNewCode: () => void;
   readonly presetsRef: React.RefObject<HTMLDivElement | null>;
   readonly errorCount: number;
   readonly editorChildren: React.ReactNode;
+  readonly logs: string[];
 }) {
   const togglePresets = useCallback(
     () => onPresetsOpenChange(!presetsOpen),
     [presetsOpen, onPresetsOpenChange],
   );
+
+  // Auto-scroll log to bottom
+  const logEndRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs.length]);
 
   return (
     <>
@@ -151,6 +165,21 @@ const CodeTabContent = memo(function CodeTabContent({
 
           {presetsOpen && (
             <div className="pg-presets-dropdown" role="listbox">
+              {/* New / Blank option */}
+              <button
+                role="option"
+                aria-selected={!activePreset}
+                onClick={onNewCode}
+                className="pg-presets-item"
+              >
+                <div style={PRESETS_FLEX_STYLE}>
+                  <span className="pg-presets-item-name">+ New (blank)</span>
+                  {!activePreset && (
+                    <Check className="pg-presets-item-check" />
+                  )}
+                </div>
+                <span className="pg-presets-item-desc">Start fresh with empty canvas</span>
+              </button>
               {Object.entries(PRESETS).map(([key, p]) => (
                 <button
                   key={key}
@@ -182,13 +211,25 @@ const CodeTabContent = memo(function CodeTabContent({
             }`}
           />
           <span className="pg-schema-status-dot-label">
-            {errorCount > 0 ? `${errorCount} errors` : "valid"}
+            {errorCount > 0 ? `${errorCount} error${errorCount !== 1 ? 's' : ''}` : "valid"}
           </span>
         </div>
       </div>
 
       {/* Editor */}
       <div className="pg-schema-editor">{editorChildren}</div>
+
+      {/* Scroll Demo / System Log */}
+      <div className="pg-schema-demo">
+        <div className="pg-schema-demo-header">// system log</div>
+        <div className="pg-schema-demo-content">
+          <div>[00.00] initializing kernel...</div>
+          <div>[00.02] loading layout: {activePreset || "custom"}...</div>
+          {logs.map((log, i) => <div key={`log-${i}-${log.slice(1, 8)}`}>{log}</div>)}
+          <div className="opacity-40 animate-pulse">// monitoring live changes...</div>
+          <div ref={logEndRef} />
+        </div>
+      </div>
     </>
   );
 });
@@ -397,14 +438,17 @@ export const SchemaPanel = memo(function SchemaPanel({
   onOpenChange,
   activeTab,
   onTabChange,
+  code,
   errorCount,
   warningCount,
+  diagnostics,
   nodeCount,
   edgeCount,
   presetsOpen,
   onPresetsOpenChange,
   activePreset,
   onSelectPreset,
+  onNewCode,
   presetsRef,
   aiPrompt,
   onAiPromptChange,
@@ -417,6 +461,64 @@ export const SchemaPanel = memo(function SchemaPanel({
 }: SchemaPanelProps) {
   useOutsideClick(presetsRef, () => onPresetsOpenChange(false), presetsOpen);
 
+  const [logs, setLogs] = useState<string[]>([]);
+  const lastState = useRef({ nodeCount, edgeCount, errorCount, warningCount, code });
+
+  useEffect(() => {
+    const prev = lastState.current;
+    const now = new Date().toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' });
+    const ms = String(new Date().getMilliseconds()).padStart(3, '0').slice(0, 2);
+    const ts = `[${now}.${ms}]`;
+
+    const newLogs: string[] = [];
+
+    // Error/warning changes
+    if (errorCount !== prev.errorCount) {
+      if (errorCount > prev.errorCount) {
+        newLogs.push(`${ts} ✗ parsing: ${errorCount} error${errorCount !== 1 ? 's' : ''} detected`);
+        const newErrors = diagnostics.filter(d => d.severity === 'error');
+        for (const e of newErrors) {
+          newLogs.push(`${ts}   Line ${e.line}: ${e.message}`);
+        }
+      } else if (errorCount === 0) {
+        newLogs.push(`${ts} ✓ parsing: all errors resolved`);
+      } else {
+        newLogs.push(`${ts} ~ parsing: ${errorCount} error${errorCount !== 1 ? 's' : ''} remaining`);
+        const newErrors = diagnostics.filter(d => d.severity === 'error');
+        for (const e of newErrors) {
+          newLogs.push(`${ts}   Line ${e.line}: ${e.message}`);
+        }
+      }
+    }
+
+    if (warningCount !== prev.warningCount && warningCount > 0) {
+      newLogs.push(`${ts} ⚠ validation: ${warningCount} warning${warningCount !== 1 ? 's' : ''}`);
+      const newWarnings = diagnostics.filter(d => d.severity === 'warning');
+      for (const w of newWarnings) {
+        newLogs.push(`${ts}   Line ${w.line}: ${w.message}`);
+      }
+    }
+
+    // Structure changes
+    if (nodeCount !== prev.nodeCount || edgeCount !== prev.edgeCount) {
+      const nodeDiff = nodeCount - prev.nodeCount;
+      const edgeDiff = edgeCount - prev.edgeCount;
+      const parts: string[] = [];
+      if (nodeDiff !== 0) parts.push(`${nodeDiff > 0 ? '+' : ''}${nodeDiff} node${Math.abs(nodeDiff) !== 1 ? 's' : ''}`);
+      if (edgeDiff !== 0) parts.push(`${edgeDiff > 0 ? '+' : ''}${edgeDiff} edge${Math.abs(edgeDiff) !== 1 ? 's' : ''}`);
+      newLogs.push(`${ts} → graph: ${parts.join(', ')} (${nodeCount}n ${edgeCount}e)`);
+    } else if (code !== prev.code && newLogs.length === 0) {
+      // Code changed but structure didn't — probably config/label/property edit
+      const lineCount = code.split('\n').length;
+      newLogs.push(`${ts} · edit: ${lineCount} lines`);
+    }
+
+    if (newLogs.length > 0) {
+      setLogs(prev => [...prev.slice(-12), ...newLogs]);
+    }
+    lastState.current = { nodeCount, edgeCount, errorCount, warningCount, code };
+  }, [code, nodeCount, edgeCount, errorCount, warningCount]);
+
   const handleClose = useCallback(
     () => onOpenChange(false),
     [onOpenChange],
@@ -425,6 +527,16 @@ export const SchemaPanel = memo(function SchemaPanel({
   const handleOpen = useCallback(
     () => onOpenChange(true),
     [onOpenChange],
+  );
+
+  const handleSwitchToCode = useCallback(
+    () => onTabChange("code"),
+    [onTabChange],
+  );
+
+  const handleSwitchToAi = useCallback(
+    () => onTabChange("ai"),
+    [onTabChange],
   );
 
   return (
@@ -452,6 +564,7 @@ export const SchemaPanel = memo(function SchemaPanel({
       >
         <div className="pg-schema-body">
           {/* Decorative layers */}
+          {/* ── Section header ── */}
           <div className="pg-schema-bleed" aria-hidden="true" />
           <div className="pg-schema-grid" aria-hidden="true" />
           <div className="pg-schema-cellguide" aria-hidden="true" />
@@ -484,13 +597,13 @@ export const SchemaPanel = memo(function SchemaPanel({
                 active={activeTab === "code"}
                 icon={<Code2 style={TAB_ICON_STYLE} />}
                 label="code"
-                onClick={() => onTabChange("code")}
+                onClick={handleSwitchToCode}
               />
               <TabButton
                 active={activeTab === "ai"}
                 icon={<Sparkles style={TAB_ICON_STYLE} />}
                 label="ai"
-                onClick={() => onTabChange("ai")}
+                onClick={handleSwitchToAi}
               />
             </div>
 
@@ -501,9 +614,11 @@ export const SchemaPanel = memo(function SchemaPanel({
                 onPresetsOpenChange={onPresetsOpenChange}
                 activePreset={activePreset}
                 onSelectPreset={onSelectPreset}
+                onNewCode={onNewCode}
                 presetsRef={presetsRef}
                 errorCount={errorCount}
                 editorChildren={editorChildren}
+                logs={logs}
               />
             ) : (
               <AiTabContent

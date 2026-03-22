@@ -58,6 +58,7 @@ export interface RendererState {
 
   // ── Status ──
   readonly undoDepth: number;
+  readonly canRedo: boolean;
   readonly layoutName: LayoutType;
   readonly fps: number;
 
@@ -82,6 +83,7 @@ export interface RendererState {
   getNodeColor: (type: string, customColor?: string) => string;
   setSelectionSet: (ids: ReadonlySet<string>) => void;
   setUndoDepth: (depth: number) => void;
+  setCanRedo: (canRedo: boolean) => void;
   setFps: (fps: number) => void;
   setContextMenu: (state: ContextMenuState) => void;
   closeContextMenu: () => void;
@@ -144,6 +146,7 @@ function buildNodeIndex(nodes: readonly VrdNode[]): Map<string, VrdNode> {
 function computeFirstLoadPositions(
   ast: VrdAST,
   layoutType: LayoutType,
+  direction: 'TB' | 'LR',
   persistedPositions: Readonly<Record<string, Vec3>> | undefined,
 ): Record<string, MutVec3> {
   const finalPositions: Record<string, MutVec3> = {};
@@ -166,6 +169,7 @@ function computeFirstLoadPositions(
       ast.edges,
       layoutType,
       ast.groups,
+      direction,
     );
     for (const node of missingNodes) {
       const pos = computed.get(node.id);
@@ -256,6 +260,7 @@ export const useRendererStore = create<RendererState>()(
     hoveredNodeId: null,
     draggingNodeId: null,
     undoDepth: 0,
+    canRedo: false,
     layoutName: 'auto' as LayoutType,
     fps: 0,
     themeName: 'moss',
@@ -278,9 +283,15 @@ export const useRendererStore = create<RendererState>()(
       const nextIds = new Set(ast.nodes.map((n) => n.id));
 
       // ── Positions ──
+      const layoutDirection = (ast.config.direction as 'TB' | 'LR') || 'TB';
+      const prevLayoutType = (prevAst?.config.layout as LayoutType) || 'auto';
+      const prevLayoutDir = (prevAst?.config.direction as 'TB' | 'LR') || 'TB';
+      
+      const layoutChanged = layoutType !== prevLayoutType || layoutDirection !== prevLayoutDir;
       const isFirstLoad = !prevAst || Object.keys(prevPositions).length === 0;
-      const finalPositions = isFirstLoad
-        ? computeFirstLoadPositions(ast, layoutType, persisted?.positions)
+
+      const finalPositions = (isFirstLoad || layoutChanged)
+        ? computeFirstLoadPositions(ast, layoutType, layoutDirection, persisted?.positions)
         : computeIncrementalPositions(ast, prevPositions, prevIds, nextIds);
 
       applyUserPositionOverrides(ast.nodes, finalPositions);
@@ -441,6 +452,11 @@ export const useRendererStore = create<RendererState>()(
     setUndoDepth: (depth) => {
       if (get().undoDepth === depth) return;
       set({ undoDepth: depth });
+    },
+
+    setCanRedo: (canRedo) => {
+      if (get().canRedo === canRedo) return;
+      set({ canRedo });
     },
 
     setFps: (fps) => {

@@ -107,13 +107,17 @@ const EmptyState = memo(function EmptyState({
           >
             Open schema
           </button>
+        </div>
+      )}
+      {hasErrors && onOpenSchema && (
+        <div className="btn-group" style={EMPTY_BTN_GROUP_STYLE}>
           <button
             type="button"
             className="btn-secondary"
             onClick={onOpenSchema}
             style={EMPTY_BTN_SECONDARY_STYLE}
           >
-            ◁
+            Open schema panel
           </button>
         </div>
       )}

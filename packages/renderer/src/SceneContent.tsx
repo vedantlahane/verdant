@@ -150,48 +150,81 @@ const GroupsLayer = React.memo(function GroupsLayer({
   accentColor,
 }: GroupsLayerProps) {
   const ast = useRendererStore((s) => s.ast);
-
-  // Build a set of all group IDs that appear as children of other groups
-  const nestedGroupIds = useMemo(() => {
-    if (!ast) return new Set<string>();
-    const nested = new Set<string>();
-    const collectNested = (groups: typeof ast.groups) => {
-      for (const g of groups) {
-        for (const child of g.groups) {
-          nested.add(child.id);
-        }
-        collectNested(g.groups);
-      }
-    };
-    collectNested(ast.groups);
-    return nested;
-  }, [ast]);
-
-  const renderGroup = useCallback(
-    (group: VrdAST['groups'][number], isNested: boolean) => {
-      const collapsed = group.props?.collapsed === true;
-      const GroupComponent = isNested ? NestedGroup : GroupContainer;
-      return (
-        <GroupComponent
-          key={group.id}
-          label={group.label}
-          color={accentColor}
-          collapsed={collapsed}
-        >
-          {group.groups.map((child) => renderGroup(child, true))}
-        </GroupComponent>
-      );
-    },
-    [accentColor],
-  );
+  const positions = useRendererStore((s) => s.positions);
 
   if (!ast) return null;
 
+  // Render all groups mapped to their absolute positions as flat children.
+  const flatGroups: Array<{ group: VrdAST['groups'][number]; depth: number }> = [];
+  const getSubtreeGroups = (groups: typeof ast.groups, depth: number) => {
+    for (const g of groups) {
+      flatGroups.push({ group: g, depth });
+      getSubtreeGroups(g.groups, depth + 1);
+    }
+  };
+  getSubtreeGroups(ast.groups, 0);
+
+  // Helper to recursively collect all node IDs for bounds calculation
+  const getGroupNodeIds = (group: VrdAST['groups'][number]): string[] => {
+    let ids = [...group.children];
+    for (const childGroup of group.groups) {
+      ids = ids.concat(getGroupNodeIds(childGroup));
+    }
+    return ids;
+  };
+
   return (
     <>
-      {ast.groups.map((group) =>
-        renderGroup(group, nestedGroupIds.has(group.id)),
-      )}
+      {flatGroups.map(({ group, depth }) => {
+        const nodeIds = getGroupNodeIds(group);
+        let minX = Infinity, minY = Infinity, minZ = Infinity;
+        let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+        let hasValid = false;
+
+        for (const id of nodeIds) {
+          const p = positions[id];
+          if (p) {
+            hasValid = true;
+            if (p[0] < minX) minX = p[0];
+            if (p[0] > maxX) maxX = p[0];
+            if (p[1] < minY) minY = p[1];
+            if (p[1] > maxY) maxY = p[1];
+            if (p[2] < minZ) minZ = p[2];
+            if (p[2] > maxZ) maxZ = p[2];
+          }
+        }
+
+        const padding = 2.5;
+        let position: [number, number, number] = [0, 0, 0];
+        let size: [number, number, number] = [4, 4, 4];
+
+        if (hasValid) {
+          const w = Math.max(maxX - minX + padding * 2, 4);
+          const h = Math.max(maxY - minY + padding * 2, 4);
+          const d = Math.max(maxZ - minZ + padding * 2, 4);
+          size = [w, h, d];
+          position = [
+            (minX + maxX) / 2,
+            (minY + maxY) / 2,
+            (minZ + maxZ) / 2,
+          ];
+        }
+
+        const collapsed = group.props?.collapsed === true;
+        const GroupComponent = depth > 0 ? NestedGroup : GroupContainer;
+
+        return (
+          <GroupComponent
+            key={group.id}
+            label={group.label}
+            color={accentColor}
+            collapsed={collapsed}
+            size={size}
+            position={position}
+            depth={depth}
+          />
+        );
+      })}
     </>
   );
 });
@@ -325,16 +358,16 @@ export const SceneContent = React.forwardRef<
       box.getSize(size);
 
       // Get max dimension for scaling
-      const maxDim = Math.max(size.x, size.y, size.z);
+      const maxDim = Math.max(size.x, size.y, size.z, 20); // enforce min bounding bounds
       const fov = (camera as THREE.PerspectiveCamera).fov ?? 45;
 
       // Distance to fit the box
       let distance = maxDim / (2 * Math.tan((Math.PI * fov) / 360));
       // Buffer factor
-      distance *= 1.5;
+      distance = Math.max(distance * 1.5, 30);
 
       // New camera position: relative to center
-      const offset = new THREE.Vector3(0, distance * 0.5, distance).normalize().multiplyScalar(distance);
+      const offset = new THREE.Vector3(0, 0.5, 1).normalize().multiplyScalar(distance);
       const newPos = center.clone().add(offset);
 
       // Apply
@@ -453,10 +486,26 @@ export const SceneContent = React.forwardRef<
     [selectedNodeId, setContextMenu],
   );
 
+  const handleDoubleClick = useCallback((e: any) => {
+    e.stopPropagation();
+    if (!controlsRef.current) return;
+    
+    // Shift rotation pivot to exactly where the user double-clicks (cursor pointer)
+    const newTarget = e.point as THREE.Vector3;
+    const controls = controlsRef.current;
+    
+    // Mathematically shift the camera by the same relative offset to prevent screen-jump
+    const offset = new THREE.Vector3().subVectors(newTarget, controls.target);
+    camera.position.add(offset);
+    
+    controls.target.copy(newTarget);
+    controls.update();
+  }, [camera]);
+
   if (!ast) return null;
 
   return (
-    <>
+    <group onDoubleClick={handleDoubleClick}>
       <SceneLighting />
 
       {showCoordinateSystem && <BlueprintGroundPlane />}
@@ -493,6 +542,6 @@ export const SceneContent = React.forwardRef<
         onStart={handleInteractionStart}
         onEnd={handleInteractionEnd}
       />
-    </>
+    </group>
   );
 });

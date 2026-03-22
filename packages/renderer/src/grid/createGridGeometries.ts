@@ -222,7 +222,7 @@ function buildSmallGeometries() {
  * and the result stored for the component's lifetime.
  */
 export function createGridGeometries(): GridGeometries {
-  const panelSize = GRID_SIZE * 2;
+  const panelSize = AXIS_LENGTH * 2;
 
   return {
     // Axes

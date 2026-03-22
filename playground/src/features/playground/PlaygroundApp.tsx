@@ -27,6 +27,7 @@ import { StatusBar } from "./components/StatusBar";
 import { Editor } from "./components/Editor";
 import type { EditorInstance } from "./components/Editor";
 import { KeyboardShortcutHelp } from "./components/KeyboardShortcutHelp";
+import type { LayoutType } from "./types";
 
 // ── Frozen style constants (pattern 5) ──
 
@@ -78,7 +79,7 @@ export function PlaygroundApp() {
 
   // ── Export PNG ──
   const handleExportPNG = useCallback(() => {
-    const canvas = document.querySelector("canvas");
+    const canvas = document.querySelector(".pg-canvas canvas");
     if (!(canvas instanceof HTMLCanvasElement)) {
       toast.error("No canvas found");
       return;
@@ -168,6 +169,30 @@ export function PlaygroundApp() {
     [],
   );
 
+  const handleOpenShortcutHelp = useCallback(
+    () => setShortcutHelpOpen(true),
+    [],
+  );
+
+  const handleLayoutChange = useCallback(
+    (layout: LayoutType) => {
+      state.setCode(toggleVrdConfigLine(state.code, "layout", layout));
+    },
+    [state.setCode, state.code],
+  );
+
+  const handleLayoutDirectionChange = useCallback(
+    (dir: 'TB' | 'LR') => {
+      state.setCode(toggleVrdConfigLine(state.code, "direction", dir));
+    },
+    [state.setCode, state.code],
+  );
+
+  const handleNewCode = useCallback(() => {
+    state.newCode();
+    setPresetsOpen(false);
+  }, [state.newCode]);
+
   // ── Derived state ──
 
   const hasContent = useMemo(
@@ -244,12 +269,12 @@ export function PlaygroundApp() {
           onPostProcessingToggle={state.togglePostProcessing}
           gridSnapEnabled={state.gridSnapEnabled}
           onGridSnapToggle={state.toggleGridSnap}
-          activeLayout={state.parseResult.ast.config.layout as any}
-          onLayoutChange={(layout) => {
-            state.setCode(toggleVrdConfigLine(state.code, "layout", layout));
-          }}
+          activeLayout={(state.parseResult.ast?.config?.layout as LayoutType) ?? 'auto'}
+          activeLayoutDirection={(state.parseResult.ast?.config?.direction as 'TB' | 'LR') || 'TB'}
+          onLayoutChange={handleLayoutChange}
+          onLayoutDirectionChange={handleLayoutDirectionChange}
           onResetCamera={state.resetCamera}
-          onShortcutHelpToggle={() => setShortcutHelpOpen(true)}
+          onShortcutHelpToggle={handleOpenShortcutHelp}
         />
 
 
@@ -260,14 +285,17 @@ export function PlaygroundApp() {
           onOpenChange={state.setSchemaOpen}
           activeTab={state.schemaTab}
           onTabChange={state.setSchemaTab}
+          code={state.code}
           errorCount={state.errorCount}
           warningCount={state.warningCount}
+          diagnostics={state.parseResult.diagnostics}
           nodeCount={state.nodeCount}
           edgeCount={state.edgeCount}
           presetsOpen={presetsOpen}
           onPresetsOpenChange={setPresetsOpen}
           activePreset={state.activePreset}
           onSelectPreset={state.selectPreset}
+          onNewCode={handleNewCode}
           presetsRef={presetsRef}
           aiPrompt={ai.aiPrompt}
           onAiPromptChange={ai.setAiPrompt}

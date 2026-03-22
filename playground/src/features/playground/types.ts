@@ -114,6 +114,7 @@ export interface PlaygroundActions {
   readonly setSchemaOpen: (open: boolean) => void;
   readonly setSchemaTab: (tab: SchemaTab) => void;
   readonly selectPreset: (key: string) => void;
+  readonly newCode: () => void;
   readonly setShowCoordinateSystem: (show: boolean) => void;
   readonly toggleCoordinateSystem: () => void;
   readonly setCameraData: (data: CameraData) => void;

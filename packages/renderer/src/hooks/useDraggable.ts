@@ -15,6 +15,8 @@ export interface DraggableHandlers {
   readonly onPointerDown: (e: any) => void;
   readonly onPointerMove: (e: any) => void;
   readonly onPointerUp: (e: any) => void;
+  /** Whether the pointer has moved significantly since down */
+  readonly hasMoved: boolean;
 }
 
 export interface UseDraggableOptions {
@@ -49,6 +51,10 @@ interface DragState {
   active: boolean;
   /** Pointer ID for capture management */
   pointerId: number;
+  /** Whether significant movement has occurred (drag vs tap) */
+  hasMoved: boolean;
+  /** World position at start of drag */
+  startPos: THREE.Vector3;
   /** Plane onto which pointer is projected (perpendicular to camera) */
   plane: THREE.Plane;
   /** Offset from pointer hit to node center at drag start */
@@ -69,6 +75,8 @@ function createDragState(): DragState {
   return {
     active: false,
     pointerId: -1,
+    hasMoved: false,
+    startPos: new THREE.Vector3(),
     plane: new THREE.Plane(),
     offset: new THREE.Vector3(),
     raycaster: new THREE.Raycaster(),
@@ -175,7 +183,9 @@ export function useDraggable({
 
       state.offset.copy(state.intersection).sub(state.worldPos);
       state.active = true;
+      state.hasMoved = false;
       state.pointerId = e.pointerId;
+      state.startPos.copy(state.worldPos);
 
       setDraggingNode(nodeId);
       onDragStart();
@@ -213,6 +223,16 @@ export function useDraggable({
 
       // Reject NaN/Infinity positions (can occur with degenerate projections)
       if (!isFiniteVec3(newPos)) return;
+
+      // Track movement threshold (approx 2 world units or pixels depending on scale)
+      // Actually we should use screen distance if more precision is needed, 
+      // but world distance is usually fine for nodes.
+      if (!state.hasMoved) {
+        state.worldPos.set(newPos[0], newPos[1], newPos[2]);
+        if (state.worldPos.distanceTo(state.startPos) > 0.05) {
+          state.hasMoved = true;
+        }
+      }
 
       positionRef.current = newPos;
       updateNodePosition(nodeId, newPos);
@@ -253,5 +273,7 @@ export function useDraggable({
     };
   }, [gl, setDraggingNode]);
 
-  return { onPointerDown, onPointerMove, onPointerUp };
+  const hasMoved = dragRef.current?.hasMoved ?? false;
+
+  return { onPointerDown, onPointerMove, onPointerUp, hasMoved };
 }

@@ -49,12 +49,13 @@ const EDGE_OPACITY = 0.25;
 function getPositionStyle(
   position: MinimapConfig['position'],
 ): React.CSSProperties {
+  const BOTTOM_OFFSET = PADDING + 32; // Offset for status bar
   switch (position) {
     case 'top-left': return { top: PADDING, left: PADDING };
     case 'top-right': return { top: PADDING, right: PADDING };
-    case 'bottom-left': return { bottom: PADDING, left: PADDING };
+    case 'bottom-left': return { bottom: BOTTOM_OFFSET, left: PADDING };
     case 'bottom-right':
-    default: return { bottom: PADDING, right: PADDING };
+    default: return { bottom: BOTTOM_OFFSET, right: PADDING };
   }
 }
 
@@ -109,18 +110,37 @@ function computeWorldBounds(
   };
 }
 
+interface ScaleContext {
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+function computeScaleContext(bounds: WorldBounds, canvasW: number, canvasH: number): ScaleContext {
+  const rangeX = bounds.maxX - bounds.minX || 1;
+  const rangeY = bounds.maxY - bounds.minY || 1;
+  
+  // Use uniform scale to prevent stretching
+  const scale = Math.min(canvasW / rangeX, canvasH / rangeY);
+  
+  // Center the map
+  const displayW = rangeX * scale;
+  const displayH = rangeY * scale;
+  const offsetX = (canvasW - displayW) / 2;
+  const offsetY = (canvasH - displayH) / 2;
+
+  return { scale, offsetX, offsetY };
+}
+
 function worldToCanvas(
   wx: number,
   wz: number,
   bounds: WorldBounds,
-  canvasW: number,
-  canvasH: number,
+  sCtx: ScaleContext,
 ): [number, number] {
-  const rangeX = bounds.maxX - bounds.minX || 1;
-  const rangeY = bounds.maxY - bounds.minY || 1;
   return [
-    ((wx - bounds.minX) / rangeX) * canvasW,
-    ((wz - bounds.minY) / rangeY) * canvasH,
+    (wx - bounds.minX) * sCtx.scale + sCtx.offsetX,
+    (wz - bounds.minY) * sCtx.scale + sCtx.offsetY,
   ];
 }
 
@@ -128,14 +148,11 @@ function canvasToWorld(
   cx: number,
   cy: number,
   bounds: WorldBounds,
-  canvasW: number,
-  canvasH: number,
+  sCtx: ScaleContext,
 ): [number, number] {
-  const rangeX = bounds.maxX - bounds.minX || 1;
-  const rangeY = bounds.maxY - bounds.minY || 1;
   return [
-    (cx / canvasW) * rangeX + bounds.minX,
-    (cy / canvasH) * rangeY + bounds.minY,
+    (cx - sCtx.offsetX) / sCtx.scale + bounds.minX,
+    (cy - sCtx.offsetY) / sCtx.scale + bounds.minY,
   ];
 }
 
@@ -176,10 +193,12 @@ export function Minimap({
     const W = canvas.width;
     const H = canvas.height;
 
-    // Scale for HiDPI
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const cW = width;
     const cH = height;
+    
+    // Scale context for preserving aspect ratio
+    const sCtx = computeScaleContext(bounds, cW, cH);
 
     // ── Background ──
     ctx.clearRect(0, 0, cW, cH);
@@ -198,8 +217,8 @@ export function Minimap({
     // ── Group boundaries ──
     if (groups && groups.length > 0) {
       for (const group of groups) {
-        const [x1, y1] = worldToCanvas(group.bounds.min[0], group.bounds.min[1], bounds, cW, cH);
-        const [x2, y2] = worldToCanvas(group.bounds.max[0], group.bounds.max[1], bounds, cW, cH);
+        const [x1, y1] = worldToCanvas(group.bounds.min[0], group.bounds.min[1], bounds, sCtx);
+        const [x2, y2] = worldToCanvas(group.bounds.max[0], group.bounds.max[1], bounds, sCtx);
         ctx.strokeStyle = group.color
           ? `${group.color}80`
           : 'rgba(100, 160, 255, 0.35)';
@@ -214,8 +233,8 @@ export function Minimap({
       for (const edge of edges) {
         const [fx, , fz] = edge.fromPosition;
         const [tx, , tz] = edge.toPosition;
-        const [x1, y1] = worldToCanvas(fx, fz, bounds, cW, cH);
-        const [x2, y2] = worldToCanvas(tx, tz, bounds, cW, cH);
+        const [x1, y1] = worldToCanvas(fx, fz, bounds, sCtx);
+        const [x2, y2] = worldToCanvas(tx, tz, bounds, sCtx);
 
         ctx.strokeStyle = edge.color
           ? `${edge.color}${Math.round(EDGE_OPACITY * 255).toString(16).padStart(2, '0')}`
@@ -230,7 +249,7 @@ export function Minimap({
     // ── Nodes ──
     for (const node of nodes) {
       const [wx, , wz] = node.position;
-      const [cx, cy] = worldToCanvas(wx, wz, bounds, cW, cH);
+      const [cx, cy] = worldToCanvas(wx, wz, bounds, sCtx);
       const isSelected = node.selected === true;
       const radius = isSelected
         ? SELECTED_RADIUS * (node.size ?? 1)
@@ -258,8 +277,8 @@ export function Minimap({
       const halfW = (viewportSize.width / 2) / zoom;
       const halfH = (viewportSize.height / 2) / zoom;
 
-      const [vx1, vy1] = worldToCanvas(camX - halfW, camZ - halfH, bounds, cW, cH);
-      const [vx2, vy2] = worldToCanvas(camX + halfW, camZ + halfH, bounds, cW, cH);
+      const [vx1, vy1] = worldToCanvas(camX - halfW, camZ - halfH, bounds, sCtx);
+      const [vx2, vy2] = worldToCanvas(camX + halfW, camZ + halfH, bounds, sCtx);
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
       ctx.fillRect(vx1, vy1, vx2 - vx1, vy2 - vy1);
@@ -292,7 +311,8 @@ export function Minimap({
   const handleInteraction = useCallback(
     (cx: number, cy: number) => {
       if (!onPan) return;
-      const [wx, wz] = canvasToWorld(cx, cy, bounds, width, height);
+      const sCtx = computeScaleContext(bounds, width, height);
+      const [wx, wz] = canvasToWorld(cx, cy, bounds, sCtx);
       onPan([wx, wz]);
     },
     [bounds, width, height, onPan],

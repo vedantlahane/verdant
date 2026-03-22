@@ -66,8 +66,23 @@ export function useShareUrl(
         const url = new URL(window.location.href);
         url.hash = encoded;
         window.history.replaceState(null, "", url.toString());
-        await navigator.clipboard.writeText(url.toString());
-        toast.success("Share link copied");
+
+        // Clipboard API requires secure context — fall back gracefully
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(url.toString());
+          toast.success("Share link copied");
+        } else {
+          // Fallback: select + copy
+          const textArea = document.createElement("textarea");
+          textArea.value = url.toString();
+          textArea.style.position = "fixed";
+          textArea.style.left = "-9999px";
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textArea);
+          toast.success("Share link copied");
+        }
       } catch {
         toast.error("Could not create share link");
       }

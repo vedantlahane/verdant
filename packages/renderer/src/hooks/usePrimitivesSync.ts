@@ -20,25 +20,27 @@ export function usePrimitivesSync(): void {
   const positions = useRendererStore((s) => s.positions);
   const setSelectionSet = useRendererStore((s) => s.setSelectionSet);
   const setUndoDepth = useRendererStore((s) => s.setUndoDepth);
+  const setCanRedo = useRendererStore((s) => s.setCanRedo);
 
   const { selectionManager, commandHistory, transitionEngine } =
     usePrimitives();
 
-  // ── SelectionManager → store sync ──
+  // ── History → store sync ──
+  useEffect(() => {
+    if (!commandHistory) return;
+    return commandHistory.subscribe((state) => {
+      setUndoDepth(state.canUndo ? state.pointer + 1 : 0);
+      setCanRedo(state.canRedo);
+    });
+  }, [commandHistory, setUndoDepth, setCanRedo]);
 
+  // ── SelectionManager → store sync ──
   useEffect(() => {
     if (!selectionManager) return;
     return selectionManager.onChange((ids: ReadonlySet<string>) => {
       setSelectionSet(new Set(ids));
-      if (commandHistory) {
-        setUndoDepth(
-          commandHistory.canUndo
-            ? (commandHistory as any).pointer + 1
-            : 0,
-        );
-      }
     });
-  }, [selectionManager, commandHistory, setSelectionSet, setUndoDepth]);
+  }, [selectionManager, setSelectionSet]);
 
   // ── Enter animations ──
 

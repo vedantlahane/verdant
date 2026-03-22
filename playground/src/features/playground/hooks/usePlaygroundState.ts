@@ -64,6 +64,12 @@ export function usePlaygroundState(rendererRef: React.RefObject<VerdantRendererH
     setSchemaTab("code");
   }, []);
 
+  const newCode = useCallback(() => {
+    setCode('# New diagram\ntheme: moss\n');
+    setActivePreset('');
+    setSchemaTab("code");
+  }, []);
+
   // ── Camera ────────────────────────────────────
   const [cameraData, setCameraData] = useState<CameraData>(DEFAULT_CAMERA_DATA);
   const [cursorData, setCursorData] = useState<CursorData | null>(null);
@@ -76,6 +82,7 @@ export function usePlaygroundState(rendererRef: React.RefObject<VerdantRendererH
   const undoDepth = useRendererStore((s) => s.undoDepth);
   const layoutName = useRendererStore((s) => s.layoutName);
   const rawFps = useRendererStore((s) => s.fps);
+  const canRedo = useRendererStore((s) => s.canRedo);
 
   // FPS throttle ──
   const [fps, setFps] = useState(0);
@@ -145,6 +152,7 @@ export function usePlaygroundState(rendererRef: React.RefObject<VerdantRendererH
     setSchemaTab,
     activePreset,
     selectPreset,
+    newCode,
     isRendererReady,
     showCoordinateSystem,
     setShowCoordinateSystem,
@@ -168,7 +176,7 @@ export function usePlaygroundState(rendererRef: React.RefObject<VerdantRendererH
 
     // NEW
     canUndo: undoDepth > 0,
-    canRedo: false, // Core CommandHistory doesn't currently expose redoDepth easily, but we'll wire it later
+    canRedo,
     undo,
     redo,
     zoomToFit,

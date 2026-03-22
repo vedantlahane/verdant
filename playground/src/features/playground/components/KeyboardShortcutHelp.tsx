@@ -14,17 +14,12 @@ interface KeyboardShortcutHelpProps {
 
 const SHORTCUTS = Object.freeze([
   Object.freeze({ key: "?", description: "Toggle shortcut help" }),
-  Object.freeze({ key: "Escape", description: "Close inspector / panel" }),
+  Object.freeze({ key: "Escape", description: "Close inspector → panel → help (priority chain)" }),
   Object.freeze({ key: "⌘B / Ctrl+B", description: "Toggle schema panel" }),
   Object.freeze({ key: "⌘K / Ctrl+K", description: "Open AI assistant" }),
   Object.freeze({ key: "⌘⇧E / Ctrl+Shift+E", description: "Export PNG" }),
   Object.freeze({ key: "G", description: "Toggle coordinate system" }),
-  Object.freeze({ key: "F", description: "Fullscreen / Zoom to fit (canvas focus)" }),
-  Object.freeze({ key: "⌘Z / Ctrl+Z", description: "Undo" }),
-  Object.freeze({ key: "⌘Y / Ctrl+Y", description: "Redo" }),
-  Object.freeze({ key: "Tab", description: "Focus next node" }),
-  Object.freeze({ key: "Shift+Tab", description: "Focus previous node" }),
-  Object.freeze({ key: "Enter / Space", description: "Activate node" }),
+  Object.freeze({ key: "F", description: "Fullscreen" }),
 ] as const);
 
 // ── Frozen style objects (pattern 5: no inline allocations in JSX) ──

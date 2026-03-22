@@ -22,6 +22,7 @@ interface NodeInspectorProps {
 
 /** Card positioning offset from click point in px */
 const OFFSET_PX = 16;
+const STATUS_BAR_HEIGHT = 40; // 32px + buffer
 const CARD_WIDTH = 260;
 const CARD_HEIGHT = 420;
 /** Minimum top position to avoid topbar overlap */
@@ -140,8 +141,8 @@ function computeCardPosition(
       : screenX + OFFSET_PX;
 
   const top =
-    screenY + CARD_HEIGHT > vh
-      ? Math.max(MIN_TOP, vh - CARD_HEIGHT - 16)
+    screenY + CARD_HEIGHT + STATUS_BAR_HEIGHT > vh
+      ? Math.max(MIN_TOP, vh - CARD_HEIGHT - STATUS_BAR_HEIGHT)
       : Math.max(MIN_TOP, screenY - 40);
 
   return { left, top };
@@ -458,7 +459,7 @@ function EdgeEditor({
  *
  * Changes are applied by re-printing the AST via `printVrd`.
  */
-export function NodeInspector({
+export const NodeInspector = memo(function NodeInspector({
   target,
   ast,
   setCode,
@@ -534,6 +535,19 @@ export function NodeInspector({
       clearTimeout(timer);
       document.removeEventListener("mousedown", handler);
     };
+  }, [onClose]);
+
+  // ── Escape key (backup — the main handler is in useKeyboardShortcuts) ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    // Use capture phase so it fires before the global handler
+    document.addEventListener("keydown", handler, true);
+    return () => document.removeEventListener("keydown", handler, true);
   }, [onClose]);
 
   // ── AST mutation helpers ──
@@ -666,6 +680,7 @@ export function NodeInspector({
       className="pg-inspector"
       style={{ left: position.left, top: position.top }}
       role="dialog"
+      aria-modal="true"
       aria-label={`Inspector: ${node.id}`}
     >
       {/* Header */}
@@ -819,4 +834,4 @@ export function NodeInspector({
       </div>
     </div>
   );
-}
+});

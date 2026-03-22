@@ -17,6 +17,8 @@ export interface GroupContainerProps {
   collapsed?: boolean;
   /** Border style. @default "solid" */
   borderStyle?: 'solid' | 'dashed';
+  /** Optional world or relative position. */
+  position?: [number, number, number];
   children?: React.ReactNode;
 }
 
@@ -27,6 +29,7 @@ export function GroupContainer({
   size = [4, 4, 4],
   collapsed = false,
   borderStyle = 'solid',
+  position,
   children,
 }: GroupContainerProps) {
   const [w, h, d] = size;
@@ -46,7 +49,7 @@ export function GroupContainer({
   const borderOpacity = collapsed ? 0.15 : 0.3;
 
   return (
-    <group>
+    <group position={position}>
       {/* ── Semi-transparent fill ── */}
       <mesh geometry={boxGeometry}>
         <meshBasicMaterial

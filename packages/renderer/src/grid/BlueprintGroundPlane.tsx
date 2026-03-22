@@ -285,6 +285,10 @@ export const BlueprintGroundPlane = React.memo(function BlueprintGroundPlane() {
 
   return (
     <group>
+      {/* Invisible raycast floor for endless double-click focal targeting */}
+      <mesh position={[0, -GROUND_PANEL_Y - 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+        <planeGeometry args={[10000, 10000]} />
+      </mesh>
       <XZPlane geo={geo} mat={mat} />
       <YZPlane geo={geo} mat={mat} />
       <XYPlane geo={geo} mat={mat} />

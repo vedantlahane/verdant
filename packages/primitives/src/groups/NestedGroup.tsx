@@ -14,6 +14,8 @@ export interface NestedGroupProps {
   depth?: number;
   /** Bounding box size. Auto-reduced per depth level. */
   size?: [number, number, number];
+  /** Optional world or relative position. */
+  position?: [number, number, number];
   children?: React.ReactNode;
 }
 
@@ -47,6 +49,7 @@ export function NestedGroup({
   collapsed = false,
   depth = 0,
   size,
+  position,
   children,
 }: NestedGroupProps) {
   const effectiveDepth = Math.min(depth, MAX_VISUAL_DEPTH);
@@ -69,11 +72,17 @@ export function NestedGroup({
     return [base, base, base];
   }, [size, effectiveDepth]);
 
-  // Offset inward per depth level
   const offset = effectiveDepth * 0.2;
 
+  const combinedPosition = useMemo<[number, number, number]>(() => {
+    if (position) {
+      return [position[0] + offset, position[1] + offset * 0.5, position[2]];
+    }
+    return [offset, offset * 0.5, 0];
+  }, [position, offset]);
+
   return (
-    <group position={[offset, offset * 0.5, 0]}>
+    <group position={combinedPosition}>
       <GroupContainer
         label={label}
         color={depthColor}

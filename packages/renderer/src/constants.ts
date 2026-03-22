@@ -50,10 +50,10 @@ export const FORCE_OVERLAP_PENALTY = 5;
 // ═══════════════════════════════════════════════════════════════════
 
 /** Half-extent of the ground grid in world units (grid spans [-GRID_SIZE, +GRID_SIZE]) */
-export const GRID_SIZE = 40;
+export const GRID_SIZE = 1200;
 
 /** Full extent of the Y-axis above and below origin */
-export const AXIS_Y_LENGTH = 40;
+export const AXIS_Y_LENGTH = 1200;
 
 /** Major grid line spacing (world units) */
 export const MAJOR_STEP = 4;
@@ -62,7 +62,7 @@ export const MAJOR_STEP = 4;
 export const MINOR_STEP = 1;
 
 /** Length of each axis line from origin to arrow tip */
-export const AXIS_LENGTH = GRID_SIZE;
+export const AXIS_LENGTH = 1200;
 
 /** World-unit distance between tick marks */
 export const TICK_EVERY = 1;
@@ -71,10 +71,10 @@ export const TICK_EVERY = 1;
 export const TICK_SIZE = 0.12;
 
 /** Distance from origin where grid fade begins */
-export const FADE_START = GRID_SIZE * 0.3; // 12
+export const FADE_START = 60; // GRID_SIZE * 0.3; // 12
 
 /** Distance from origin where grid is fully transparent */
-export const FADE_END = GRID_SIZE * 0.95; // 38
+export const FADE_END = 120; // GRID_SIZE * 0.95; // 38
 
 // ═══════════════════════════════════════════════════════════════════
 //  Measurement Lines

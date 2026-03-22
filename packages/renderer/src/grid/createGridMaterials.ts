@@ -13,10 +13,10 @@ export interface GridMaterials {
   readonly xzMajor: THREE.ShaderMaterial;
 
   // YZ / XY plane grids
-  readonly yzMinor: THREE.LineBasicMaterial;
-  readonly yzMajor: THREE.LineBasicMaterial;
-  readonly xyMinor: THREE.LineBasicMaterial;
-  readonly xyMajor: THREE.LineBasicMaterial;
+  readonly yzMinor: THREE.ShaderMaterial;
+  readonly yzMajor: THREE.ShaderMaterial;
+  readonly xyMinor: THREE.ShaderMaterial;
+  readonly xyMajor: THREE.ShaderMaterial;
 
   // Translucent panels
   readonly xzPanel: THREE.MeshBasicMaterial;
@@ -280,7 +280,7 @@ function clamp01(value: number): number {
 const TRANSPARENT_OPTS = {
   transparent: true,
   depthWrite: false,
-  depthTest: false,
+  depthTest: true,
 } as const;
 
 /**
@@ -323,7 +323,7 @@ function createFadeMaterial(
       uniform float uFadeEnd;
       varying vec3 vWorldPos;
       void main() {
-        float dist = length(vWorldPos.xz);
+        float dist = length(vWorldPos - cameraPosition);
         float fade = 1.0 - smoothstep(uFadeStart, uFadeEnd, dist);
         gl_FragColor = vec4(uColor, uBaseOpacity * fade);
       }
@@ -375,11 +375,11 @@ export function createGridMaterials(isDark: boolean): GridMaterials {
     xzMinor: createFadeMaterial(p.gridMinorOpacity, FADE_START, FADE_END, p.gridColor),
     xzMajor: createFadeMaterial(p.gridMajorOpacity, FADE_START, FADE_END, p.gridColor),
 
-    // YZ / XY secondary planes — simple line materials
-    yzMinor: createLineMaterial(p.yzColor, p.yzMinorOpacity),
-    yzMajor: createLineMaterial(p.yzColor, p.yzMajorOpacity),
-    xyMinor: createLineMaterial(p.xyColor, p.xyMinorOpacity),
-    xyMajor: createLineMaterial(p.xyColor, p.xyMajorOpacity),
+    // YZ / XY secondary planes — now also using spherical fading shader
+    yzMinor: createFadeMaterial(p.yzMinorOpacity, FADE_START, FADE_END, p.yzColor),
+    yzMajor: createFadeMaterial(p.yzMajorOpacity, FADE_START, FADE_END, p.yzColor),
+    xyMinor: createFadeMaterial(p.xyMinorOpacity, FADE_START, FADE_END, p.xyColor),
+    xyMajor: createFadeMaterial(p.xyMajorOpacity, FADE_START, FADE_END, p.xyColor),
 
     // Panels
     xzPanel: createMeshMaterial(p.xzPanelColor, p.xzPanelOpacity),

@@ -78,7 +78,12 @@ export class R3FErrorBoundary extends React.Component<Props, State> {
   }
 
   private handleRetry = (): void => {
-    this.setState({ hasError: false, error: null });
+    // Reset error state. If too many retries, also reset count to give a fresh start.
+    this.setState((prev) => ({
+      hasError: false,
+      error: null,
+      errorCount: prev.errorCount >= MAX_AUTO_RETRIES ? 0 : prev.errorCount,
+    }));
   };
 
   render(): React.ReactNode {

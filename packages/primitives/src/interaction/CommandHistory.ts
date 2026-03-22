@@ -83,11 +83,24 @@ export class CommandHistory {
   private _stack: Command[] = [];
   private _pointer = -1;
   private readonly _maxDepth: number;
-  private readonly _onChange?: (state: CommandHistoryState) => void;
+  private readonly _listeners = new Set<(state: CommandHistoryState) => void>();
 
   constructor(options: CommandHistoryOptions = {}) {
     this._maxDepth = options.maxDepth ?? 100;
-    this._onChange = options.onChange;
+    if (options.onChange) {
+      this._listeners.add(options.onChange);
+    }
+  }
+
+  /**
+   * Subscribe to history state changes.
+   * Returns a function to unsubscribe.
+   */
+  subscribe(listener: (state: CommandHistoryState) => void): () => void {
+    this._listeners.add(listener);
+    // Initial call to sync listener
+    listener(this._getState());
+    return () => this._listeners.delete(listener);
   }
 
   // ── Queries ─────────────────────────────────────────────
@@ -181,13 +194,20 @@ export class CommandHistory {
 
   // ── Private ─────────────────────────────────────────────
 
-  private _emitChange(): void {
-    this._onChange?.({
+  private _getState(): CommandHistoryState {
+    return {
       canUndo: this.canUndo,
       canRedo: this.canRedo,
       pointer: this._pointer,
       size: this._stack.length,
       currentDescription: this.peek()?.description,
-    });
+    };
+  }
+
+  private _emitChange(): void {
+    const state = this._getState();
+    for (const listener of this._listeners) {
+      listener(state);
+    }
   }
 }

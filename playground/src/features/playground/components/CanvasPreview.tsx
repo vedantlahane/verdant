@@ -2,12 +2,13 @@
 
 "use client";
 
-import { memo } from "react";
+import React, { memo } from "react";
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { R3FErrorBoundary } from "./R3FErrorBoundary";
 import type { VrdAST } from "@verdant/parser";
-import type { CameraData, CursorData } from "@verdant/renderer";
+import type { CameraData, CursorData, VerdantRendererHandle } from "@verdant/renderer";
+
 
 // ── Dynamic import (SSR-safe) ──
 
@@ -38,7 +39,9 @@ interface CanvasPreviewProps {
   readonly onCursorMove?: (data: CursorData | null) => void;
   readonly selectedNodeId?: string | null;
   readonly onOpenSchema?: () => void;
+  readonly ref?: React.Ref<VerdantRendererHandle>;
 }
+
 
 interface EmptyStateProps {
   readonly errorCount: number;
@@ -124,19 +127,21 @@ const EmptyState = memo(function EmptyState({
  * Memoized with custom comparator — skips re-render unless
  * content-affecting props change.
  */
-export const CanvasPreview = memo(function CanvasPreview({
-  isRendererReady,
-  hasContent,
-  ast,
-  resolvedTheme,
-  errorCount,
-  showCoordinateSystem,
-  onNodeClick,
-  onCameraChange,
-  onCursorMove,
-  selectedNodeId,
-  onOpenSchema,
-}: CanvasPreviewProps) {
+export const CanvasPreview = memo(React.forwardRef<VerdantRendererHandle, CanvasPreviewProps>(
+  function CanvasPreview({
+    isRendererReady,
+    hasContent,
+    ast,
+    resolvedTheme,
+    errorCount,
+    showCoordinateSystem,
+    onNodeClick,
+    onCameraChange,
+    onCursorMove,
+    selectedNodeId,
+    onOpenSchema,
+  }, ref) {
+
   return (
     <div className="pg-canvas">
       {/* Loading state */}
@@ -151,6 +156,7 @@ export const CanvasPreview = memo(function CanvasPreview({
       {hasContent ? (
         <R3FErrorBoundary>
           <VerdantRenderer
+            ref={ref}
             ast={ast}
             theme={resolvedTheme}
             width="100%"
@@ -162,13 +168,14 @@ export const CanvasPreview = memo(function CanvasPreview({
             onCursorMove={onCursorMove}
             selectedNodeId={selectedNodeId}
           />
+
         </R3FErrorBoundary>
       ) : (
         <EmptyState errorCount={errorCount} onOpenSchema={onOpenSchema} />
       )}
     </div>
   );
-},
+}),
 function canvasPropsAreEqual(prev, next) {
   return (
     prev.isRendererReady === next.isRendererReady &&

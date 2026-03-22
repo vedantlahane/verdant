@@ -1,10 +1,11 @@
 // features/playground/types.ts
 
 import type { VrdParseResult } from "@verdant/parser";
-import type { CameraData, CursorData, LayoutType } from "@verdant/renderer";
+import type { CameraData, CursorData, LayoutType, VerdantRendererHandle } from "@verdant/renderer";
 
 // ── Re-exports for playground consumers ──
-export type { CameraData, CursorData, LayoutType };
+export type { CameraData, CursorData, LayoutType, VerdantRendererHandle };
+
 
 // ── Scalar unions ──
 
@@ -94,7 +95,15 @@ export interface PlaygroundStateData {
 
   // Theme
   readonly resolvedTheme: ResolvedTheme;
+
+  // Feature Flags (derived or local)
+  readonly canUndo: boolean;
+  readonly canRedo: boolean;
+  readonly minimapEnabled: boolean;
+  readonly postProcessingEnabled: boolean;
+  readonly gridSnapEnabled: boolean;
 }
+
 
 /**
  * Action dispatchers — stable function references from hooks.
@@ -111,7 +120,19 @@ export interface PlaygroundActions {
   readonly setCursorData: (data: CursorData | null) => void;
   readonly setInspectorTarget: (target: InspectorTarget | null) => void;
   readonly toggleTheme: () => void;
+
+  // Renderer control
+  readonly undo: () => void;
+  readonly redo: () => void;
+  readonly zoomToFit: () => void;
+  readonly resetCamera: () => void;
+
+  // Config toggles
+  readonly toggleMinimap: () => void;
+  readonly togglePostProcessing: () => void;
+  readonly toggleGridSnap: () => void;
 }
+
 
 /**
  * Combined state + actions — the full playground context shape.

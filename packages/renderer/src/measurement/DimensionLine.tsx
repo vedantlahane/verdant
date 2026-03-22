@@ -194,7 +194,7 @@ interface MeasurementLabelProps {
   readonly label?: string;
   readonly direction: 'outgoing' | 'incoming';
   readonly color: string;
-  readonly divRef: React.RefObject<HTMLDivElement>;
+  readonly divRef: React.RefObject<HTMLDivElement | null>;
 }
 
 const MeasurementLabel = React.memo(function MeasurementLabel({

@@ -14,7 +14,7 @@ import {
   readViewState,
   writeViewState,
 } from './store.persistence';
-import type { VerdantRendererProps, PersistedViewState, Vec3, ContextMenuState } from './types';
+import type { VerdantRendererProps, PersistedViewState, Vec3, ContextMenuState, VerdantRendererHandle } from './types';
 
 import {
   DEFAULT_CAMERA_POSITION,
@@ -208,23 +208,47 @@ const GL_CONFIG = Object.freeze({
  *
  * The 3D scene itself is delegated to SceneContent.
  */
-export function VerdantRenderer({
-  ast,
-  theme = 'moss',
-  width = '100%',
-  height = '100%',
-  className,
-  autoRotate = true,
-  showCoordinateSystem = true,
-  onNodeClick,
-  onCameraChange,
-  onCursorMove,
-  selectedNodeId,
-  onSelectionChange,
-  onUndoDepthChange,
-}: VerdantRendererProps) {
-  const setAst = useRendererStore((s) => s.setAst);
-  const setTheme = useRendererStore((s) => s.setTheme);
+/**
+ * Top-level renderer component.
+ */
+export const VerdantRenderer = React.forwardRef<
+  VerdantRendererHandle,
+  VerdantRendererProps
+>(
+  (
+    {
+      ast,
+      theme = 'moss',
+      width = '100%',
+      height = '100%',
+      className,
+      autoRotate = true,
+      showCoordinateSystem = true,
+      onNodeClick,
+      onCameraChange,
+      onCursorMove,
+      selectedNodeId,
+      onSelectionChange,
+      onUndoDepthChange,
+    },
+    ref,
+  ) => {
+    const setAst = useRendererStore((s) => s.setAst);
+    const setTheme = useRendererStore((s) => s.setTheme);
+
+    const sceneHandleRef = useRef<VerdantRendererHandle>(null);
+
+    React.useImperativeHandle(
+      ref,
+      () => ({
+        undo: () => sceneHandleRef.current?.undo(),
+        redo: () => sceneHandleRef.current?.redo(),
+        zoomToFit: () => sceneHandleRef.current?.zoomToFit(),
+        resetCamera: () => sceneHandleRef.current?.resetCamera(),
+      }),
+      [],
+    );
+
 
   // ── WebGL recovery ──
 
@@ -352,6 +376,7 @@ export function VerdantRenderer({
         <color attach="background" args={[bg]} />
         <PrimitivesProvider config={primitivesConfig}>
           <SceneContent
+            ref={sceneHandleRef}
             autoRotate={autoRotate}
             showCoordinateSystem={showCoordinateSystem}
             onNodeClick={onNodeClick}
@@ -373,7 +398,7 @@ export function VerdantRenderer({
       <ContextMenuOverlay actions={contextMenuActions} />
     </div>
   );
-}
+});
 
 // ═══════════════════════════════════════════════════════════════════
 //  Internal Hooks

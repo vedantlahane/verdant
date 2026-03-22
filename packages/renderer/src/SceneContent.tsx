@@ -11,6 +11,7 @@ import {
   usePrimitives,
 } from '@verdant/primitives';
 import { useRendererStore } from './store';
+import type { VrdAST } from '@verdant/parser';
 import { projectToScreen } from './utils';
 import { BlueprintGroundPlane } from './grid/BlueprintGroundPlane';
 import { DraggableNode } from './nodes/DraggableNode';
@@ -26,14 +27,19 @@ import type {
   Vec3,
   CursorData,
   PersistedViewState,
+  VerdantRendererHandle,
 } from './types';
-import { VEC3_ORIGIN } from './utils';
+import { VEC3_ORIGIN, VEC3_ORIGIN as ORIGIN } from './utils';
 import {
   AUTO_ROTATE_SPEED,
   ORBIT_MIN_DISTANCE,
   ORBIT_MAX_DISTANCE,
   ORBIT_DAMPING_FACTOR,
+  DEFAULT_CAMERA_POSITION,
+  DEFAULT_CAMERA_FOV,
+  DEFAULT_CAMERA_TARGET,
 } from './constants';
+
 
 // ═══════════════════════════════════════════════════════════════════
 //  Measurement Lines Hook
@@ -145,8 +151,6 @@ const GroupsLayer = React.memo(function GroupsLayer({
 }: GroupsLayerProps) {
   const ast = useRendererStore((s) => s.ast);
 
-  if (!ast || ast.groups.length === 0) return null;
-
   // Build a set of all group IDs that appear as children of other groups
   const nestedGroupIds = useMemo(() => {
     if (!ast) return new Set<string>();
@@ -164,7 +168,7 @@ const GroupsLayer = React.memo(function GroupsLayer({
   }, [ast]);
 
   const renderGroup = useCallback(
-    (group: (typeof ast.groups)[number], isNested: boolean) => {
+    (group: VrdAST['groups'][number], isNested: boolean) => {
       const collapsed = group.props?.collapsed === true;
       const GroupComponent = isNested ? NestedGroup : GroupContainer;
       return (
@@ -180,6 +184,8 @@ const GroupsLayer = React.memo(function GroupsLayer({
     },
     [accentColor],
   );
+
+  if (!ast) return null;
 
   return (
     <>
@@ -266,40 +272,119 @@ const SceneLighting = React.memo(function SceneLighting() {
 //  Main Component
 // ═══════════════════════════════════════════════════════════════════
 
-export function SceneContent({
-  autoRotate,
-  showCoordinateSystem,
-  onNodeClick,
-  onCursorMove,
-  selectedNodeId: externalSelectedId,
-  initialTarget = VEC3_ORIGIN,
-  onViewChange,
-}: SceneContentProps) {
-  const ast = useRendererStore((s) => s.ast);
-  const themeColors = useRendererStore((s) => s.themeColors);
-  const selectNode = useRendererStore((s) => s.selectNode);
-  const hoverNode = useRendererStore((s) => s.hoverNode);
-  const setContextMenu = useRendererStore((s) => s.setContextMenu);
-  const selectedNodeId = useRendererStore((s) => s.selectedNodeId);
+export const SceneContent = React.forwardRef<
+  VerdantRendererHandle,
+  SceneContentProps
+>(
+  (
+    {
+      autoRotate,
+      showCoordinateSystem,
+      onNodeClick,
+      onCursorMove,
+      selectedNodeId: externalSelectedId,
+      initialTarget = VEC3_ORIGIN,
+      onViewChange,
+    },
+    ref,
+  ) => {
+    const ast = useRendererStore((s) => s.ast);
+    const themeColors = useRendererStore((s) => s.themeColors);
+    const selectNode = useRendererStore((s) => s.selectNode);
+    const hoverNode = useRendererStore((s) => s.hoverNode);
+    const setContextMenu = useRendererStore((s) => s.setContextMenu);
+    const selectedNodeId = useRendererStore((s) => s.selectedNodeId);
+    const positions = useRendererStore((s) => s.positions);
 
-  const { camera, size } = useThree();
+    const { camera, size } = useThree();
+
   const controlsRef = useRef<any>(null);
 
   // Resolve active node: external prop takes priority over store
   const activeNodeId = externalSelectedId ?? selectedNodeId;
 
-  // ── Hooks ──
+    const { commandHistory } = usePrimitives();
 
-  const { isInteractingRef, handleInteractionStart, handleInteractionEnd } =
-    useAutoRotate(controlsRef, autoRotate);
+    const zoomToFit = useCallback(() => {
+      if (!ast || ast.nodes.length === 0 || !controlsRef.current) return;
 
-  useCursorTracking(controlsRef, onCursorMove);
+      const box = new THREE.Box3();
+      for (const node of ast.nodes) {
+        const pos = positions[node.id];
+        if (pos) {
+          box.expandByPoint(new THREE.Vector3(pos[0], pos[1], pos[2]));
+        }
+      }
 
-  usePrimitivesSync();
+      if (box.isEmpty()) return;
 
-  useKeyboardNavigation(controlsRef);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
 
-  const handleControlsChange = useViewPersistence(controlsRef, onViewChange);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+
+      // Get max dimension for scaling
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const fov = (camera as THREE.PerspectiveCamera).fov ?? 45;
+
+      // Distance to fit the box
+      let distance = maxDim / (2 * Math.tan((Math.PI * fov) / 360));
+      // Buffer factor
+      distance *= 1.5;
+
+      // New camera position: relative to center
+      const offset = new THREE.Vector3(0, distance * 0.5, distance).normalize().multiplyScalar(distance);
+      const newPos = center.clone().add(offset);
+
+      // Apply
+      camera.position.set(newPos.x, newPos.y, newPos.z);
+      controlsRef.current.target.set(center.x, center.y, center.z);
+      controlsRef.current.update();
+    }, [ast, positions, camera]);
+
+    const resetCamera = useCallback(() => {
+      if (!controlsRef.current) return;
+      camera.position.set(
+        DEFAULT_CAMERA_POSITION[0],
+        DEFAULT_CAMERA_POSITION[1],
+        DEFAULT_CAMERA_POSITION[2],
+      );
+      (camera as THREE.PerspectiveCamera).fov = DEFAULT_CAMERA_FOV;
+      camera.updateProjectionMatrix();
+
+      controlsRef.current.target.set(
+        DEFAULT_CAMERA_TARGET[0],
+        DEFAULT_CAMERA_TARGET[1],
+        DEFAULT_CAMERA_TARGET[2],
+      );
+      controlsRef.current.update();
+    }, [camera]);
+
+    React.useImperativeHandle(
+      ref,
+      () => ({
+        undo: () => commandHistory?.undo(),
+        redo: () => commandHistory?.redo(),
+        zoomToFit,
+        resetCamera,
+      }),
+      [commandHistory, zoomToFit, resetCamera],
+    );
+
+    // ── Hooks ──
+
+    const { isInteractingRef, handleInteractionStart, handleInteractionEnd } =
+      useAutoRotate(controlsRef, autoRotate);
+
+    useCursorTracking(controlsRef, onCursorMove);
+
+    usePrimitivesSync();
+
+    useKeyboardNavigation(controlsRef);
+
+    const handleControlsChange = useViewPersistence(controlsRef, onViewChange);
+
 
   // ── Measurement lines ──
 
@@ -410,4 +495,4 @@ export function SceneContent({
       />
     </>
   );
-}
+});

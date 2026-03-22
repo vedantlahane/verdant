@@ -138,4 +138,15 @@ export interface SceneContentProps {
   selectedNodeId?: string | null;
   initialTarget?: Vec3;
   onViewChange?: (view: PersistedViewState) => void;
+  ref?: React.RefObject<VerdantRendererHandle | null>;
 }
+
+/**
+ * Handle for imperative control via React ref.
+ */
+export interface VerdantRendererHandle {
+  readonly undo: () => void;
+  readonly redo: () => void;
+  readonly zoomToFit: () => void;
+  readonly resetCamera: () => void;
+}

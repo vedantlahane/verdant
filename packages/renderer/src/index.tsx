@@ -108,6 +108,8 @@ export type {
   // Camera
   CameraData,
   CursorData,
+  VerdantRendererHandle,
+
 
   // Scene elements
   MeasurementLine,

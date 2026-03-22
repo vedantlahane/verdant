@@ -142,7 +142,7 @@ export const CAMERA_EMIT_FRAME_INTERVAL = 8;
  * Cap at 1.5 to avoid GPU pressure on retina displays while
  * maintaining acceptable sharpness.
  */
-export const DPR_RANGE: readonly [number, number] = [1, 1.5];
+export const DPR_RANGE: [number, number] = [1, 1.5];
 
 /**
  * Minimum nodes sharing the same shape type to activate instanced rendering.

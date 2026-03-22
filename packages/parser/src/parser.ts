@@ -103,11 +103,11 @@ export function parseVrd(input: string): VrdAST {
  * Never throws — all issues reported via diagnostics array.
  */
 export function parseVrdSafe(input: string): VrdParseResult {
-  const ast: VrdAST = {
-    config: {},
-    nodes: [],
-    edges: [],
-    groups: [],
+  const ast = {
+    config: {} as any,
+    nodes: [] as VrdNode[],
+    edges: [] as VrdEdge[],
+    groups: [] as VrdGroup[],
   };
 
   const diagnostics: VrdDiagnostic[] = [];
@@ -118,8 +118,8 @@ export function parseVrdSafe(input: string): VrdParseResult {
 
   // ── Tracking structures ──
   const stack: Scope[] = [{ type: 'root', indent: -1, line: 0 }];
-  const groupMap = new Map<string, VrdGroup>();
-  const nodeMap = new Map<string, VrdNode>();
+  const groupMap = new Map<string, any>();
+  const nodeMap = new Map<string, any>();
   const declaredNodeIds = new Set<string>();
   let tabWarningEmitted = false;
 
@@ -331,7 +331,7 @@ export function parseVrdSafe(input: string): VrdParseResult {
       const parentGroupScope = findParentGroup();
       const parentGroupId = parentGroupScope?.groupId;
 
-      const group: VrdGroup = {
+      const group: any = {
         id: groupId,
         label,
         children: [],
@@ -380,7 +380,7 @@ export function parseVrdSafe(input: string): VrdParseResult {
       const parentGroup = findParentGroup();
       const fullId = resolveFullId(localId, parentGroup);
 
-      const node: VrdNode = {
+      const node: any = {
         id: fullId,
         type,
         props: {},
@@ -422,7 +422,7 @@ export function parseVrdSafe(input: string): VrdParseResult {
         const parentGroup = findParentGroup();
         const fullId = resolveFullId(localId, parentGroup);
 
-        const node: VrdNode = {
+        const node: any = {
           id: fullId,
           type,
           props: {},
@@ -580,7 +580,7 @@ function handleAnimationKV(
   diag: DiagFn,
 ): void {
   void diag; // reserved for future validation warnings
-  const timeline = ast.config.animations?.find(t => t.name === timelineName);
+  const timeline = ast.config.animations?.find(t => t.name === timelineName) as any;
   if (!timeline) return;
   switch (key) {
     case 'duration':
@@ -620,7 +620,7 @@ function handleNodeKV(
   key: string,
   rawVal: string,
   lineNum: number,
-  node: VrdNode,
+  node: any,
   diag: DiagFn,
 ): void {
   switch (key) {
@@ -777,7 +777,7 @@ function handleEdgeKV(
   key: string,
   rawVal: string,
   lineNum: number,
-  edge: VrdEdge,
+  edge: any,
   diag: DiagFn,
 ): void {
   switch (key) {
@@ -871,7 +871,7 @@ function handleGroupKV(
   key: string,
   rawVal: string,
   lineNum: number,
-  group: VrdGroup,
+  group: any,
   diag: DiagFn,
 ): void {
   switch (key) {

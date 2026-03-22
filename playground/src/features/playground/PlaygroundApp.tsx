@@ -4,7 +4,8 @@
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { toast } from "sonner";
-import type { CameraData, CursorData } from "@verdant/renderer";
+import type { CameraData, CursorData, VerdantRendererHandle } from "@verdant/renderer";
+
 
 import { usePlaygroundState } from "./hooks/usePlaygroundState";
 import { useAiGeneration } from "./hooks/useAiGeneration";
@@ -14,6 +15,8 @@ import { useMonacoLanguage } from "./hooks/useMonacoLanguage";
 import { useMonacoMarkers } from "./hooks/useMonacoMarkers";
 import { useMonacoTheme } from "./hooks/useMonacoTheme";
 import { PlaygroundProvider } from "./context/PlaygroundContext";
+import { toggleVrdConfigLine } from "./utils/vrdConfig";
+
 
 import { CanvasPreview } from "./components/CanvasPreview";
 import { SchemaPanel } from "./components/SchemaPanel";
@@ -51,10 +54,12 @@ export function PlaygroundApp() {
 
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
 
-  const state = usePlaygroundState();
+  const rendererRef = useRef<VerdantRendererHandle>(null);
+  const state = usePlaygroundState(rendererRef);
   const editorRef = useRef<EditorInstance | null>(null);
   const presetsRef = useRef<HTMLDivElement | null>(null);
   const [presetsOpen, setPresetsOpen] = useState(false);
+
 
   // ── AI ──
   const ai = useAiGeneration({
@@ -180,6 +185,7 @@ export function PlaygroundApp() {
       <div className="pg-root">
         {/* Layer 0: 3D Canvas */}
         <CanvasPreview
+          ref={rendererRef}
           isRendererReady={state.isRendererReady}
           hasContent={hasContent}
           ast={state.parseResult.ast}
@@ -192,6 +198,7 @@ export function PlaygroundApp() {
           selectedNodeId={selectedNodeId}
           onOpenSchema={handleOpenSchema}
         />
+
 
         {/* Layer 2: Gutter decorations */}
         <div className="pg-gutter pg-gutter--left" aria-hidden="true">
@@ -226,7 +233,26 @@ export function PlaygroundApp() {
           onExportPngClick={handleExportPNG}
           onThemeToggle={state.toggleTheme}
           resolvedTheme={state.resolvedTheme}
+          canUndo={state.canUndo}
+          canRedo={state.canRedo}
+          onUndo={state.undo}
+          onRedo={state.redo}
+          onZoomToFit={state.zoomToFit}
+          minimapEnabled={state.minimapEnabled}
+          onMinimapToggle={state.toggleMinimap}
+          postProcessingEnabled={state.postProcessingEnabled}
+          onPostProcessingToggle={state.togglePostProcessing}
+          gridSnapEnabled={state.gridSnapEnabled}
+          onGridSnapToggle={state.toggleGridSnap}
+          activeLayout={state.parseResult.ast.config.layout as any}
+          onLayoutChange={(layout) => {
+            state.setCode(toggleVrdConfigLine(state.code, "layout", layout));
+          }}
+          onResetCamera={state.resetCamera}
+          onShortcutHelpToggle={() => setShortcutHelpOpen(true)}
         />
+
+
 
         {/* Layer 5: Schema Panel */}
         <SchemaPanel

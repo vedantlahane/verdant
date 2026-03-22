@@ -51,7 +51,10 @@ interface TopBarProps {
   readonly onPostProcessingToggle?: () => void;
   readonly gridSnapEnabled?: boolean;
   readonly onGridSnapToggle?: () => void;
+  readonly onResetCamera?: () => void;
+  readonly onShortcutHelpToggle?: () => void;
 }
+
 
 interface OverflowItemDef {
   readonly label: string;
@@ -148,7 +151,11 @@ export const TopBar = memo(function TopBar({
   onPostProcessingToggle,
   gridSnapEnabled = false,
   onGridSnapToggle,
+  onResetCamera,
+  onShortcutHelpToggle,
 }: TopBarProps) {
+
+
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
@@ -185,19 +192,20 @@ export const TopBar = memo(function TopBar({
     (id: string) => {
       switch (id) {
         case "reset-camera":
-          // TODO: implement via imperative renderer ref
+          onResetCamera?.();
           break;
         case "fullscreen":
           document.documentElement.requestFullscreen?.()?.catch(() => {});
           break;
         case "shortcuts":
-          // TODO: wire to shortcutHelpOpen
+          onShortcutHelpToggle?.();
           break;
       }
       closeOverflow();
     },
-    [closeOverflow],
+    [closeOverflow, onResetCamera, onShortcutHelpToggle],
   );
+
 
   const handleLayoutChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -432,6 +440,8 @@ function topBarPropsAreEqual(prev, next) {
     prev.onLayoutChange === next.onLayoutChange &&
     prev.onMinimapToggle === next.onMinimapToggle &&
     prev.onPostProcessingToggle === next.onPostProcessingToggle &&
-    prev.onGridSnapToggle === next.onGridSnapToggle
+    prev.onGridSnapToggle === next.onGridSnapToggle &&
+    prev.onResetCamera === next.onResetCamera &&
+    prev.onShortcutHelpToggle === next.onShortcutHelpToggle
   );
 });

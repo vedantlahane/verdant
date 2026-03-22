@@ -70,7 +70,7 @@ export interface FlowParticleConfig {
 export interface NodeProps {
   // ── v1 core (always present) ──
   label: string;
-  position: [number, number, number];
+  position: readonly [number, number, number];
   selected?: boolean;
   hovered?: boolean;
   color?: string;
@@ -115,8 +115,8 @@ export interface NodeProps {
 
 export interface EdgeLineProps {
   // ── v1 core ──
-  from: [number, number, number];
-  to: [number, number, number];
+  from: readonly [number, number, number];
+  to: readonly [number, number, number];
   label?: string;
   animated?: boolean;
   /** Line style. @default "solid" */

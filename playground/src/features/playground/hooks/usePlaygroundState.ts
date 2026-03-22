@@ -10,7 +10,9 @@ import type { CameraData, CursorData } from "@verdant/renderer";
 import { PRESETS, DEFAULT_PRESET_KEY } from "../constants/presets";
 import { useDebouncedParse } from "./useDebouncedParse";
 import { DEFAULT_CAMERA_DATA } from "../types";
-import type { InspectorTarget, PlaygroundState, SchemaTab } from "../types";
+import type { InspectorTarget, PlaygroundState, SchemaTab, VerdantRendererHandle } from "../types";
+import { toggleVrdConfigLine } from "../utils/vrdConfig";
+
 
 /** FPS display update interval in milliseconds */
 const FPS_UPDATE_INTERVAL_MS = 1000;
@@ -18,16 +20,12 @@ const FPS_UPDATE_INTERVAL_MS = 1000;
 /** Renderer ready delay in milliseconds — lets first frame render */
 const RENDERER_READY_DELAY_MS = 600;
 
+
+
 /**
  * Central state composer for the playground.
- *
- * Owns all local UI state, delegates parsing to `useDebouncedParse`,
- * and pulls renderer metrics from the Zustand store.
- *
- * Returns a stable `PlaygroundState` — action functions are referentially
- * stable across renders (from `useCallback` / `useState` setters).
  */
-export function usePlaygroundState(): PlaygroundState {
+export function usePlaygroundState(rendererRef: React.RefObject<VerdantRendererHandle | null>): PlaygroundState {
   // ── Code ──────────────────────────────────────
   const [code, setCode] = useState(() => PRESETS[DEFAULT_PRESET_KEY].code);
   const parseResult = useDebouncedParse(code);
@@ -79,8 +77,7 @@ export function usePlaygroundState(): PlaygroundState {
   const layoutName = useRendererStore((s) => s.layoutName);
   const rawFps = useRendererStore((s) => s.fps);
 
-  // FPS throttle — reads latest value from ref on a fixed interval.
-  // Avoids the lossy useEffect + Date.now() check pattern.
+  // FPS throttle ──
   const [fps, setFps] = useState(0);
   const rawFpsRef = useRef(rawFps);
   rawFpsRef.current = rawFps;
@@ -102,11 +99,35 @@ export function usePlaygroundState(): PlaygroundState {
     setThemeMode(current === "dark" ? "light" : "dark");
   }, [themeMode, resolvedTheme, setThemeMode]);
 
-  // ── Renderer ready delay ──────────────────────
+  // ── Renderer Ready ──────────────────────────────
   useEffect(() => {
     const t = setTimeout(() => setIsRendererReady(true), RENDERER_READY_DELAY_MS);
     return () => clearTimeout(t);
   }, []);
+
+  // ── Imperative Actions ──────────────────────────
+  const undo = useCallback(() => rendererRef.current?.undo(), [rendererRef]);
+  const redo = useCallback(() => rendererRef.current?.redo(), [rendererRef]);
+  const zoomToFit = useCallback(() => rendererRef.current?.zoomToFit(), [rendererRef]);
+  const resetCamera = useCallback(() => rendererRef.current?.resetCamera(), [rendererRef]);
+
+  // ── Config Toggles ──────────────────────────────
+  const toggleMinimap = useCallback(() => {
+    setCode(prev => toggleVrdConfigLine(prev, "minimap"));
+  }, []);
+
+  const togglePostProcessing = useCallback(() => {
+    setCode(prev => toggleVrdConfigLine(prev, "post-processing"));
+  }, []);
+
+  const toggleGridSnap = useCallback(() => {
+    setCode(prev => toggleVrdConfigLine(prev, "snap-to-grid"));
+  }, []);
+
+  // ── Derived Toggles (from AST) ──────────────────
+  const minimapEnabled = parseResult.ast.config.minimap === true;
+  const postProcessingEnabled = parseResult.ast.config["post-processing"] === true;
+  const gridSnapEnabled = parseResult.ast.config["snap-to-grid"] === true;
 
   // ── Return ────────────────────────────────────
   return {
@@ -144,5 +165,19 @@ export function usePlaygroundState(): PlaygroundState {
 
     resolvedTheme: resolvedTheme === "light" ? "light" : "dark",
     toggleTheme,
+
+    // NEW
+    canUndo: undoDepth > 0,
+    canRedo: false, // Core CommandHistory doesn't currently expose redoDepth easily, but we'll wire it later
+    undo,
+    redo,
+    zoomToFit,
+    resetCamera,
+    minimapEnabled,
+    postProcessingEnabled,
+    gridSnapEnabled,
+    toggleMinimap,
+    togglePostProcessing,
+    toggleGridSnap,
   };
-}
+}

@@ -5,7 +5,9 @@
 import { useEffect, useRef } from "react";
 import { useMonaco } from "@monaco-editor/react";
 import type { Monaco } from "@monaco-editor/react";
-import type { IDisposable } from "monaco-editor";
+interface IDisposable {
+  dispose(): void;
+}
 import {
   NODE_TYPES,
   CONFIG_KEYS,

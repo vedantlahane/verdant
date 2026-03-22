@@ -171,9 +171,9 @@ export interface VrdAnimationKeyframe {
 }
 
 export interface VrdAnimationTimeline {
-  name: string;
-  duration: number;
-  keyframes: VrdAnimationKeyframe[];
+  readonly name: string;
+  readonly duration: number;
+  readonly keyframes: readonly VrdAnimationKeyframe[];
 }
 
 // ── Config ──
@@ -191,7 +191,7 @@ export interface VrdConfig {
   direction?: string;
   'layer-spacing'?: number;
   'node-spacing'?: number;
-  animations?: VrdAnimationTimeline[];
+  animations?: readonly VrdAnimationTimeline[];
   [key: string]: unknown;
 }
 
@@ -249,8 +249,8 @@ export interface VrdNodeProps {
   position?: { x: number; y: number; z: number };
   shape?: ShapeType;
   status?: NodeStatus;
-  badges?: VrdBadge[];
-  ports?: VrdPort[];
+  badges?: readonly VrdBadge[];
+  ports?: readonly VrdPort[];
   enterAnimation?: AnimationType;
   exitAnimation?: AnimationType;
   animationDuration?: number;
@@ -299,22 +299,22 @@ export interface VrdGroupProps {
 }
 
 export interface VrdGroup {
-  id: string;
-  label?: string;
-  children: string[];
-  groups: VrdGroup[];
-  parentGroupId?: string;
-  props: VrdGroupProps;
-  loc?: SourceLocation;
+  readonly id: string;
+  readonly label?: string;
+  readonly children: readonly string[];
+  readonly groups: readonly VrdGroup[];
+  readonly parentGroupId?: string;
+  readonly props: VrdGroupProps;
+  readonly loc?: SourceLocation;
 }
 
 // ── AST Root ──
 
 export interface VrdAST {
-  config: VrdConfig;
-  nodes: VrdNode[];
-  edges: VrdEdge[];
-  groups: VrdGroup[];
+  readonly config: VrdConfig;
+  readonly nodes: readonly VrdNode[];
+  readonly edges: readonly VrdEdge[];
+  readonly groups: readonly VrdGroup[];
 }
 
 // ── Diagnostics ──
@@ -329,8 +329,8 @@ export interface VrdDiagnostic {
 }
 
 export interface VrdParseResult {
-  ast: VrdAST;
-  diagnostics: VrdDiagnostic[];
+  readonly ast: VrdAST;
+  readonly diagnostics: readonly VrdDiagnostic[];
 }
 
 // ── Error ──

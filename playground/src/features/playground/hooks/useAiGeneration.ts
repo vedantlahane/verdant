@@ -1,31 +1,49 @@
+// features/playground/hooks/useAiGeneration.ts
+
 "use client";
 
 import { useCallback, useState } from "react";
 import { parseVrdSafe } from "@verdant/parser";
 import { toast } from "sonner";
-import type { AiHistoryEntry } from "../types";
+import type { AiHistoryEntry, SchemaTab } from "../types";
+
+// ── Options ──
 
 interface UseAiGenerationOptions {
-  code: string;
-  setCode: (code: string) => void;
-  setActivePreset: (preset: string) => void;
-  setSchemaTab: (tab: "code" | "ai") => void;
+  readonly code: string;
+  readonly setCode: (code: string) => void;
+  readonly setSchemaTab: (tab: SchemaTab) => void;
 }
+
+// ── Return ──
 
 interface UseAiGenerationReturn {
-  aiPrompt: string;
-  setAiPrompt: (prompt: string) => void;
-  isGenerating: boolean;
-  aiError: string;
-  aiHistory: AiHistoryEntry[];
-  applyAi: () => Promise<void>;
-  undoAi: (entryId: string) => void;
+  readonly aiPrompt: string;
+  readonly setAiPrompt: (prompt: string) => void;
+  readonly isGenerating: boolean;
+  readonly aiError: string;
+  readonly aiHistory: readonly AiHistoryEntry[];
+  readonly applyAi: () => Promise<void>;
+  readonly undoAi: (entryId: string) => void;
 }
 
+// ── Helpers ──
+
+/** Generate a unique ID, with fallback for environments without crypto */
+const generateId = (): string =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+/**
+ * AI-powered .vrd generation hook.
+ *
+ * Manages prompt state, API calls, history stack, and undo.
+ * History is stored newest-first for display order.
+ */
 export function useAiGeneration({
   code,
   setCode,
-  setActivePreset,
   setSchemaTab,
 }: UseAiGenerationOptions): UseAiGenerationReturn {
   const [aiPrompt, setAiPrompt] = useState("");
@@ -40,9 +58,8 @@ export function useAiGeneration({
     setIsGenerating(true);
     setAiError("");
 
-    // Parse ONCE before generation (not twice like before)
-    const parseBefore = parseVrdSafe(code);
     const codeBefore = code;
+    const parseBefore = parseVrdSafe(code);
 
     try {
       const res = await fetch("/api/generate", {
@@ -54,23 +71,22 @@ export function useAiGeneration({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(
-          (data as { error?: string }).error ||
+          (data as { error?: string }).error ??
             `Generation failed (${res.status})`,
         );
       }
 
       const data = (await res.json()) as { code?: string; error?: string };
-      if (!data.code) throw new Error(data.error || "No code returned");
+      if (!data.code) throw new Error(data.error ?? "No code returned");
 
       const codeAfter = data.code;
       const parseAfter = parseVrdSafe(codeAfter);
 
       setCode(codeAfter);
-      setActivePreset("");
       setSchemaTab("code");
 
       const entry: AiHistoryEntry = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         prompt,
         codeBefore,
         codeAfter,
@@ -91,7 +107,7 @@ export function useAiGeneration({
     } finally {
       setIsGenerating(false);
     }
-  }, [aiPrompt, code, setCode, setActivePreset, setSchemaTab]);
+  }, [aiPrompt, code, setCode, setSchemaTab]);
 
   const undoAi = useCallback(
     (entryId: string) => {
@@ -99,11 +115,9 @@ export function useAiGeneration({
       if (idx === -1) return;
 
       const entry = aiHistory[idx];
-
-      // Restore the code from BEFORE this entry was applied
       setCode(entry.codeBefore);
 
-      // Remove this entry and all entries that came after it (newer = lower index)
+      // Remove this entry and all newer entries (lower indices)
       setAiHistory((prev) => prev.slice(idx + 1));
 
       toast.success("Reverted to previous state");

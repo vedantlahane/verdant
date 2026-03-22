@@ -1,5 +1,9 @@
+// primitives/src/layout/HierarchicalLayout.ts
+
 import * as THREE from 'three';
-import { TransitionEngine } from '../animation/TransitionEngine';
+import type { TransitionEngine } from '../animation/TransitionEngine';
+
+// ── Public Types ────────────────────────────────────────────
 
 export interface LayoutNode {
   id: string;
@@ -10,6 +14,7 @@ export interface LayoutNode {
 export interface LayoutEdge {
   from: string;
   to: string;
+  weight?: number;
 }
 
 export interface LayoutResult {
@@ -17,26 +22,63 @@ export interface LayoutResult {
   layers: Map<string, number>;
 }
 
+export type LayoutDirection = 'top-down' | 'bottom-up' | 'left-right' | 'right-left';
+
 export interface HierarchicalLayoutOptions {
-  nodeSpacingX?: number;
-  nodeSpacingY?: number;
+  /** Horizontal spacing between nodes in the same layer. @default 3 */
+  nodeSpacing?: number;
+  /** Vertical spacing between layers. @default 3 */
+  layerSpacing?: number;
+  /** Number of crossing minimization passes. @default 3 */
   optimizationPasses?: number;
+  /** Layout direction. @default "top-down" */
+  direction?: LayoutDirection;
+  /** Y position of the first layer (ground plane). @default 0 */
+  baseY?: number;
 }
 
+// ── Constants ───────────────────────────────────────────────
+
+const DFS_WHITE = 0;
+const DFS_GRAY = 1;
+const DFS_BLACK = 2;
+
+// ── Implementation ──────────────────────────────────────────
+
+/**
+ * Sugiyama-style hierarchical layout algorithm.
+ *
+ * 1. **Cycle breaking** — DFS-based back-edge reversal to produce a DAG
+ * 2. **Layer assignment** — longest-path from root nodes
+ * 3. **Crossing minimization** — barycenter heuristic (configurable passes)
+ * 4. **Coordinate assignment** — centered positioning per layer
+ *
+ * Supports animated layout transitions via `TransitionEngine`.
+ *
+ * @example
+ * ```ts
+ * const layout = new HierarchicalLayout({ direction: 'left-right', layerSpacing: 4 });
+ * const result = layout.compute(nodes, edges);
+ * await layout.apply(result, transitionEngine);
+ * ```
+ */
 export class HierarchicalLayout {
-  private nodeSpacingX: number;
-  private nodeSpacingY: number;
-  private optimizationPasses: number;
+  private readonly _nodeSpacing: number;
+  private readonly _layerSpacing: number;
+  private readonly _optimizationPasses: number;
+  private readonly _direction: LayoutDirection;
+  private readonly _baseY: number;
 
   constructor(options?: HierarchicalLayoutOptions) {
-    this.nodeSpacingX = options?.nodeSpacingX ?? 3;
-    this.nodeSpacingY = options?.nodeSpacingY ?? 3;
-    this.optimizationPasses = options?.optimizationPasses ?? 3;
+    this._nodeSpacing = options?.nodeSpacing ?? 3;
+    this._layerSpacing = options?.layerSpacing ?? 3;
+    this._optimizationPasses = options?.optimizationPasses ?? 3;
+    this._direction = options?.direction ?? 'top-down';
+    this._baseY = options?.baseY ?? 0;
   }
 
   /**
    * Compute layout positions for the given nodes and edges.
-   * Returns positions and layer assignments.
    */
   compute(nodes: LayoutNode[], edges: LayoutEdge[]): LayoutResult {
     if (nodes.length === 0) {
@@ -45,125 +87,158 @@ export class HierarchicalLayout {
 
     const nodeIds = new Set(nodes.map((n) => n.id));
 
-    // Step 1: Break cycles by reversing back edges (DFS-based)
-    const dagEdges = this._breakCycles(nodeIds, edges);
+    // Filter edges to only include nodes that exist
+    const validEdges = edges.filter(
+      (e) => nodeIds.has(e.from) && nodeIds.has(e.to),
+    );
 
-    // Step 2: Assign layers via longest-path (topological order)
-    const layers = this._assignLayers(nodeIds, dagEdges);
+    // Step 1: Break cycles
+    const dagEdges = this._breakCycles(nodeIds, validEdges);
 
-    // Step 3: Group nodes by layer
+    // Step 2: Build adjacency lists (used throughout)
+    const { successors, predecessors } = this._buildAdjacency(nodeIds, dagEdges);
+
+    // Step 3: Assign layers via longest-path
+    const layers = this._assignLayers(nodeIds, predecessors);
+
+    // Step 4: Group nodes by layer
     const layerGroups = this._groupByLayer(layers);
 
-    // Step 4: Crossing minimization (barycenter heuristic)
-    this._minimizeCrossings(layerGroups, dagEdges, layers);
+    // Step 5: Crossing minimization
+    this._minimizeCrossings(layerGroups, successors, predecessors, layers);
 
-    // Step 5: Assign positions
+    // Step 6: Assign final positions
     const positions = this._assignPositions(layerGroups);
 
     return { positions, layers };
   }
 
   /**
-   * Apply the computed layout by updating positions and triggering
-   * TransitionEngine.playLayoutTransition over 500ms.
+   * Apply layout with animated transition.
+   *
+   * @param result - Output from `compute()`.
+   * @param transitionEngine - Animation engine instance.
+   * @param duration - Transition duration in ms. @default 500
    */
-  async apply(result: LayoutResult, transitionEngine: TransitionEngine): Promise<void> {
-    await transitionEngine.playLayoutTransition(result.positions, 500);
+  async apply(
+    result: LayoutResult,
+    transitionEngine: TransitionEngine,
+    duration = 500,
+  ): Promise<void> {
+    await transitionEngine.playLayoutTransition(result.positions, duration);
   }
 
-  // ─── Private helpers ────────────────────────────────────────────────────────
+  // ── Step 1: Cycle Breaking ──────────────────────────────
 
-  /** DFS-based cycle breaking: reverse back edges to produce a DAG */
   private _breakCycles(nodeIds: Set<string>, edges: LayoutEdge[]): LayoutEdge[] {
-    const WHITE = 0, GRAY = 1, BLACK = 2;
     const color = new Map<string, number>();
-    for (const id of nodeIds) color.set(id, WHITE);
+    for (const id of nodeIds) color.set(id, DFS_WHITE);
 
-    // Build adjacency list (only for nodes that exist)
+    // Build adjacency
     const adj = new Map<string, string[]>();
     for (const id of nodeIds) adj.set(id, []);
     for (const e of edges) {
-      if (nodeIds.has(e.from) && nodeIds.has(e.to)) {
-        adj.get(e.from)!.push(e.to);
-      }
+      adj.get(e.from)!.push(e.to);
     }
 
     const backEdges = new Set<string>();
 
-    const dfs = (u: string) => {
-      color.set(u, GRAY);
-      for (const v of adj.get(u) ?? []) {
-        if (color.get(v) === GRAY) {
-          // back edge — mark for reversal
+    const dfs = (u: string): void => {
+      color.set(u, DFS_GRAY);
+      for (const v of adj.get(u)!) {
+        const c = color.get(v);
+        if (c === DFS_GRAY) {
           backEdges.add(`${u}->${v}`);
-        } else if (color.get(v) === WHITE) {
+        } else if (c === DFS_WHITE) {
           dfs(v);
         }
       }
-      color.set(u, BLACK);
+      color.set(u, DFS_BLACK);
     };
 
     for (const id of nodeIds) {
-      if (color.get(id) === WHITE) dfs(id);
+      if (color.get(id) === DFS_WHITE) dfs(id);
     }
 
-    return edges
-      .filter((e) => nodeIds.has(e.from) && nodeIds.has(e.to))
-      .map((e) => {
-        if (backEdges.has(`${e.from}->${e.to}`)) {
-          return { from: e.to, to: e.from };
-        }
-        return e;
-      });
+    // Reverse back edges
+    return edges.map((e) => {
+      if (backEdges.has(`${e.from}->${e.to}`)) {
+        return { from: e.to, to: e.from, weight: e.weight };
+      }
+      return e;
+    });
   }
 
-  /** Longest-path layer assignment using topological sort */
-  private _assignLayers(nodeIds: Set<string>, edges: LayoutEdge[]): Map<string, number> {
-    // Build in-degree and predecessor map
-    const inDegree = new Map<string, number>();
+  // ── Adjacency Builder ───────────────────────────────────
+
+  private _buildAdjacency(
+    nodeIds: Set<string>,
+    edges: LayoutEdge[],
+  ): {
+    successors: Map<string, string[]>;
+    predecessors: Map<string, string[]>;
+  } {
+    const successors = new Map<string, string[]>();
     const predecessors = new Map<string, string[]>();
+
     for (const id of nodeIds) {
-      inDegree.set(id, 0);
+      successors.set(id, []);
       predecessors.set(id, []);
     }
+
     for (const e of edges) {
-      inDegree.set(e.to, (inDegree.get(e.to) ?? 0) + 1);
+      successors.get(e.from)!.push(e.to);
       predecessors.get(e.to)!.push(e.from);
     }
 
-    // Kahn's topological sort
+    return { successors, predecessors };
+  }
+
+  // ── Step 2: Layer Assignment ────────────────────────────
+
+  private _assignLayers(
+    nodeIds: Set<string>,
+    predecessors: Map<string, string[]>,
+  ): Map<string, number> {
+    const layers = new Map<string, number>();
+    const inDegree = new Map<string, number>();
+
+    for (const id of nodeIds) {
+      inDegree.set(id, predecessors.get(id)!.length);
+    }
+
+    // Kahn's algorithm with longest-path layer assignment
     const queue: string[] = [];
     for (const [id, deg] of inDegree) {
       if (deg === 0) queue.push(id);
     }
 
-    const layers = new Map<string, number>();
-    const topoOrder: string[] = [];
-
     while (queue.length > 0) {
       const u = queue.shift()!;
-      topoOrder.push(u);
 
-      // Compute layer: 1 + max layer of predecessors, or 0 if none
-      const preds = predecessors.get(u) ?? [];
+      // Layer = 1 + max layer of all predecessors
+      const preds = predecessors.get(u)!;
       let layer = 0;
       for (const p of preds) {
-        const pl = layers.get(p) ?? 0;
-        if (pl + 1 > layer) layer = pl + 1;
+        const pl = layers.get(p);
+        if (pl !== undefined && pl + 1 > layer) {
+          layer = pl + 1;
+        }
       }
       layers.set(u, layer);
 
-      // Reduce in-degree of successors
-      for (const e of edges) {
-        if (e.from === u) {
-          const newDeg = (inDegree.get(e.to) ?? 1) - 1;
-          inDegree.set(e.to, newDeg);
-          if (newDeg === 0) queue.push(e.to);
+      // Decrease in-degree of successors
+      // (We need successors here — rebuild from predecessors)
+      for (const [otherId, otherPreds] of predecessors) {
+        if (otherPreds.includes(u)) {
+          const newDeg = (inDegree.get(otherId) ?? 1) - 1;
+          inDegree.set(otherId, newDeg);
+          if (newDeg === 0) queue.push(otherId);
         }
       }
     }
 
-    // Any nodes not reached (shouldn't happen after cycle breaking, but be safe)
+    // Safety: assign layer 0 to any unreached nodes
     for (const id of nodeIds) {
       if (!layers.has(id)) layers.set(id, 0);
     }
@@ -171,9 +246,14 @@ export class HierarchicalLayout {
     return layers;
   }
 
-  /** Group node IDs by their layer number, sorted by layer */
+  // ── Step 3: Group by Layer ──────────────────────────────
+
   private _groupByLayer(layers: Map<string, number>): string[][] {
-    const maxLayer = Math.max(...layers.values());
+    let maxLayer = 0;
+    for (const layer of layers.values()) {
+      if (layer > maxLayer) maxLayer = layer;
+    }
+
     const groups: string[][] = Array.from({ length: maxLayer + 1 }, () => []);
     for (const [id, layer] of layers) {
       groups[layer].push(id);
@@ -181,67 +261,122 @@ export class HierarchicalLayout {
     return groups;
   }
 
-  /** Barycenter crossing minimization */
+  // ── Step 4: Crossing Minimization ───────────────────────
+
   private _minimizeCrossings(
     layerGroups: string[][],
-    edges: LayoutEdge[],
+    successors: Map<string, string[]>,
+    predecessors: Map<string, string[]>,
     layers: Map<string, number>,
   ): void {
-    // Build position-within-layer index
+    // Position-within-layer index
     const posInLayer = new Map<string, number>();
     for (const group of layerGroups) {
       group.forEach((id, i) => posInLayer.set(id, i));
     }
 
-    for (let pass = 0; pass < this.optimizationPasses; pass++) {
-      // Forward pass: sort each layer by avg position of predecessors in layer above
+    for (let pass = 0; pass < this._optimizationPasses; pass++) {
+      // ── Forward pass (sort by predecessor barycenter) ──
       for (let l = 1; l < layerGroups.length; l++) {
         const group = layerGroups[l];
-        const scores = group.map((id) => {
-          const preds = edges
-            .filter((e) => e.to === id && layers.get(e.from) === l - 1)
-            .map((e) => posInLayer.get(e.from) ?? 0);
-          return preds.length > 0 ? preds.reduce((a, b) => a + b, 0) / preds.length : posInLayer.get(id) ?? 0;
-        });
-        const sorted = group
-          .map((id, i) => ({ id, score: scores[i] }))
-          .sort((a, b) => a.score - b.score)
-          .map((x) => x.id);
-        layerGroups[l] = sorted;
-        sorted.forEach((id, i) => posInLayer.set(id, i));
+        const scores = new Map<string, number>();
+
+        for (const id of group) {
+          const preds = predecessors.get(id)!.filter(
+            (p) => layers.get(p) === l - 1,
+          );
+          if (preds.length > 0) {
+            let sum = 0;
+            for (const p of preds) sum += posInLayer.get(p) ?? 0;
+            scores.set(id, sum / preds.length);
+          } else {
+            scores.set(id, posInLayer.get(id) ?? 0);
+          }
+        }
+
+        group.sort((a, b) => (scores.get(a) ?? 0) - (scores.get(b) ?? 0));
+        group.forEach((id, i) => posInLayer.set(id, i));
       }
 
-      // Backward pass: sort each layer by avg position of successors in layer below
+      // ── Backward pass (sort by successor barycenter) ──
       for (let l = layerGroups.length - 2; l >= 0; l--) {
         const group = layerGroups[l];
-        const scores = group.map((id) => {
-          const succs = edges
-            .filter((e) => e.from === id && layers.get(e.to) === l + 1)
-            .map((e) => posInLayer.get(e.to) ?? 0);
-          return succs.length > 0 ? succs.reduce((a, b) => a + b, 0) / succs.length : posInLayer.get(id) ?? 0;
-        });
-        const sorted = group
-          .map((id, i) => ({ id, score: scores[i] }))
-          .sort((a, b) => a.score - b.score)
-          .map((x) => x.id);
-        layerGroups[l] = sorted;
-        sorted.forEach((id, i) => posInLayer.set(id, i));
+        const scores = new Map<string, number>();
+
+        for (const id of group) {
+          const succs = successors.get(id)!.filter(
+            (s) => layers.get(s) === l + 1,
+          );
+          if (succs.length > 0) {
+            let sum = 0;
+            for (const s of succs) sum += posInLayer.get(s) ?? 0;
+            scores.set(id, sum / succs.length);
+          } else {
+            scores.set(id, posInLayer.get(id) ?? 0);
+          }
+        }
+
+        group.sort((a, b) => (scores.get(a) ?? 0) - (scores.get(b) ?? 0));
+        group.forEach((id, i) => posInLayer.set(id, i));
       }
     }
   }
 
-  /** Assign final (x, y, z) positions */
+  // ── Step 5: Position Assignment ─────────────────────────
+
   private _assignPositions(layerGroups: string[][]): Map<string, THREE.Vector3> {
     const positions = new Map<string, THREE.Vector3>();
+
     for (let l = 0; l < layerGroups.length; l++) {
       const group = layerGroups[l];
-      const y = -l * this.nodeSpacingY;
-      const totalWidth = (group.length - 1) * this.nodeSpacingX;
-      const startX = -totalWidth / 2;
-      group.forEach((id, i) => {
-        positions.set(id, new THREE.Vector3(startX + i * this.nodeSpacingX, y, 0));
-      });
+      const totalWidth = (group.length - 1) * this._nodeSpacing;
+      const startOffset = -totalWidth / 2;
+
+      for (let i = 0; i < group.length; i++) {
+        const id = group[i];
+
+        // Position within layer (centered)
+        const withinLayer = startOffset + i * this._nodeSpacing;
+
+        // Layer offset
+        const layerOffset = l * this._layerSpacing;
+
+        // Map to 3D based on direction
+        const pos = this._directionToPosition(withinLayer, layerOffset);
+        positions.set(id, pos);
+      }
     }
+
     return positions;
+  }
+
+  /**
+   * Convert abstract (withinLayer, layerOffset) to 3D position
+   * based on the configured direction.
+   */
+  private _directionToPosition(
+    withinLayer: number,
+    layerOffset: number,
+  ): THREE.Vector3 {
+    const baseY = this._baseY;
+
+    switch (this._direction) {
+      case 'top-down':
+        // X = within layer, Y = base, Z = -layer (away from camera)
+        return new THREE.Vector3(withinLayer, baseY, -layerOffset);
+
+      case 'bottom-up':
+        return new THREE.Vector3(withinLayer, baseY, layerOffset);
+
+      case 'left-right':
+        // X = layer, Y = base, Z = within layer
+        return new THREE.Vector3(layerOffset, baseY, withinLayer);
+
+      case 'right-left':
+        return new THREE.Vector3(-layerOffset, baseY, withinLayer);
+
+      default:
+        return new THREE.Vector3(withinLayer, baseY, -layerOffset);
+    }
   }
 }

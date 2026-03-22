@@ -1,9 +1,18 @@
+// features/playground/components/StatusBar.tsx
+
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { usePlayground } from "../context/PlaygroundContext";
 
-export function StatusBar() {
+/**
+ * Bottom status bar — shows node/edge counts, camera readout,
+ * cursor position, selection info, and shortcut hints.
+ *
+ * Reads from PlaygroundContext. Memoized to avoid re-renders
+ * from unrelated context changes.
+ */
+export const StatusBar = memo(function StatusBar() {
   const {
     nodeCount,
     edgeCount,
@@ -13,6 +22,10 @@ export function StatusBar() {
     cameraData,
     cursorData,
     schemaTab,
+    selectionCount,
+    undoDepth,
+    layoutName,
+    fps,
   } = usePlayground();
 
   const camReadout = useMemo(
@@ -21,11 +34,24 @@ export function StatusBar() {
     [cameraData.position],
   );
 
-  const zoomReadout = `dist: ${cameraData.distance.toFixed(1)} · fov: ${cameraData.fov}° · effFov: ${cameraData.effectiveFov.toFixed(1)}°`;
+  const zoomReadout = useMemo(
+    () =>
+      `dist: ${cameraData.distance.toFixed(1)} · fov: ${cameraData.fov}° · effFov: ${cameraData.effectiveFov.toFixed(1)}°`,
+    [cameraData.distance, cameraData.fov, cameraData.effectiveFov],
+  );
 
-  const cursorReadout = cursorData
-    ? `cursor: (${cursorData.x.toFixed(1)}, ${cursorData.y.toFixed(1)}, ${cursorData.z.toFixed(1)})`
-    : "cursor: (-, -, -)";
+  const cursorReadout = useMemo(
+    () =>
+      cursorData
+        ? `cursor: (${cursorData.x.toFixed(1)}, ${cursorData.y.toFixed(1)}, ${cursorData.z.toFixed(1)})`
+        : "cursor: (-, -, -)",
+    [cursorData],
+  );
+
+  const selectionReadout = useMemo(
+    () => (selectionCount > 0 ? `${selectionCount} selected` : "No selection"),
+    [selectionCount],
+  );
 
   return (
     <div className="pg-status">
@@ -46,7 +72,11 @@ export function StatusBar() {
         {showCoordinateSystem ? ` · ${cursorReadout}` : ""}
       </span>
 
+      <span className="pg-status-info">
+        {selectionReadout} · {undoDepth} undo · {layoutName} · {fps}fps
+      </span>
+
       <span>⌘B schema · ⌘K ai</span>
     </div>
   );
-}
+});

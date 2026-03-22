@@ -1,61 +1,121 @@
+// features/playground/types.ts
+
 import type { VrdParseResult } from "@verdant/parser";
-import type { CameraData, CursorData } from "@verdant/renderer";
+import type { CameraData, CursorData, LayoutType } from "@verdant/renderer";
 
-export interface InspectorTarget {
-  nodeId: string;
-  screenX: number;
-  screenY: number;
-}
+// ── Re-exports for playground consumers ──
+export type { CameraData, CursorData, LayoutType };
 
-export interface AiHistoryEntry {
-  id: string;
-  prompt: string;
-  codeBefore: string;
-  codeAfter: string;
-  nodesBefore: number;
-  edgesBefore: number;
-  nodesAfter: number;
-  edgesAfter: number;
-  timestamp: number;
-}
+// ── Scalar unions ──
 
 export type SchemaTab = "code" | "ai";
 export type ThemeMode = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
+export type ExportFormat = "png" | "svg" | "gltf";
 
-export interface PlaygroundState {
+// ── Inspector ──
+
+export interface InspectorTarget {
+  readonly nodeId: string;
+  readonly screenX: number;
+  readonly screenY: number;
+}
+
+// ── AI History ──
+
+export interface AiHistoryEntry {
+  readonly id: string;
+  readonly prompt: string;
+  readonly codeBefore: string;
+  readonly codeAfter: string;
+  readonly nodesBefore: number;
+  readonly edgesBefore: number;
+  readonly nodesAfter: number;
+  readonly edgesAfter: number;
+  readonly timestamp: number;
+}
+
+// ── Preset ──
+
+export interface Preset {
+  readonly label: string;
+  readonly description: string;
+  readonly code: string;
+}
+
+// ── Default camera data (frozen singleton for initial state) ──
+
+export const DEFAULT_CAMERA_DATA: CameraData = Object.freeze({
+  position: Object.freeze([0, 6, 12]) as readonly [number, number, number],
+  fov: 45,
+  distance: 14.0,
+  effectiveFov: 45,
+  axisProjections: Object.freeze({
+    x: Object.freeze([1, 0, 0]) as readonly [number, number, number],
+    y: Object.freeze([0, 0.89, 0.45]) as readonly [number, number, number],
+    z: Object.freeze([0, -0.45, 0.89]) as readonly [number, number, number],
+  }),
+});
+
+// ── Playground state (readonly contract for consumers) ──
+
+/**
+ * Read-only state slice — consumed via context selectors.
+ * All fields are readonly to prevent accidental mutation.
+ */
+export interface PlaygroundStateData {
   // Code
-  code: string;
-  setCode: (code: string) => void;
-  parseResult: VrdParseResult;
-  nodeCount: number;
-  edgeCount: number;
-  errorCount: number;
-  warningCount: number;
+  readonly code: string;
+  readonly parseResult: VrdParseResult;
+  readonly nodeCount: number;
+  readonly edgeCount: number;
+  readonly errorCount: number;
+  readonly warningCount: number;
 
   // UI
-  schemaOpen: boolean;
-  setSchemaOpen: (open: boolean) => void;
-  schemaTab: SchemaTab;
-  setSchemaTab: (tab: SchemaTab) => void;
-  activePreset: string;
-  selectPreset: (key: string) => void;
-  isRendererReady: boolean;
-  showCoordinateSystem: boolean;
-  setShowCoordinateSystem: (show: boolean) => void;
-  toggleCoordinateSystem: () => void;
+  readonly schemaOpen: boolean;
+  readonly schemaTab: SchemaTab;
+  readonly activePreset: string;
+  readonly isRendererReady: boolean;
+  readonly showCoordinateSystem: boolean;
 
   // Camera
-  cameraData: CameraData;
-  setCameraData: (data: CameraData) => void;
-  cursorData: CursorData | null;
-  setCursorData: (data: CursorData | null) => void;
+  readonly cameraData: CameraData;
+  readonly cursorData: CursorData | null;
 
   // Inspector
-  inspectorTarget: InspectorTarget | null;
-  setInspectorTarget: (target: InspectorTarget | null) => void;
+  readonly inspectorTarget: InspectorTarget | null;
+
+  // Status bar
+  readonly selectionCount: number;
+  readonly undoDepth: number;
+  readonly layoutName: LayoutType;
+  readonly fps: number;
 
   // Theme
-  resolvedTheme: ResolvedTheme;
-  toggleTheme: () => void;
+  readonly resolvedTheme: ResolvedTheme;
 }
+
+/**
+ * Action dispatchers — stable function references from hooks.
+ * Separated from data to enable fine-grained memoization.
+ */
+export interface PlaygroundActions {
+  readonly setCode: (code: string) => void;
+  readonly setSchemaOpen: (open: boolean) => void;
+  readonly setSchemaTab: (tab: SchemaTab) => void;
+  readonly selectPreset: (key: string) => void;
+  readonly setShowCoordinateSystem: (show: boolean) => void;
+  readonly toggleCoordinateSystem: () => void;
+  readonly setCameraData: (data: CameraData) => void;
+  readonly setCursorData: (data: CursorData | null) => void;
+  readonly setInspectorTarget: (target: InspectorTarget | null) => void;
+  readonly toggleTheme: () => void;
+}
+
+/**
+ * Combined state + actions — the full playground context shape.
+ * Prefer using `PlaygroundStateData` or `PlaygroundActions`
+ * individually when only one side is needed.
+ */
+export interface PlaygroundState extends PlaygroundStateData, PlaygroundActions {}

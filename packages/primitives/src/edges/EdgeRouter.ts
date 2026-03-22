@@ -1,43 +1,56 @@
-import * as THREE from 'three';
+// primitives/src/edges/EdgeRouter.ts
 
-export type RoutingAlgorithm = 'straight' | 'curved' | 'orthogonal';
+import * as THREE from 'three';
+import type { RoutingAlgorithm } from '../types';
+
+export type { RoutingAlgorithm };
 
 const CURVE_SEGMENTS = 32;
 const ORTHOGONAL_MAX_ITERATIONS = 10;
 
 /**
- * Returns true if the axis-aligned segment from `a` to `b` intersects the interior of `box`.
- * The segment must be either horizontal (same y) or vertical (same x) in the XY plane.
+ * Returns true if an axis-aligned segment from `a` to `b` intersects the interior of `box`.
+ * Uses parametric ray-box intersection, works in full 3D.
  */
-function segmentIntersectsBox(a: THREE.Vector3, b: THREE.Vector3, box: THREE.Box3): boolean {
-  // Expand slightly to treat touching as non-intersecting (only interior counts)
-  const eps = 1e-9;
-  const minX = box.min.x + eps;
-  const maxX = box.max.x - eps;
-  const minY = box.min.y + eps;
-  const maxY = box.max.y - eps;
+function segmentIntersectsBox(
+  a: THREE.Vector3,
+  b: THREE.Vector3,
+  box: THREE.Box3,
+): boolean {
+  const eps = 1e-6;
+  const dir = [b.x - a.x, b.y - a.y, b.z - a.z];
+  const origin = [a.x, a.y, a.z];
+  const bMin = [box.min.x, box.min.y, box.min.z];
+  const bMax = [box.max.x, box.max.y, box.max.z];
 
-  if (Math.abs(a.y - b.y) < 1e-12) {
-    // Horizontal segment: y is constant
-    const y = a.y;
-    if (y <= minY || y >= maxY) return false;
-    const segMinX = Math.min(a.x, b.x);
-    const segMaxX = Math.max(a.x, b.x);
-    return segMaxX > minX && segMinX < maxX;
-  } else {
-    // Vertical segment: x is constant
-    const x = a.x;
-    if (x <= minX || x >= maxX) return false;
-    const segMinY = Math.min(a.y, b.y);
-    const segMaxY = Math.max(a.y, b.y);
-    return segMaxY > minY && segMinY < maxY;
+  let tMin = 0;
+  let tMax = 1;
+
+  for (let axis = 0; axis < 3; axis++) {
+    if (Math.abs(dir[axis]) < eps) {
+      if (origin[axis] < bMin[axis] + eps || origin[axis] > bMax[axis] - eps) {
+        return false;
+      }
+    } else {
+      let t1 = (bMin[axis] - origin[axis]) / dir[axis];
+      let t2 = (bMax[axis] - origin[axis]) / dir[axis];
+      if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+      tMin = Math.max(tMin, t1);
+      tMax = Math.min(tMax, t2);
+      if (tMin > tMax) return false;
+    }
   }
+
+  return true;
 }
 
 /**
  * Returns true if any segment in the path intersects any obstacle box.
  */
-function pathIntersectsObstacles(path: THREE.Vector3[], obstacles: THREE.Box3[]): boolean {
+function pathIntersectsObstacles(
+  path: THREE.Vector3[],
+  obstacles: THREE.Box3[],
+): boolean {
   if (obstacles.length === 0) return false;
   for (let i = 0; i < path.length - 1; i++) {
     for (const box of obstacles) {
@@ -48,35 +61,48 @@ function pathIntersectsObstacles(path: THREE.Vector3[], obstacles: THREE.Box3[])
 }
 
 /**
- * Builds an L-shaped orthogonal path: horizontal then vertical (via midpoint X).
- * All points share the same Z as `from`.
+ * L-shape: move along X first, then Y. Z interpolated to midpoint.
  */
-function lShapeHV(from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3[] {
-  const z = from.z;
-  const corner = new THREE.Vector3(to.x, from.y, z);
-  return [from.clone(), corner, new THREE.Vector3(to.x, to.y, z)];
+function lShapeXY(from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3[] {
+  const midZ = (from.z + to.z) / 2;
+  return [
+    from.clone(),
+    new THREE.Vector3(to.x, from.y, midZ),
+    new THREE.Vector3(to.x, to.y, to.z),
+  ];
 }
 
 /**
- * Builds a Z-shaped orthogonal path: vertical then horizontal (via midpoint Y).
- * All points share the same Z as `from`.
+ * L-shape: move along Y first, then X. Z interpolated to midpoint.
  */
-function lShapeVH(from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3[] {
-  const z = from.z;
-  const corner = new THREE.Vector3(from.x, to.y, z);
-  return [from.clone(), corner, new THREE.Vector3(to.x, to.y, z)];
+function lShapeYX(from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3[] {
+  const midZ = (from.z + to.z) / 2;
+  return [
+    from.clone(),
+    new THREE.Vector3(from.x, to.y, midZ),
+    new THREE.Vector3(to.x, to.y, to.z),
+  ];
 }
 
+/**
+ * Stateless edge path computation.
+ * All methods are static — no instantiation needed.
+ *
+ * @example
+ * ```ts
+ * const path = EdgeRouter.computePath(fromVec, toVec, 'orthogonal', obstacles);
+ * ```
+ */
 export class EdgeRouter {
   /**
-   * Computes a path between two world-space positions using the specified algorithm.
+   * Computes a path between two world-space positions.
    *
-   * - `straight`: returns [from, to]
-   * - `curved`: returns a quadratic bezier arc approximation as an array of points
-   * - `orthogonal`: axis-aligned L/Z-shaped routing; falls back to curved with console.warn
-   *   if no collision-free path is found after ORTHOGONAL_MAX_ITERATIONS attempts
+   * - `straight`: direct line `[from, to]`
+   * - `curved`: quadratic bezier arc, height scales with distance
+   * - `orthogonal`: axis-aligned L/Z-shaped segments; falls back to `curved`
+   *   if no collision-free path found after max iterations
    */
-  computePath(
+  static computePath(
     from: THREE.Vector3,
     to: THREE.Vector3,
     algorithm: RoutingAlgorithm,
@@ -87,70 +113,72 @@ export class EdgeRouter {
         return [from.clone(), to.clone()];
 
       case 'curved': {
+        const dist = from.distanceTo(to);
+        const arcHeight = Math.min(0.8, Math.max(0.2, dist * 0.2));
         const mid = new THREE.Vector3(
           (from.x + to.x) / 2,
-          (from.y + to.y) / 2 + from.distanceTo(to) * 0.25,
+          (from.y + to.y) / 2 + arcHeight,
           (from.z + to.z) / 2,
         );
-        const curve = new THREE.QuadraticBezierCurve3(from.clone(), mid, to.clone());
+        const curve = new THREE.QuadraticBezierCurve3(
+          from.clone(),
+          mid,
+          to.clone(),
+        );
         return curve.getPoints(CURVE_SEGMENTS);
       }
 
       case 'orthogonal': {
         const obs = obstacles ?? [];
 
-        // Try 1: horizontal-then-vertical (L-shape HV)
-        const pathHV = lShapeHV(from, to);
-        if (!pathIntersectsObstacles(pathHV, obs)) {
-          return pathHV;
-        }
+        // Attempt 1: L-shape X-first
+        const pathXY = lShapeXY(from, to);
+        if (!pathIntersectsObstacles(pathXY, obs)) return pathXY;
 
-        // Try 2: vertical-then-horizontal (L-shape VH)
-        const pathVH = lShapeVH(from, to);
-        if (!pathIntersectsObstacles(pathVH, obs)) {
-          return pathVH;
-        }
+        // Attempt 2: L-shape Y-first
+        const pathYX = lShapeYX(from, to);
+        if (!pathIntersectsObstacles(pathYX, obs)) return pathYX;
 
-        // Remaining iterations: try Z-shaped paths via intermediate waypoints
-        // spaced along the midpoint axis to find a clear corridor
+        // Attempts 3–N: Z-shaped paths via intermediate waypoints
         for (let iter = 2; iter < ORTHOGONAL_MAX_ITERATIONS; iter++) {
           const t = iter / ORTHOGONAL_MAX_ITERATIONS;
-          const midX = from.x + (to.x - from.x) * t;
-          const midY = from.y + (to.y - from.y) * t;
-          const z = from.z;
 
-          // Z-path via midX: from → (midX, from.y) → (midX, to.y) → to
+          // Z-path via intermediate X
+          const midX = from.x + (to.x - from.x) * t;
+          const midZ = (from.z + to.z) / 2;
           const pathZ1: THREE.Vector3[] = [
             from.clone(),
-            new THREE.Vector3(midX, from.y, z),
-            new THREE.Vector3(midX, to.y, z),
-            new THREE.Vector3(to.x, to.y, z),
+            new THREE.Vector3(midX, from.y, midZ),
+            new THREE.Vector3(midX, to.y, midZ),
+            to.clone(),
           ];
-          if (!pathIntersectsObstacles(pathZ1, obs)) {
-            return pathZ1;
-          }
+          if (!pathIntersectsObstacles(pathZ1, obs)) return pathZ1;
 
-          // Z-path via midY: from → (from.x, midY) → (to.x, midY) → to
+          // Z-path via intermediate Y
+          const midY = from.y + (to.y - from.y) * t;
           const pathZ2: THREE.Vector3[] = [
             from.clone(),
-            new THREE.Vector3(from.x, midY, z),
-            new THREE.Vector3(to.x, midY, z),
-            new THREE.Vector3(to.x, to.y, z),
+            new THREE.Vector3(from.x, midY, midZ),
+            new THREE.Vector3(to.x, midY, midZ),
+            to.clone(),
           ];
-          if (!pathIntersectsObstacles(pathZ2, obs)) {
-            return pathZ2;
-          }
+          if (!pathIntersectsObstacles(pathZ2, obs)) return pathZ2;
         }
 
-        // Fall back to curved routing
-        console.warn(
-          '[EdgeRouter] No collision-free orthogonal path found after ' +
-          `${ORTHOGONAL_MAX_ITERATIONS} iterations. Falling back to curved routing.`,
-        );
-        return this.computePath(from, to, 'curved', obstacles);
+        // All orthogonal attempts failed → fall back to curved
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(
+            `[EdgeRouter] No collision-free orthogonal path found after ` +
+            `${ORTHOGONAL_MAX_ITERATIONS} iterations. Falling back to curved routing.`,
+          );
+        }
+        return EdgeRouter.computePath(from, to, 'curved', obstacles);
       }
 
       default:
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(`[EdgeRouter] Unknown algorithm "${algorithm}". Using straight.`);
+        }
         return [from.clone(), to.clone()];
     }
   }

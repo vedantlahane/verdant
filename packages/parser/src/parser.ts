@@ -5,13 +5,35 @@ import type {
   VrdGroup,
   VrdParseResult,
   VrdDiagnostic,
+  ShapeType,
+  NodeStatus,
+  AnimationType,
+  BadgePosition,
+  PortSide,
+  RoutingType,
+  LayoutType,
 } from './types';
-import { VrdParserError, KNOWN_NODE_TYPES_SET } from './types';
+import {
+  VrdParserError,
+  KNOWN_NODE_TYPES_SET,
+  VALID_SHAPES,
+  VALID_STATUSES,
+  VALID_ANIMATION_TYPES,
+  VALID_BADGE_POSITIONS,
+  VALID_PORT_SIDES,
+  VALID_ROUTING_TYPES,
+  VALID_LAYOUTS,
+} from './types';
 import {
   EDGE_INLINE_RE,
   EDGE_BLOCK_RE,
   BIDI_EDGE_INLINE_RE,
   BIDI_EDGE_BLOCK_RE,
+  PORT_EDGE_BLOCK_RE,
+  PORT_EDGE_INLINE_RE,
+  PORT_BIDI_EDGE_BLOCK_RE,
+  PORT_BIDI_EDGE_INLINE_RE,
+  ANIMATION_BLOCK_RE,
   GROUP_START_RE,
   NODE_BLOCK_RE,
   NODE_INLINE_RE,
@@ -50,7 +72,12 @@ interface EdgeScope extends ScopeBase {
   edgeIndex: number;
 }
 
-type Scope = RootScope | GroupScope | NodeScope | EdgeScope;
+interface AnimationScope extends ScopeBase {
+  type: 'animation';
+  timelineName: string;
+}
+
+type Scope = RootScope | GroupScope | NodeScope | EdgeScope | AnimationScope;
 
 // ============================================
 // Public API
@@ -182,6 +209,58 @@ export function parseVrdSafe(input: string): VrdParseResult {
     const scope = currentScope();
     let match: RegExpMatchArray | null;
 
+    // ── 0a. Port-to-port directed edge block ──
+    match = trimmed.match(PORT_EDGE_BLOCK_RE);
+    if (match) {
+      const edge: VrdEdge = {
+        from: match[1], to: match[3],
+        props: { fromPort: match[2], toPort: match[4] },
+        loc: { line: lineNum, col: indent + 1 },
+      };
+      ast.edges.push(edge);
+      stack.push({ type: 'edge', edgeIndex: ast.edges.length - 1, indent, line: lineNum });
+      continue;
+    }
+
+    // ── 0b. Port-to-port directed edge inline ──
+    match = trimmed.match(PORT_EDGE_INLINE_RE);
+    if (match) {
+      const edge: VrdEdge = {
+        from: match[1], to: match[3],
+        props: { fromPort: match[2], toPort: match[4] },
+        loc: { line: lineNum, col: indent + 1 },
+      };
+      if (match[5] !== undefined) edge.props.label = match[5];
+      ast.edges.push(edge);
+      continue;
+    }
+
+    // ── 0c. Port-to-port bidirectional edge block ──
+    match = trimmed.match(PORT_BIDI_EDGE_BLOCK_RE);
+    if (match) {
+      const edge: VrdEdge = {
+        from: match[1], to: match[3],
+        props: { fromPort: match[2], toPort: match[4], bidirectional: true },
+        loc: { line: lineNum, col: indent + 1 },
+      };
+      ast.edges.push(edge);
+      stack.push({ type: 'edge', edgeIndex: ast.edges.length - 1, indent, line: lineNum });
+      continue;
+    }
+
+    // ── 0d. Port-to-port bidirectional edge inline ──
+    match = trimmed.match(PORT_BIDI_EDGE_INLINE_RE);
+    if (match) {
+      const edge: VrdEdge = {
+        from: match[1], to: match[3],
+        props: { fromPort: match[2], toPort: match[4], bidirectional: true },
+        loc: { line: lineNum, col: indent + 1 },
+      };
+      if (match[5] !== undefined) edge.props.label = match[5];
+      ast.edges.push(edge);
+      continue;
+    }
+
     // ── 1. Bidirectional Edge Block ──
     match = trimmed.match(BIDI_EDGE_BLOCK_RE);
     if (match) {
@@ -271,6 +350,16 @@ export function parseVrdSafe(input: string): VrdParseResult {
       }
 
       stack.push({ type: 'group', groupId, indent, line: lineNum });
+      continue;
+    }
+
+    // ── 5b. Animation Block ──
+    match = trimmed.match(ANIMATION_BLOCK_RE);
+    if (match) {
+      const name = match[1];
+      if (!ast.config.animations) ast.config.animations = [];
+      ast.config.animations.push({ name, duration: 0, keyframes: [] });
+      stack.push({ type: 'animation', timelineName: name, indent, line: lineNum });
       continue;
     }
 
@@ -380,6 +469,11 @@ export function parseVrdSafe(input: string): VrdParseResult {
           }
           break;
         }
+
+        case 'animation': {
+          handleAnimationKV(key, rawVal, lineNum, ast, (scope as AnimationScope).timelineName, diag);
+          break;
+        }
       }
       continue;
     }
@@ -450,9 +544,68 @@ function handleConfigKV(
       }
       break;
 
+    case 'minimap':
+    case 'post-processing':
+    case 'snap-to-grid':
+      ast.config[key] = rawVal.trim() === 'true';
+      break;
+
+    case 'bloom-intensity':
+    case 'grid-size':
+    case 'layer-spacing':
+    case 'node-spacing': {
+      const num = Number(rawVal);
+      ast.config[key] = (Number.isFinite(num) ? num : rawVal.trim()) as number;
+      break;
+    }
+
+    case 'direction':
+      ast.config[key] = rawVal.trim();
+      break;
+
     default:
       ast.config[key] = val as string;
       break;
+  }
+}
+
+// ── Animation KV ──
+
+function handleAnimationKV(
+  key: string,
+  rawVal: string,
+  lineNum: number,
+  ast: VrdAST,
+  timelineName: string,
+  diag: DiagFn,
+): void {
+  void diag; // reserved for future validation warnings
+  const timeline = ast.config.animations?.find(t => t.name === timelineName);
+  if (!timeline) return;
+  switch (key) {
+    case 'duration':
+      timeline.duration = Number(rawVal);
+      break;
+    case 'target':
+      (timeline as any)._pendingKf = { ...(timeline as any)._pendingKf, target: rawVal.trim() };
+      break;
+    case 'property':
+      (timeline as any)._pendingKf = { ...(timeline as any)._pendingKf, property: rawVal.trim() };
+      break;
+    case 'from':
+      (timeline as any)._pendingKf = { ...(timeline as any)._pendingKf, from: parseValue(rawVal) };
+      break;
+    case 'to': {
+      const pending = (timeline as any)._pendingKf ?? {};
+      timeline.keyframes.push({
+        target: pending.target ?? '',
+        property: pending.property ?? '',
+        from: pending.from,
+        to: parseValue(rawVal),
+      });
+      delete (timeline as any)._pendingKf;
+      break;
+    }
   }
 }
 
@@ -501,9 +654,11 @@ function handleNodeKV(
       break;
     }
 
-    case 'color':
-      node.props.color = rawVal.trim();
+    case 'color': {
+      const colorVal = parseValue(rawVal);
+      node.props.color = typeof colorVal === 'string' ? colorVal : rawVal.trim();
       break;
+    }
 
     case 'icon':
       node.props.icon = rawVal.trim();
@@ -529,7 +684,75 @@ function handleNodeKV(
       break;
     }
 
+    case 'shape': {
+      const val = rawVal.trim();
+      if (!VALID_SHAPES.has(val)) {
+        diag(lineNum, 'warning', `Invalid shape "${val}" on node "${node.id}". Valid shapes: ${[...VALID_SHAPES].join(', ')}`);
+      }
+      node.props.shape = val as ShapeType;
+      break;
+    }
+
+    case 'status': {
+      const val = rawVal.trim();
+      if (!VALID_STATUSES.has(val)) {
+        diag(lineNum, 'warning', `Invalid status "${val}" on node "${node.id}". Valid: healthy, warning, error, unknown`);
+      }
+      node.props.status = val as NodeStatus;
+      break;
+    }
+
+    case 'enter': {
+      const val = rawVal.trim();
+      if (!VALID_ANIMATION_TYPES.has(val)) {
+        diag(lineNum, 'warning', `Invalid enter animation "${val}". Valid: fade, scale, slide`);
+      }
+      node.props.enterAnimation = val as AnimationType;
+      break;
+    }
+
+    case 'exit': {
+      const val = rawVal.trim();
+      if (!VALID_ANIMATION_TYPES.has(val)) {
+        diag(lineNum, 'warning', `Invalid exit animation "${val}". Valid: fade, scale, slide`);
+      }
+      node.props.exitAnimation = val as AnimationType;
+      break;
+    }
+
+    case 'animation-duration': {
+      const val = Number(rawVal);
+      if (!Number.isFinite(val) || val < 0) {
+        diag(lineNum, 'warning', `Invalid animation-duration "${rawVal}". Expected non-negative number (ms).`);
+      } else {
+        node.props.animationDuration = val;
+      }
+      break;
+    }
+
     default:
+      if (key.startsWith('badge ')) {
+        const position = key.slice(6).trim() as BadgePosition;
+        if (!VALID_BADGE_POSITIONS.has(position)) {
+          diag(lineNum, 'warning', `Invalid badge position "${position}". Valid: top-right, top-left, bottom-right, bottom-left`);
+        } else {
+          if (!node.props.badges) node.props.badges = [];
+          const content = parseValue(rawVal);
+          node.props.badges.push({ position, content: typeof content === 'string' ? content : rawVal.trim() });
+        }
+        break;
+      }
+      if (key.startsWith('port ')) {
+        const portName = key.slice(5).trim();
+        const side = rawVal.trim() as PortSide;
+        if (!VALID_PORT_SIDES.has(side)) {
+          diag(lineNum, 'warning', `Invalid port side "${side}". Valid: top, bottom, left, right, front, back`);
+        } else {
+          if (!node.props.ports) node.props.ports = [];
+          node.props.ports.push({ name: portName, side });
+        }
+        break;
+      }
       if (!KNOWN_NODE_PROPS.has(key)) {
         diag(
           lineNum,
@@ -547,6 +770,7 @@ function handleNodeKV(
 const KNOWN_EDGE_PROPS: ReadonlySet<string> = new Set([
   'label', 'style', 'color', 'width', 'bidirectional',
   'fromPort', 'toPort', 'description',
+  'routing', 'flow', 'flow-speed', 'flow-count', 'flow-color',
 ]);
 
 function handleEdgeKV(
@@ -567,9 +791,11 @@ function handleEdgeKV(
       edge.props.style = rawVal.trim() as typeof edge.props.style;
       break;
 
-    case 'color':
-      edge.props.color = rawVal.trim();
+    case 'color': {
+      const colorVal = parseValue(rawVal);
+      edge.props.color = typeof colorVal === 'string' ? colorVal : rawVal.trim();
       break;
+    }
 
     case 'width': {
       const w = parseWidth(rawVal);
@@ -592,6 +818,39 @@ function handleEdgeKV(
     case 'toPort':
       edge.props.toPort = rawVal.trim();
       break;
+
+    case 'routing': {
+      const val = rawVal.trim();
+      if (!VALID_ROUTING_TYPES.has(val)) {
+        diag(lineNum, 'warning', `Invalid routing "${val}". Valid: straight, curved, orthogonal`);
+      }
+      edge.props.routing = val as RoutingType;
+      break;
+    }
+
+    case 'flow':
+      edge.props.flow = rawVal.trim() === 'true';
+      break;
+
+    case 'flow-speed': {
+      const val = Number(rawVal);
+      if (Number.isFinite(val) && val > 0) edge.props.flowSpeed = val;
+      else diag(lineNum, 'warning', `Invalid flow-speed "${rawVal}". Expected positive number.`);
+      break;
+    }
+
+    case 'flow-count': {
+      const val = parseInt(rawVal, 10);
+      if (Number.isInteger(val) && val > 0) edge.props.flowCount = val;
+      else diag(lineNum, 'warning', `Invalid flow-count "${rawVal}". Expected positive integer.`);
+      break;
+    }
+
+    case 'flow-color': {
+      const colorVal = parseValue(rawVal);
+      edge.props.flowColor = typeof colorVal === 'string' ? colorVal : rawVal.trim();
+      break;
+    }
 
     default:
       if (!KNOWN_EDGE_PROPS.has(key)) {
@@ -627,6 +886,19 @@ function handleGroupKV(
     case 'description':
       group.props[key] = parseValue(rawVal);
       break;
+
+    case 'collapsed':
+      group.props.collapsed = rawVal.trim() === 'true';
+      break;
+
+    case 'layout': {
+      const val = rawVal.trim();
+      if (!VALID_LAYOUTS.has(val)) {
+        diag(lineNum, 'warning', `Invalid group layout "${val}". Valid: ${[...VALID_LAYOUTS].join(', ')}`);
+      }
+      group.props.layout = val as LayoutType;
+      break;
+    }
 
     default:
       diag(

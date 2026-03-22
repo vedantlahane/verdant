@@ -1,0 +1,248 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Visual regression – NodeStatus on cube node > status: error 1`] = `
+{
+  "shape": "cube",
+  "status": "error",
+}
+`;
+
+exports[`Visual regression – NodeStatus on cube node > status: healthy 1`] = `
+{
+  "shape": "cube",
+  "status": "healthy",
+}
+`;
+
+exports[`Visual regression – NodeStatus on cube node > status: unknown 1`] = `
+{
+  "shape": "cube",
+  "status": "unknown",
+}
+`;
+
+exports[`Visual regression – NodeStatus on cube node > status: warning 1`] = `
+{
+  "shape": "cube",
+  "status": "warning",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: box 1`] = `
+{
+  "shape": "box",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: capsule 1`] = `
+{
+  "shape": "capsule",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: cone 1`] = `
+{
+  "shape": "cone",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: cube 1`] = `
+{
+  "shape": "cube",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: cylinder 1`] = `
+{
+  "shape": "cylinder",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: diamond 1`] = `
+{
+  "shape": "diamond",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: hexagon 1`] = `
+{
+  "shape": "hexagon",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: icosahedron 1`] = `
+{
+  "shape": "icosahedron",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: octagon 1`] = `
+{
+  "shape": "octagon",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: pentagon 1`] = `
+{
+  "shape": "pentagon",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: plane 1`] = `
+{
+  "shape": "plane",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: ring 1`] = `
+{
+  "shape": "ring",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: sphere 1`] = `
+{
+  "shape": "sphere",
+}
+`;
+
+exports[`Visual regression – ShapeType (default size, no status) > shape: torus 1`] = `
+{
+  "shape": "torus",
+}
+`;
+
+exports[`Visual regression – collapsed and expanded group > collapsed group 1`] = `
+{
+  "children": [
+    "backend.auth",
+    "backend.users",
+  ],
+  "id": "backend",
+  "label": "Backend Services",
+  "props": {
+    "collapsed": true,
+  },
+}
+`;
+
+exports[`Visual regression – collapsed and expanded group > expanded group 1`] = `
+{
+  "children": [
+    "backend.auth",
+    "backend.users",
+  ],
+  "id": "backend",
+  "label": "Backend Services",
+  "props": {
+    "collapsed": false,
+  },
+}
+`;
+
+exports[`Visual regression – round-trip stability > printed VRD re-parses to identical snapshot 1`] = `
+{
+  "config": {
+    "theme": "dark",
+  },
+  "nodes": [
+    {
+      "id": "node1",
+      "props": {},
+      "type": "server",
+    },
+    {
+      "id": "node2",
+      "props": {},
+      "type": "server",
+    },
+    {
+      "id": "node3",
+      "props": {},
+      "type": "server",
+    },
+    {
+      "id": "node4",
+      "props": {},
+      "type": "server",
+    },
+    {
+      "id": "node5",
+      "props": {},
+      "type": "server",
+    },
+  ],
+}
+`;
+
+exports[`Visual regression – themes on 5-node diagram > theme: dark 1`] = `
+{
+  "theme": "dark",
+}
+`;
+
+exports[`Visual regression – themes on 5-node diagram > theme: dark 2`] = `
+[
+  {
+    "id": "node1",
+    "props": {},
+    "type": "server",
+  },
+  {
+    "id": "node2",
+    "props": {},
+    "type": "server",
+  },
+  {
+    "id": "node3",
+    "props": {},
+    "type": "server",
+  },
+  {
+    "id": "node4",
+    "props": {},
+    "type": "server",
+  },
+  {
+    "id": "node5",
+    "props": {},
+    "type": "server",
+  },
+]
+`;
+
+exports[`Visual regression – themes on 5-node diagram > theme: light 1`] = `
+{
+  "theme": "light",
+}
+`;
+
+exports[`Visual regression – themes on 5-node diagram > theme: light 2`] = `
+[
+  {
+    "id": "node1",
+    "props": {},
+    "type": "server",
+  },
+  {
+    "id": "node2",
+    "props": {},
+    "type": "server",
+  },
+  {
+    "id": "node3",
+    "props": {},
+    "type": "server",
+  },
+  {
+    "id": "node4",
+    "props": {},
+    "type": "server",
+  },
+  {
+    "id": "node5",
+    "props": {},
+    "type": "server",
+  },
+]
+`;

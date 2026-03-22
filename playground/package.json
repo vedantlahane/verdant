@@ -6,16 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
-    "@verdant/primitives": "workspace:*",
-    "@verdant/parser": "workspace:*",
-    "@verdant/renderer": "workspace:*",
     "@verdant/nodes": "workspace:*",
+    "@verdant/parser": "workspace:*",
+    "@verdant/primitives": "workspace:*",
+    "@verdant/renderer": "workspace:*",
     "@verdant/themes": "workspace:*",
     "gsap": "^3.14.2",
     "lucide-react": "^0.577.0",
@@ -34,7 +35,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "fast-check": "^4.6.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.0"
   }
 }

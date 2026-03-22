@@ -2,63 +2,55 @@
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { BaseEdge as EdgeLine } from '@verdant/primitives';
+import {
+  BaseEdge as EdgeLine,
+  GroupContainer,
+  NestedGroup,
+  usePrimitives,
+} from '@verdant/primitives';
 import { useRendererStore } from './store';
 import { projectToScreen } from './utils';
 import { BlueprintGroundPlane } from './grid/BlueprintGroundPlane';
 import { DraggableNode } from './nodes/DraggableNode';
-import { GroupBox } from './groups/GroupBox';
 import { MeasurementLinesGroup } from './measurement/MeasurementLinesGroup';
-import { MeasurementLine, VerdantRendererProps, PersistedViewState, CursorData } from './types';
+import { useAutoRotate } from './hooks/useAutoRotate';
+import { useCursorTracking } from './hooks/useCursorTracking';
+import { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
+import { usePrimitivesSync } from './hooks/usePrimitivesSync';
+import { useViewPersistence } from './hooks/useViewPersistence';
+import type {
+  SceneContentProps,
+  MeasurementLine,
+  Vec3,
+  CursorData,
+  PersistedViewState,
+} from './types';
+import { VEC3_ORIGIN } from './utils';
+import {
+  AUTO_ROTATE_SPEED,
+  ORBIT_MIN_DISTANCE,
+  ORBIT_MAX_DISTANCE,
+  ORBIT_DAMPING_FACTOR,
+} from './constants';
 
-interface SceneContentProps {
-  autoRotate: boolean;
-  showCoordinateSystem: boolean;
-  onNodeClick?: VerdantRendererProps['onNodeClick'];
-  onCursorMove?: (data: CursorData | null) => void;
-  selectedNodeId?: string | null;
-  initialTarget?: [number, number, number];
-  onViewChange?: (view: PersistedViewState) => void;
-}
+// ═══════════════════════════════════════════════════════════════════
+//  Measurement Lines Hook
+//
+//  Computes the set of measurement lines connecting the active
+//  (selected) node to its neighbors via edges.
+// ═══════════════════════════════════════════════════════════════════
 
-export function SceneContent({
-  autoRotate,
-  showCoordinateSystem,
-  onNodeClick,
-  onCursorMove,
-  selectedNodeId: externalSelectedId,
-  initialTarget = [0, 0, 0],
-  onViewChange,
-}: SceneContentProps) {
+function useMeasurementLines(
+  activeNodeId: string | null,
+): readonly MeasurementLine[] {
   const ast = useRendererStore((s) => s.ast);
   const positions = useRendererStore((s) => s.positions);
-  const selectedNodeId = useRendererStore((s) => s.selectedNodeId);
-  const hoveredNodeId = useRendererStore((s) => s.hoveredNodeId);
-  const themeColors = useRendererStore((s) => s.themeColors);
-  const selectNode = useRendererStore((s) => s.selectNode);
-  const hoverNode = useRendererStore((s) => s.hoverNode);
-  const getNodeColor = useRendererStore((s) => s.getNodeColor);
 
-  const { camera, size } = useThree();
-  const gl = useThree((s) => s.gl);
-  const controlsRef = useRef<any>(null);
-  const idleTimerRef = useRef(0);
-  const isInteractingRef = useRef(false);
-  const lastViewPersistRef = useRef(0);
-
-  // Cursor tracking reusable objects
-  const cursorRaycaster = useMemo(() => new THREE.Raycaster(), []);
-  const cursorPlaneRef = useRef(new THREE.Plane());
-  const cursorNormalRef = useRef(new THREE.Vector3());
-  const cursorPoint = useMemo(() => new THREE.Vector3(), []);
-
-  const activeNodeId = externalSelectedId ?? selectedNodeId;
-
-  // ── Measurement lines ──
-  const measurementLines = useMemo<MeasurementLine[]>(() => {
+  return useMemo(() => {
     if (!activeNodeId || !ast) return [];
+
     const lines: MeasurementLine[] = [];
 
     for (const edge of ast.edges) {
@@ -80,33 +72,255 @@ export function SceneContent({
 
     return lines;
   }, [activeNodeId, ast, positions]);
+}
 
-  // ── Auto-rotate with idle detection ──
-  useFrame((_, delta) => {
-    if (!controlsRef.current || !autoRotate) return;
-    if (isInteractingRef.current) {
-      idleTimerRef.current = 0;
-    } else {
-      idleTimerRef.current += delta;
-      controlsRef.current.autoRotate = idleTimerRef.current > 3;
-    }
-  });
+// ═══════════════════════════════════════════════════════════════════
+//  Edge Rendering
+//
+//  Extracted to avoid re-creating edge element arrays when only
+//  node selection or hover state changes.
+// ═══════════════════════════════════════════════════════════════════
 
-  // ── Cursor plane sync ──
-  useFrame(() => {
+interface EdgesLayerProps {
+  readonly accentColor: string;
+}
+
+const EdgesLayer = React.memo(function EdgesLayer({
+  accentColor,
+}: EdgesLayerProps) {
+  const ast = useRendererStore((s) => s.ast);
+  const positions = useRendererStore((s) => s.positions);
+
+  if (!ast) return null;
+
+  return (
+    <>
+      {ast.edges.map((edge, i) => {
+        const fromPos = positions[edge.from];
+        const toPos = positions[edge.to];
+        if (!fromPos || !toPos) return null;
+
+        const flowParticles =
+          edge.props.flow === true
+            ? {
+                speed: edge.props.flowSpeed as number | undefined,
+                count: edge.props.flowCount as number | undefined,
+                color: edge.props.flowColor as string | undefined,
+              }
+            : undefined;
+
+        return (
+          <EdgeLine
+            key={`edge-${edge.from}-${edge.to}-${i}`}
+            from={fromPos}
+            to={toPos}
+            label={edge.props.label}
+            animated={edge.props.style === 'animated' || !edge.props.style}
+            style={edge.props.style || 'solid'}
+            color={edge.props.color || accentColor}
+            width={edge.props.width}
+            routing={edge.props.routing}
+            fromPort={edge.props.fromPort}
+            toPort={edge.props.toPort}
+            fromNodeId={edge.from}
+            toNodeId={edge.to}
+            flowParticles={flowParticles}
+          />
+        );
+      })}
+    </>
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  Groups Rendering
+// ═══════════════════════════════════════════════════════════════════
+
+interface GroupsLayerProps {
+  readonly accentColor: string;
+}
+
+const GroupsLayer = React.memo(function GroupsLayer({
+  accentColor,
+}: GroupsLayerProps) {
+  const ast = useRendererStore((s) => s.ast);
+
+  if (!ast || ast.groups.length === 0) return null;
+
+  // Build a set of all group IDs that appear as children of other groups
+  const nestedGroupIds = useMemo(() => {
+    if (!ast) return new Set<string>();
+    const nested = new Set<string>();
+    const collectNested = (groups: typeof ast.groups) => {
+      for (const g of groups) {
+        for (const child of g.groups) {
+          nested.add(child.id);
+        }
+        collectNested(g.groups);
+      }
+    };
+    collectNested(ast.groups);
+    return nested;
+  }, [ast]);
+
+  const renderGroup = useCallback(
+    (group: (typeof ast.groups)[number], isNested: boolean) => {
+      const collapsed = group.props?.collapsed === true;
+      const GroupComponent = isNested ? NestedGroup : GroupContainer;
+      return (
+        <GroupComponent
+          key={group.id}
+          label={group.label}
+          color={accentColor}
+          collapsed={collapsed}
+        >
+          {group.groups.map((child) => renderGroup(child, true))}
+        </GroupComponent>
+      );
+    },
+    [accentColor],
+  );
+
+  return (
+    <>
+      {ast.groups.map((group) =>
+        renderGroup(group, nestedGroupIds.has(group.id)),
+      )}
+    </>
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  Nodes Rendering
+// ═══════════════════════════════════════════════════════════════════
+
+interface NodesLayerProps {
+  readonly controlsRef: React.RefObject<any>;
+  readonly onNodeClick: (nodeId: string, pos: Vec3, e: any) => void;
+  readonly onHoverEnter: (id: string) => void;
+  readonly onHoverLeave: () => void;
+}
+
+const NodesLayer = React.memo(function NodesLayer({
+  controlsRef,
+  onNodeClick,
+  onHoverEnter,
+  onHoverLeave,
+}: NodesLayerProps) {
+  const ast = useRendererStore((s) => s.ast);
+  const positions = useRendererStore((s) => s.positions);
+  const selectedNodeId = useRendererStore((s) => s.selectedNodeId);
+  const hoveredNodeId = useRendererStore((s) => s.hoveredNodeId);
+  const getNodeColor = useRendererStore((s) => s.getNodeColor);
+
+  if (!ast) return null;
+
+  return (
+    <>
+      {ast.nodes.map((node) => {
+        const position = positions[node.id] ?? VEC3_ORIGIN;
+        return (
+          <DraggableNode
+            key={node.id}
+            node={node}
+            position={position}
+            isSelected={selectedNodeId === node.id}
+            isHovered={hoveredNodeId === node.id}
+            color={getNodeColor(
+              node.type,
+              node.props.color as string | undefined,
+            )}
+            controlsRef={controlsRef}
+            onNodeClick={onNodeClick}
+            onHoverEnter={onHoverEnter}
+            onHoverLeave={onHoverLeave}
+          />
+        );
+      })}
+    </>
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  Lighting
+// ═══════════════════════════════════════════════════════════════════
+
+const SHADOW_MAP_SIZE: [number, number] = [1024, 1024];
+
+const SceneLighting = React.memo(function SceneLighting() {
+  return (
+    <>
+      <ambientLight intensity={0.6} />
+      <directionalLight
+        position={[10, 20, 10]}
+        intensity={1.0}
+        castShadow
+        shadow-mapSize={SHADOW_MAP_SIZE}
+      />
+      <pointLight position={[-10, -10, -10]} intensity={0.2} />
+    </>
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  Main Component
+// ═══════════════════════════════════════════════════════════════════
+
+export function SceneContent({
+  autoRotate,
+  showCoordinateSystem,
+  onNodeClick,
+  onCursorMove,
+  selectedNodeId: externalSelectedId,
+  initialTarget = VEC3_ORIGIN,
+  onViewChange,
+}: SceneContentProps) {
+  const ast = useRendererStore((s) => s.ast);
+  const themeColors = useRendererStore((s) => s.themeColors);
+  const selectNode = useRendererStore((s) => s.selectNode);
+  const hoverNode = useRendererStore((s) => s.hoverNode);
+  const setContextMenu = useRendererStore((s) => s.setContextMenu);
+  const selectedNodeId = useRendererStore((s) => s.selectedNodeId);
+
+  const { camera, size } = useThree();
+  const controlsRef = useRef<any>(null);
+
+  // Resolve active node: external prop takes priority over store
+  const activeNodeId = externalSelectedId ?? selectedNodeId;
+
+  // ── Hooks ──
+
+  const { isInteractingRef, handleInteractionStart, handleInteractionEnd } =
+    useAutoRotate(controlsRef, autoRotate);
+
+  useCursorTracking(controlsRef, onCursorMove);
+
+  usePrimitivesSync();
+
+  useKeyboardNavigation(controlsRef);
+
+  const handleControlsChange = useViewPersistence(controlsRef, onViewChange);
+
+  // ── Measurement lines ──
+
+  const measurementLines = useMeasurementLines(activeNodeId);
+
+  // ── Initial camera target ──
+
+  useEffect(() => {
     if (!controlsRef.current) return;
-
-    camera.getWorldDirection(cursorNormalRef.current);
-    const target = controlsRef.current.target as THREE.Vector3;
-    cursorPlaneRef.current.setFromNormalAndCoplanarPoint(
-      cursorNormalRef.current,
-      target,
+    controlsRef.current.target.set(
+      initialTarget[0],
+      initialTarget[1],
+      initialTarget[2],
     );
-  });
+    controlsRef.current.update();
+  }, [initialTarget]);
 
-  // ── Callbacks ──
+  // ── Interaction callbacks ──
+
   const handleNodeClick = useCallback(
-    (nodeId: string, position: [number, number, number], e: any) => {
+    (nodeId: string, position: Vec3, e: any) => {
       e.stopPropagation();
       selectNode(nodeId);
       if (onNodeClick) {
@@ -134,173 +348,62 @@ export function SceneContent({
     }
   }, [hoverNode]);
 
-  const handlePointerMissed = useCallback(() => selectNode(null), [selectNode]);
+  const handlePointerMissed = useCallback(
+    () => selectNode(null),
+    [selectNode],
+  );
 
-  // ── Initial camera target ──
-  useEffect(() => {
-    if (!controlsRef.current) return;
-    controlsRef.current.target.set(...initialTarget);
-    controlsRef.current.update();
-  }, [initialTarget]);
-
-  // ── Cursor tracking ──
-  useEffect(() => {
-    if (!onCursorMove) return;
-
-    const canvas = gl.domElement;
-
-    const handleMove = (ev: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return;
-
-      const ndc = new THREE.Vector2(
-        ((ev.clientX - rect.left) / rect.width) * 2 - 1,
-        -((ev.clientY - rect.top) / rect.height) * 2 + 1,
-      );
-
-      cursorRaycaster.setFromCamera(ndc, camera);
-      const hit = cursorRaycaster.ray.intersectPlane(cursorPlaneRef.current, cursorPoint);
-      if (!hit) {
-        onCursorMove(null);
-        return;
-      }
-
-      onCursorMove({
-        x: Math.round(cursorPoint.x * 10) / 10,
-        y: Math.round(cursorPoint.y * 10) / 10,
-        z: Math.round(cursorPoint.z * 10) / 10,
+  const handleContextMenu = useCallback(
+    (e: any) => {
+      e.stopPropagation();
+      const nativeEvent = e.nativeEvent as MouseEvent | undefined;
+      setContextMenu({
+        visible: true,
+        x: nativeEvent?.clientX ?? 0,
+        y: nativeEvent?.clientY ?? 0,
+        targetId: selectedNodeId ?? undefined,
+        targetType: 'node',
       });
-    };
-
-    const handleLeave = () => onCursorMove(null);
-
-    canvas.addEventListener('pointermove', handleMove);
-    canvas.addEventListener('pointerleave', handleLeave);
-
-    return () => {
-      canvas.removeEventListener('pointermove', handleMove);
-      canvas.removeEventListener('pointerleave', handleLeave);
-    };
-  }, [camera, cursorPoint, cursorRaycaster, gl, onCursorMove]);
-
-  // ── View persistence handler ──
-  const handleControlsChange = useCallback(() => {
-    if (!onViewChange || !controlsRef.current) return;
-    const now = performance.now();
-    if (now - lastViewPersistRef.current < 180) return;
-    lastViewPersistRef.current = now;
-
-    const cam = controlsRef.current.object as THREE.PerspectiveCamera;
-    const t = controlsRef.current.target as THREE.Vector3;
-    onViewChange({
-      position: [cam.position.x, cam.position.y, cam.position.z],
-      target: [t.x, t.y, t.z],
-      fov: cam.fov,
-    });
-  }, [onViewChange]);
-
-  const handleInteractionStart = useCallback(() => {
-    isInteractingRef.current = true;
-    idleTimerRef.current = 0;
-    if (controlsRef.current) controlsRef.current.autoRotate = false;
-  }, []);
-
-  const handleInteractionEnd = useCallback(() => {
-    isInteractingRef.current = false;
-  }, []);
+    },
+    [selectedNodeId, setContextMenu],
+  );
 
   if (!ast) return null;
 
   return (
     <>
-      {/* ── Lighting ── */}
-      <ambientLight intensity={0.6} />
-      <directionalLight
-        position={[10, 20, 10]}
-        intensity={1.0}
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-      />
-      <pointLight position={[-10, -10, -10]} intensity={0.2} />
+      <SceneLighting />
 
-      {/* ── Ground plane ── */}
       {showCoordinateSystem && <BlueprintGroundPlane />}
 
-      {/* ── Measurement lines ── */}
       <MeasurementLinesGroup
         lines={measurementLines}
         accentColor={themeColors.accent}
       />
 
-      {/* ── Scene objects ── */}
-      <group onPointerMissed={handlePointerMissed}>
-        {/* Nodes */}
-        {ast.nodes.map((node) => {
-          const position = positions[node.id] ?? [0, 0, 0];
-          const isSelected = selectedNodeId === node.id;
-          const isHovered = hoveredNodeId === node.id;
-          const color = getNodeColor(
-            node.type,
-            node.props.color as string | undefined,
-          );
-
-          return (
-            <DraggableNode
-              key={node.id}
-              node={node}
-              position={position}
-              isSelected={isSelected}
-              isHovered={isHovered}
-              color={color}
-              controlsRef={controlsRef}
-              onNodeClick={handleNodeClick}
-              onHoverEnter={handleHoverEnter}
-              onHoverLeave={handleHoverLeave}
-            />
-          );
-        })}
-
-        {/* Edges */}
-        {ast.edges.map((edge, i) => {
-          const fromPos = positions[edge.from];
-          const toPos = positions[edge.to];
-          if (!fromPos || !toPos) return null;
-
-          return (
-            <EdgeLine
-              key={`edge-${edge.from}-${edge.to}-${i}`}
-              from={fromPos}
-              to={toPos}
-              label={edge.props.label}
-              animated={edge.props.style === 'animated' || !edge.props.style}
-              style={edge.props.style || 'solid'}
-              color={edge.props.color || themeColors.edgeDefault}
-              width={edge.props.width}
-            />
-          );
-        })}
-
-        {/* Groups */}
-        {ast.groups.map((group) => (
-          <GroupBox
-            key={`group-${group.id}`}
-            group={group}
-            positions={positions}
-            themeColors={themeColors}
-          />
-        ))}
+      <group
+        onPointerMissed={handlePointerMissed}
+        onContextMenu={handleContextMenu}
+      >
+        <NodesLayer
+          controlsRef={controlsRef}
+          onNodeClick={handleNodeClick}
+          onHoverEnter={handleHoverEnter}
+          onHoverLeave={handleHoverLeave}
+        />
+        <EdgesLayer accentColor={themeColors.edgeDefault} />
+        <GroupsLayer accentColor={themeColors.accent} />
       </group>
 
-      {/* ── Controls ── */}
       <OrbitControls
         ref={controlsRef}
         makeDefault
         enableDamping
-        dampingFactor={0.05}
-        minDistance={3}
-        maxDistance={80}
+        dampingFactor={ORBIT_DAMPING_FACTOR}
+        minDistance={ORBIT_MIN_DISTANCE}
+        maxDistance={ORBIT_MAX_DISTANCE}
         autoRotate={autoRotate}
-        autoRotateSpeed={0.5}
+        autoRotateSpeed={AUTO_ROTATE_SPEED}
         onChange={handleControlsChange}
         onStart={handleInteractionStart}
         onEnd={handleInteractionEnd}

@@ -1,48 +1,53 @@
+// features/playground/hooks/useMonacoLanguage.ts
+
 "use client";
 
 import { useEffect, useRef } from "react";
 import { useMonaco } from "@monaco-editor/react";
+import type { Monaco } from "@monaco-editor/react";
+import type { IDisposable } from "monaco-editor";
 import {
   NODE_TYPES,
   CONFIG_KEYS,
   PROP_KEYS,
-  THEME_VALUES,
-  LAYOUT_VALUES,
-  SIZE_VALUES,
-  EDGE_STYLE_VALUES,
-  BOOL_VALUES,
+  NODE_TYPES_PATTERN,
+  CONFIG_KEYS_PATTERN,
+  PROP_KEYS_PATTERN,
+  NODE_LINE_REGEX,
+  VALUE_COMPLETIONS,
 } from "../constants/editor";
 
 /**
- * Registers the .vrd language with Monaco ONCE.
- * Handles: syntax highlighting, autocomplete, theme definitions.
- * Returns the monaco instance.
+ * Registers the .vrd language with Monaco ONCE per app lifecycle.
+ *
+ * Handles:
+ * - Monarch tokenizer (syntax highlighting)
+ * - Completion provider (autocomplete)
+ * - Dark + light theme definitions
+ *
+ * Returns the Monaco instance for downstream hooks.
  */
-export function useMonacoLanguage() {
+export function useMonacoLanguage(): Monaco | null {
   const monaco = useMonaco();
   const registeredRef = useRef(false);
-  const disposablesRef = useRef<Array<{ dispose: () => void }>>([]);
+  const disposablesRef = useRef<IDisposable[]>([]);
 
   useEffect(() => {
     if (!monaco || registeredRef.current) return;
     registeredRef.current = true;
 
-    // ── Register language ──
+    // ── Register language ──────────────────────────
     monaco.languages.register({ id: "vrd" });
 
-    // ── Syntax highlighting ──
-    const nodeTypesPattern = NODE_TYPES.join("|");
-    const configKeysPattern = CONFIG_KEYS.join("|");
-    const propKeysPattern = PROP_KEYS.join("|");
-
+    // ── Syntax highlighting (Monarch) ─────────────
     monaco.languages.setMonarchTokensProvider("vrd", {
       tokenizer: {
         root: [
           [/#.*$/, "comment"],
           [/\bgroup\b/, "keyword"],
-          [new RegExp(`\\b(${nodeTypesPattern})\\b`), "keyword"],
-          [new RegExp(`\\b(${configKeysPattern})\\b`), "config"],
-          [new RegExp(`\\b(${propKeysPattern})\\b`), "property"],
+          [new RegExp(`\\b(${NODE_TYPES_PATTERN})\\b`), "keyword"],
+          [new RegExp(`\\b(${CONFIG_KEYS_PATTERN})\\b`), "config"],
+          [new RegExp(`\\b(${PROP_KEYS_PATTERN})\\b`), "property"],
           [/<->/, "operator.bidirectional"],
           [/->/, "operator"],
           [/:/, "delimiter"],
@@ -59,136 +64,139 @@ export function useMonacoLanguage() {
       },
     });
 
-    // ── Autocomplete ──
-    const completionDisposable = monaco.languages.registerCompletionItemProvider("vrd", {
-      triggerCharacters: [" ", ":", "\n"],
-      provideCompletionItems: (model: any, position: any) => {
-        const line = model.getLineContent(position.lineNumber);
-        const before = line.substring(0, position.column - 1).trimStart();
-        const word = model.getWordUntilPosition(position);
-        const range = {
-          startLineNumber: position.lineNumber,
-          endLineNumber: position.lineNumber,
-          startColumn: word.startColumn,
-          endColumn: word.endColumn,
-        };
-        const suggestions: any[] = [];
+    // ── Autocomplete ──────────────────────────────
+    const completionDisposable = monaco.languages.registerCompletionItemProvider(
+      "vrd",
+      {
+        triggerCharacters: [" ", ":", "\n"],
+        provideCompletionItems(model, position) {
+          const line = model.getLineContent(position.lineNumber);
+          const before = line.substring(0, position.column - 1).trimStart();
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn,
+          };
 
-        // Empty line or start of identifier → node types + group + config
-        if (before === "" || before === word.word) {
-          for (const t of NODE_TYPES) {
-            suggestions.push({
-              label: t,
-              kind: monaco.languages.CompletionItemKind.Keyword,
-              insertText: `${t} `,
-              detail: "Node type",
-              range,
-            });
-          }
-          suggestions.push({
-            label: "group",
-            kind: monaco.languages.CompletionItemKind.Keyword,
-            insertText: 'group ${1:id} "${2:Label}":\n  ',
-            insertTextRules:
-              monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-            detail: "Group block",
-            range,
-          });
-          for (const k of CONFIG_KEYS) {
-            suggestions.push({
-              label: k,
-              kind: monaco.languages.CompletionItemKind.Property,
-              insertText: `${k}: `,
-              detail: "Config",
-              range,
-            });
-          }
-          return { suggestions };
-        }
+          const suggestions: Array<{
+            label: string;
+            kind: number;
+            insertText: string;
+            insertTextRules?: number;
+            detail?: string;
+            range: typeof range;
+          }> = [];
 
-        // After identifier pair → suggest edge operator
-        if (/^[\w.-]+\s+[\w.-]+\s*$/.test(before)) {
-          suggestions.push(
-            {
-              label: "->",
-              kind: monaco.languages.CompletionItemKind.Operator,
-              insertText: "-> ",
-              detail: "Directed edge",
-              range,
-            },
-            {
-              label: "<->",
-              kind: monaco.languages.CompletionItemKind.Operator,
-              insertText: "<-> ",
-              detail: "Bidirectional edge",
-              range,
-            },
-          );
-        }
+          const Kind = monaco.languages.CompletionItemKind;
+          const SnippetRule =
+            monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
 
-        // After edge operator → suggest node IDs
-        if (before.includes("->") || before.includes("<->")) {
-          const ids = new Set<string>();
-          const nodeLineRe = new RegExp(
-            `^\\s*(?:${nodeTypesPattern})\\s+([\\w][\\w.-]*)`,
-          );
-          for (const l of model.getValue().split("\n")) {
-            const m = l.match(nodeLineRe);
-            if (m) ids.add(m[1]);
-          }
-          for (const id of ids) {
-            suggestions.push({
-              label: id,
-              kind: monaco.languages.CompletionItemKind.Variable,
-              insertText: id,
-              detail: "Node",
-              range,
-            });
-          }
-        }
-
-        // Indented line → suggest properties
-        if (/^\s+/.test(line) && !before.includes(":")) {
-          for (const p of PROP_KEYS) {
-            suggestions.push({
-              label: p,
-              kind: monaco.languages.CompletionItemKind.Property,
-              insertText: `${p}: `,
-              range,
-            });
-          }
-        }
-
-        // Value completions after specific keys
-        const valueCompletions: [RegExp, string[]][] = [
-          [/theme:\s*/, THEME_VALUES],
-          [/layout:\s*/, LAYOUT_VALUES],
-          [/size:\s*/, SIZE_VALUES],
-          [/glow:\s*/, BOOL_VALUES],
-          [/style:\s*/, EDGE_STYLE_VALUES],
-          [/bidirectional:\s*/, BOOL_VALUES],
-        ];
-
-        for (const [pattern, values] of valueCompletions) {
-          if (pattern.test(before)) {
-            for (const v of values) {
+          // ── Empty line / start of identifier → node types + group + config
+          if (before === "" || before === word.word) {
+            for (const t of NODE_TYPES) {
               suggestions.push({
-                label: v,
-                kind: monaco.languages.CompletionItemKind.Value,
-                insertText: v,
+                label: t,
+                kind: Kind.Keyword,
+                insertText: `${t} `,
+                detail: "Node type",
+                range,
+              });
+            }
+            suggestions.push({
+              label: "group",
+              kind: Kind.Keyword,
+              insertText: 'group ${1:id} "${2:Label}":\n  ',
+              insertTextRules: SnippetRule,
+              detail: "Group block",
+              range,
+            });
+            for (const k of CONFIG_KEYS) {
+              suggestions.push({
+                label: k,
+                kind: Kind.Property,
+                insertText: `${k}: `,
+                detail: "Config",
+                range,
+              });
+            }
+            return { suggestions };
+          }
+
+          // ── After identifier pair → suggest edge operators
+          if (/^[\w.-]+\s+[\w.-]+\s*$/.test(before)) {
+            suggestions.push(
+              {
+                label: "->",
+                kind: Kind.Operator,
+                insertText: "-> ",
+                detail: "Directed edge",
+                range,
+              },
+              {
+                label: "<->",
+                kind: Kind.Operator,
+                insertText: "<-> ",
+                detail: "Bidirectional edge",
+                range,
+              },
+            );
+          }
+
+          // ── After edge operator → suggest node IDs from document
+          if (before.includes("->") || before.includes("<->")) {
+            const ids = new Set<string>();
+            const lines = model.getValue().split("\n");
+            for (const l of lines) {
+              const m = l.match(NODE_LINE_REGEX);
+              if (m) ids.add(m[1]);
+            }
+            for (const id of ids) {
+              suggestions.push({
+                label: id,
+                kind: Kind.Variable,
+                insertText: id,
+                detail: "Node",
                 range,
               });
             }
           }
-        }
 
-        return { suggestions };
+          // ── Indented line → suggest properties
+          if (/^\s+/.test(line) && !before.includes(":")) {
+            for (const p of PROP_KEYS) {
+              suggestions.push({
+                label: p,
+                kind: Kind.Property,
+                insertText: `${p}: `,
+                range,
+              });
+            }
+          }
+
+          // ── Value completions after specific property keys
+          for (const { pattern, values } of VALUE_COMPLETIONS) {
+            if (pattern.test(before)) {
+              for (const v of values) {
+                suggestions.push({
+                  label: v,
+                  kind: Kind.Value,
+                  insertText: v,
+                  range,
+                });
+              }
+            }
+          }
+
+          return { suggestions };
+        },
       },
-    });
+    );
 
     disposablesRef.current.push(completionDisposable);
 
-    // ── Themes ──
+    // ── Theme: Dark ───────────────────────────────
     monaco.editor.defineTheme("verdant-dark", {
       base: "vs-dark",
       inherit: true,
@@ -219,6 +227,7 @@ export function useMonacoLanguage() {
       },
     });
 
+    // ── Theme: Light ──────────────────────────────
     monaco.editor.defineTheme("verdant-light", {
       base: "vs",
       inherit: true,
@@ -244,12 +253,12 @@ export function useMonacoLanguage() {
       },
     });
 
-    // Cleanup on unmount
+    // ── Cleanup ───────────────────────────────────
     return () => {
-      for (const d of disposablesRef.current) {
+      const toDispose = disposablesRef.current.splice(0);
+      for (const d of toDispose) {
         d.dispose();
       }
-      disposablesRef.current = [];
     };
   }, [monaco]);
 

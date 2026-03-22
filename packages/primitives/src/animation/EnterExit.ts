@@ -1,89 +1,122 @@
-import * as THREE from 'three';
-import { AnimationType } from './TransitionEngine';
+// primitives/src/animation/EnterExit.ts
 
+import type { AnimationType } from '../types';
+
+/**
+ * Plain-object animation properties — no Three.js allocations.
+ * Called every frame, so MUST be allocation-free.
+ */
 export interface AnimationProperties {
   opacity: number;
-  scale: THREE.Vector3;
-  positionOffset: THREE.Vector3;
+  scaleX: number;
+  scaleY: number;
+  scaleZ: number;
+  offsetX: number;
+  offsetY: number;
+  offsetZ: number;
 }
 
-const SLIDE_OFFSET = 0.5; // world units to slide from/to
+/** World units to slide from/to. */
+const SLIDE_DISTANCE = 0.5;
+
+/** Identity properties (fully visible, no transform). */
+const IDENTITY: Readonly<AnimationProperties> = Object.freeze({
+  opacity: 1,
+  scaleX: 1,
+  scaleY: 1,
+  scaleZ: 1,
+  offsetX: 0,
+  offsetY: 0,
+  offsetZ: 0,
+});
+
+// ── Pre-allocated result object (reused across calls to avoid GC) ──
+const _result: AnimationProperties = { ...IDENTITY };
+
+function setResult(
+  opacity: number,
+  sx: number, sy: number, sz: number,
+  ox: number, oy: number, oz: number,
+): AnimationProperties {
+  _result.opacity = opacity;
+  _result.scaleX = sx;
+  _result.scaleY = sy;
+  _result.scaleZ = sz;
+  _result.offsetX = ox;
+  _result.offsetY = oy;
+  _result.offsetZ = oz;
+  return _result;
+}
 
 /**
- * Compute Three.js property values for an enter animation at a given progress (0→1).
- * progress = 0 means animation start (invisible/offscreen), progress = 1 means fully visible.
+ * Compute animation properties for an **enter** animation at `progress ∈ [0, 1]`.
+ *
+ * - `progress = 0` → invisible / offscreen (animation start)
+ * - `progress = 1` → fully visible (animation end)
+ *
+ * **Warning:** Returns a shared mutable object. Copy values immediately if
+ * you need to store them.
  */
-export function getEnterProperties(type: AnimationType, progress: number): AnimationProperties {
+export function getEnterProperties(
+  type: AnimationType,
+  progress: number,
+): AnimationProperties {
   const p = Math.max(0, Math.min(1, progress));
 
   switch (type) {
     case 'fade':
-      return {
-        opacity: p,
-        scale: new THREE.Vector3(1, 1, 1),
-        positionOffset: new THREE.Vector3(0, 0, 0),
-      };
+      return setResult(p, 1, 1, 1, 0, 0, 0);
 
-    case 'scale':
-      return {
-        opacity: p,
-        scale: new THREE.Vector3(p, p, p),
-        positionOffset: new THREE.Vector3(0, 0, 0),
-      };
+    case 'scale': {
+      // Smooth scale-up with slight ease
+      const s = p * p * (3 - 2 * p); // smoothstep
+      return setResult(p, s, s, s, 0, 0, 0);
+    }
 
     case 'slide':
-      return {
-        opacity: p,
-        scale: new THREE.Vector3(1, 1, 1),
-        // Slides in from below (negative Y offset that shrinks to 0)
-        positionOffset: new THREE.Vector3(0, SLIDE_OFFSET * (p - 1), 0),
-      };
+      // Slide up from below
+      return setResult(p, 1, 1, 1, 0, SLIDE_DISTANCE * (p - 1), 0);
 
     default:
-      return {
-        opacity: p,
-        scale: new THREE.Vector3(1, 1, 1),
-        positionOffset: new THREE.Vector3(0, 0, 0),
-      };
+      return setResult(p, 1, 1, 1, 0, 0, 0);
   }
 }
 
 /**
- * Compute Three.js property values for an exit animation at a given progress (0→1).
- * progress = 0 means animation start (fully visible), progress = 1 means fully gone.
+ * Compute animation properties for an **exit** animation at `progress ∈ [0, 1]`.
+ *
+ * - `progress = 0` → fully visible (animation start)
+ * - `progress = 1` → invisible / offscreen (animation end)
+ *
+ * **Warning:** Returns a shared mutable object. Copy values immediately if
+ * you need to store them.
  */
-export function getExitProperties(type: AnimationType, progress: number): AnimationProperties {
+export function getExitProperties(
+  type: AnimationType,
+  progress: number,
+): AnimationProperties {
   const p = Math.max(0, Math.min(1, progress));
-  const inv = 1 - p; // 1 at start, 0 at end
+  const inv = 1 - p;
 
   switch (type) {
     case 'fade':
-      return {
-        opacity: inv,
-        scale: new THREE.Vector3(1, 1, 1),
-        positionOffset: new THREE.Vector3(0, 0, 0),
-      };
+      return setResult(inv, 1, 1, 1, 0, 0, 0);
 
-    case 'scale':
-      return {
-        opacity: inv,
-        scale: new THREE.Vector3(inv, inv, inv),
-        positionOffset: new THREE.Vector3(0, 0, 0),
-      };
+    case 'scale': {
+      const s = inv * inv * (3 - 2 * inv); // smoothstep
+      return setResult(inv, s, s, s, 0, 0, 0);
+    }
 
     case 'slide':
-      return {
-        opacity: inv,
-        scale: new THREE.Vector3(1, 1, 1),
-        // Slides out downward (increasing negative Y offset)
-        positionOffset: new THREE.Vector3(0, -SLIDE_OFFSET * p, 0),
-      };
+      // Slide down and out
+      return setResult(inv, 1, 1, 1, 0, -SLIDE_DISTANCE * p, 0);
 
     default:
-      return {
-        opacity: inv,
-        scale: new THREE.Vector3(1, 1, 1),
-        positionOffset: new THREE.Vector3(0, 0, 0),
-      };
+      return setResult(inv, 1, 1, 1, 0, 0, 0);
   }
 }
+
+export const EnterExit = {
+  getEnterProperties,
+  getExitProperties,
+};

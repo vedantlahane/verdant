@@ -1,22 +1,31 @@
+// primitives/src/animation/TransitionEngine.ts
+
 import * as THREE from 'three';
+import type { AnimationType } from '../types';
 
-export type AnimationType = 'fade' | 'scale' | 'slide';
+export type { AnimationType };
 
-export interface AnimationState {
-  type: AnimationType;
-  progress: number; // 0 to 1, eased
-  isEntering: boolean;
-  isExiting: boolean;
-  isComplete: boolean;
-}
+// ── Defaults ────────────────────────────────────────────────
 
 const DEFAULT_ENTER_DURATION = 300;
 const DEFAULT_EXIT_DURATION = 200;
+const DEFAULT_LAYOUT_DURATION = 500;
 
-/** Simple ease-in-out cubic */
-function easeInOut(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+// ── Easing ──────────────────────────────────────────────────
+
+/** Cubic ease-in-out. */
+function easeInOutCubic(t: number): number {
+  return t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
+
+/** Get current high-resolution time. */
+function _now(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+// ── Internal Records ────────────────────────────────────────
 
 interface AnimationRecord {
   type: AnimationType;
@@ -35,71 +44,142 @@ interface LayoutRecord {
   resolve: () => void;
 }
 
-export class TransitionEngine {
-  private animations = new Map<string, AnimationRecord>();
-  private layoutTransition: LayoutRecord | null = null;
-  private currentPositions = new Map<string, THREE.Vector3>();
+// ── Public State ────────────────────────────────────────────
 
-  playEnter(nodeId: string, type: AnimationType, duration?: number): void {
-    const d = duration ?? DEFAULT_ENTER_DURATION;
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    // Resolve any pending exit promise immediately (interrupted)
-    const existing = this.animations.get(nodeId);
-    if (existing) {
-      existing.resolve();
-    }
-    this.animations.set(nodeId, {
+export interface AnimationState {
+  type: AnimationType;
+  /** Eased progress 0→1. For enter: 0=start, 1=done. For exit: 1=start, 0=done. */
+  progress: number;
+  isEntering: boolean;
+  isExiting: boolean;
+  isComplete: boolean;
+}
+
+// ── Pre-allocated temp vector ───────────────────────────────
+
+const _lerpVec = new THREE.Vector3();
+
+/**
+ * Manages enter/exit node animations and layout transitions.
+ *
+ * - `playEnter` / `playExit` → per-node animations
+ * - `playLayoutTransition` → smooth repositioning of all nodes
+ * - `tick()` → call once per frame to advance all animations
+ * - `getAnimationState()` → read by BaseNode in useFrame
+ */
+export class TransitionEngine {
+  private _animations = new Map<string, AnimationRecord>();
+  private _layoutTransition: LayoutRecord | null = null;
+  private _currentPositions = new Map<string, THREE.Vector3>();
+  private _lastTickTime = 0;
+
+  // ── Enter / Exit ────────────────────────────────────────
+
+  /**
+   * Start an enter animation for a node. Resolves any pending animation
+   * on the same node immediately (interruption).
+   */
+  playEnter(
+    nodeId: string,
+    type: AnimationType,
+    duration?: number,
+  ): void {
+    this._interruptExisting(nodeId);
+
+    this._animations.set(nodeId, {
       type,
       isEntering: true,
       isExiting: false,
-      startTime: now,
-      duration: d,
+      startTime: _now(),
+      duration: duration ?? DEFAULT_ENTER_DURATION,
       resolve: () => {},
     });
   }
 
-  playExit(nodeId: string, type: AnimationType, duration?: number): Promise<void> {
-    const d = duration ?? DEFAULT_EXIT_DURATION;
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    // Resolve any pending animation immediately
-    const existing = this.animations.get(nodeId);
-    if (existing) {
-      existing.resolve();
-    }
+  /**
+   * Start an exit animation for a node. Returns a `Promise<void>` that
+   * resolves only when the animation completes. The component should stay
+   * mounted and non-interactive until the promise resolves.
+   */
+  playExit(
+    nodeId: string,
+    type: AnimationType,
+    duration?: number,
+  ): Promise<void> {
+    this._interruptExisting(nodeId);
+
     return new Promise<void>((resolve) => {
-      this.animations.set(nodeId, {
+      this._animations.set(nodeId, {
         type,
         isEntering: false,
         isExiting: true,
-        startTime: now,
-        duration: d,
+        startTime: _now(),
+        duration: duration ?? DEFAULT_EXIT_DURATION,
         resolve,
       });
     });
   }
 
+  /**
+   * Query the current animation state for a node.
+   * Returns `null` if the node has no active animation.
+   *
+   * Automatically cleans up completed animations.
+   */
+  getAnimationState(nodeId: string): AnimationState | null {
+    const record = this._animations.get(nodeId);
+    if (!record) return null;
+
+    const now = _now();
+    const elapsed = now - record.startTime;
+    const rawProgress = Math.min(elapsed / record.duration, 1);
+    const eased = easeInOutCubic(rawProgress);
+    const isComplete = rawProgress >= 1;
+
+    // Auto-cleanup completed animations
+    if (isComplete) {
+      record.resolve();
+      this._animations.delete(nodeId);
+    }
+
+    return {
+      type: record.type,
+      progress: record.isEntering ? eased : 1 - eased,
+      isEntering: record.isEntering && !isComplete,
+      isExiting: record.isExiting && !isComplete,
+      isComplete,
+    };
+  }
+
+  // ── Layout Transitions ──────────────────────────────────
+
+  /**
+   * Smoothly transition all nodes to new positions.
+   * Snapshots current positions as start, lerps to targets over `duration` ms.
+   */
   playLayoutTransition(
-    positions: Map<string, THREE.Vector3>,
+    targetPositions: Map<string, THREE.Vector3>,
     duration?: number,
   ): Promise<void> {
-    const d = duration ?? 500;
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    // Resolve any in-flight layout transition
+    if (this._layoutTransition) {
+      this._layoutTransition.resolve();
+    }
 
-    // Snapshot current positions
+    const now = _now();
+    const d = duration ?? DEFAULT_LAYOUT_DURATION;
+
+    // Snapshot current positions as start
     const startPositions = new Map<string, THREE.Vector3>();
-    for (const [id, target] of positions) {
-      const current = this.currentPositions.get(id);
+    for (const [id, target] of targetPositions) {
+      const current = this._currentPositions.get(id);
       startPositions.set(id, current ? current.clone() : target.clone());
     }
 
-    if (this.layoutTransition) {
-      this.layoutTransition.resolve();
-    }
-
     return new Promise<void>((resolve) => {
-      this.layoutTransition = {
+      this._layoutTransition = {
         startPositions,
-        targetPositions: positions,
+        targetPositions,
         startTime: now,
         duration: d,
         resolve,
@@ -107,68 +187,111 @@ export class TransitionEngine {
     });
   }
 
-  getAnimationState(nodeId: string): AnimationState | null {
-    const record = this.animations.get(nodeId);
-    if (!record) return null;
-
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const elapsed = now - record.startTime;
-    const rawProgress = Math.min(elapsed / record.duration, 1);
-    const progress = easeInOut(rawProgress);
-    const isComplete = rawProgress >= 1;
-
-    return {
-      type: record.type,
-      progress: record.isEntering ? progress : 1 - progress,
-      isEntering: record.isEntering && !isComplete,
-      isExiting: record.isExiting && !isComplete,
-      isComplete,
-    };
+  /**
+   * Get the interpolated position for a node during a layout transition.
+   * Returns `null` if no layout transition is active or the node isn't part of it.
+   */
+  getLayoutPosition(nodeId: string): THREE.Vector3 | null {
+    return this._currentPositions.get(nodeId) ?? null;
   }
 
-  tick(now: number): void {
-    for (const [nodeId, record] of this.animations) {
-      const elapsed = now - record.startTime;
+  // ── Frame Tick ──────────────────────────────────────────
+
+  /**
+   * Advance all animations. Call once per frame (e.g. from a single `useFrame`).
+   * Safe to call multiple times per frame (idempotent within same timestamp).
+   */
+  tick(now?: number): void {
+    const t = now ?? _now();
+
+    // Debounce: skip if called multiple times in the same millisecond
+    if (t === this._lastTickTime) return;
+    this._lastTickTime = t;
+
+    // ── Node animations ──
+    for (const [nodeId, record] of this._animations) {
+      const elapsed = t - record.startTime;
       if (elapsed >= record.duration) {
         record.resolve();
-        this.animations.delete(nodeId);
+        this._animations.delete(nodeId);
       }
     }
 
-    if (this.layoutTransition) {
-      const lt = this.layoutTransition;
-      const elapsed = now - lt.startTime;
+    // ── Layout transition ──
+    if (this._layoutTransition) {
+      const lt = this._layoutTransition;
+      const elapsed = t - lt.startTime;
       const rawProgress = Math.min(elapsed / lt.duration, 1);
-      const progress = easeInOut(rawProgress);
+      const eased = easeInOutCubic(rawProgress);
 
       for (const [id, target] of lt.targetPositions) {
         const start = lt.startPositions.get(id) ?? target;
-        let current = this.currentPositions.get(id);
+
+        let current = this._currentPositions.get(id);
         if (!current) {
           current = new THREE.Vector3();
-          this.currentPositions.set(id, current);
+          this._currentPositions.set(id, current);
         }
-        current.lerpVectors(start, target, progress);
+        // Use pre-allocated vector then copy to avoid allocation in hot loop
+        _lerpVec.lerpVectors(start, target, eased);
+        current.copy(_lerpVec);
       }
 
       if (rawProgress >= 1) {
         lt.resolve();
-        this.layoutTransition = null;
+        this._layoutTransition = null;
       }
     }
   }
 
-  /** Returns true while an exit animation is in progress for the given node */
-  isExiting(nodeId: string): boolean {
-    const record = this.animations.get(nodeId);
-    if (!record || !record.isExiting) return false;
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const elapsed = now - record.startTime;
-    return elapsed < record.duration;
+  // ── Queries ─────────────────────────────────────────────
+
+  /** Returns `true` if any animation is in progress for the given node. */
+  isAnimating(nodeId: string): boolean {
+    return this._animations.has(nodeId);
   }
 
-  /** Get the interpolated position for a node during layout transition */
-  getLayoutPosition(nodeId: string): THREE.Vector3 | null {
-    return this.currentPositions.get(nodeId) ?? null;
+  /** Returns `true` while an exit animation is in progress for the given node. */
+  isExiting(nodeId: string): boolean {
+    const record = this._animations.get(nodeId);
+    if (!record?.isExiting) return false;
+    return (_now() - record.startTime) < record.duration;
+  }
+
+  /** Returns `true` if a layout transition is currently in progress. */
+  get isLayoutTransitioning(): boolean {
+    return this._layoutTransition !== null;
+  }
+
+  /** Total number of active node animations. */
+  get activeCount(): number {
+    return this._animations.size;
+  }
+
+  // ── Cleanup ─────────────────────────────────────────────
+
+  /** Cancel and resolve all active animations immediately. */
+  clear(): void {
+    for (const record of this._animations.values()) {
+      record.resolve();
+    }
+    this._animations.clear();
+
+    if (this._layoutTransition) {
+      this._layoutTransition.resolve();
+      this._layoutTransition = null;
+    }
+
+    this._currentPositions.clear();
+  }
+
+  // ── Private ─────────────────────────────────────────────
+
+  private _interruptExisting(nodeId: string): void {
+    const existing = this._animations.get(nodeId);
+    if (existing) {
+      existing.resolve();
+      this._animations.delete(nodeId);
+    }
   }
 }

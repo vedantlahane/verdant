@@ -118,10 +118,15 @@ export const NODE_TYPE_SHAPE_HINTS: Record<string, string> = {
 
 // ── Enums ──
 
-export type LayoutType = 'auto' | 'grid' | 'circular';
+export type LayoutType = 'auto' | 'grid' | 'circular' | 'hierarchical' | 'forced';
 export type CameraType = 'perspective' | 'orthographic';
 export type NodeSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 export type EdgeStyle = 'solid' | 'dashed' | 'animated' | 'dotted';
+export type NodeStatus = 'healthy' | 'warning' | 'error' | 'unknown';
+export type AnimationType = 'fade' | 'scale' | 'slide';
+export type RoutingType = 'straight' | 'curved' | 'orthogonal';
+export type PortSide = 'top' | 'bottom' | 'left' | 'right' | 'front' | 'back';
+export type BadgePosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 
 export type ShapeType =
   | 'cube'
@@ -133,13 +138,42 @@ export type ShapeType =
   | 'pentagon'
   | 'octagon'
   | 'ring'
-  | 'box';
+  | 'box'
+  | 'cone'
+  | 'capsule'
+  | 'icosahedron'
+  | 'plane';
 
 // ── Source Location (optional, for tooling) ──
 
 export interface SourceLocation {
   line: number;
   col: number;
+}
+
+// ── Sub-types ──
+
+export interface VrdBadge {
+  position: BadgePosition;
+  content: string;
+}
+
+export interface VrdPort {
+  name: string;
+  side: PortSide;
+}
+
+export interface VrdAnimationKeyframe {
+  target: string;
+  property: string;
+  from: unknown;
+  to: unknown;
+}
+
+export interface VrdAnimationTimeline {
+  name: string;
+  duration: number;
+  keyframes: VrdAnimationKeyframe[];
 }
 
 // ── Config ──
@@ -149,16 +183,49 @@ export interface VrdConfig {
   layout?: LayoutType;
   camera?: CameraType;
   pack?: string;
+  minimap?: boolean;
+  'post-processing'?: boolean;
+  'bloom-intensity'?: number;
+  'snap-to-grid'?: boolean;
+  'grid-size'?: number;
+  direction?: string;
+  'layer-spacing'?: number;
+  'node-spacing'?: number;
+  animations?: VrdAnimationTimeline[];
   [key: string]: unknown;
 }
 
 /** Config keys we recognize (for validation) */
 export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'theme', 'layout', 'camera', 'pack', 'title', 'description',
+  'minimap', 'post-processing', 'bloom-intensity', 'snap-to-grid',
+  'grid-size', 'direction', 'layer-spacing', 'node-spacing',
 ]);
 
 /** Valid layout values */
-export const VALID_LAYOUTS: ReadonlySet<string> = new Set(['auto', 'grid', 'circular']);
+export const VALID_LAYOUTS: ReadonlySet<string> = new Set(['auto', 'grid', 'circular', 'hierarchical', 'forced']);
+
+/** Valid shapes */
+export const VALID_SHAPES: ReadonlySet<string> = new Set([
+  'cube', 'cylinder', 'diamond', 'sphere', 'torus',
+  'hexagon', 'pentagon', 'octagon', 'ring', 'box',
+  'cone', 'capsule', 'icosahedron', 'plane',
+]);
+
+/** Valid node status values */
+export const VALID_STATUSES: ReadonlySet<string> = new Set(['healthy', 'warning', 'error', 'unknown']);
+
+/** Valid animation type values */
+export const VALID_ANIMATION_TYPES: ReadonlySet<string> = new Set(['fade', 'scale', 'slide']);
+
+/** Valid routing type values */
+export const VALID_ROUTING_TYPES: ReadonlySet<string> = new Set(['straight', 'curved', 'orthogonal']);
+
+/** Valid port side values */
+export const VALID_PORT_SIDES: ReadonlySet<string> = new Set(['top', 'bottom', 'left', 'right', 'front', 'back']);
+
+/** Valid badge position values */
+export const VALID_BADGE_POSITIONS: ReadonlySet<string> = new Set(['top-right', 'top-left', 'bottom-right', 'bottom-left']);
 
 /** Valid camera values */
 export const VALID_CAMERAS: ReadonlySet<string> = new Set(['perspective', 'orthographic']);
@@ -180,6 +247,13 @@ export interface VrdNodeProps {
   glow?: boolean;
   icon?: string;
   position?: { x: number; y: number; z: number };
+  shape?: ShapeType;
+  status?: NodeStatus;
+  badges?: VrdBadge[];
+  ports?: VrdPort[];
+  enterAnimation?: AnimationType;
+  exitAnimation?: AnimationType;
+  animationDuration?: number;
   [key: string]: unknown;
 }
 
@@ -201,6 +275,11 @@ export interface VrdEdgeProps {
   bidirectional?: boolean;
   fromPort?: string;
   toPort?: string;
+  routing?: RoutingType;
+  flow?: boolean;
+  flowSpeed?: number;
+  flowCount?: number;
+  flowColor?: string;
   [key: string]: unknown;
 }
 
@@ -213,13 +292,19 @@ export interface VrdEdge {
 
 // ── Groups ──
 
+export interface VrdGroupProps {
+  collapsed?: boolean;
+  layout?: LayoutType;
+  [key: string]: unknown;
+}
+
 export interface VrdGroup {
   id: string;
   label?: string;
   children: string[];
   groups: VrdGroup[];
   parentGroupId?: string;
-  props: Record<string, unknown>;
+  props: VrdGroupProps;
   loc?: SourceLocation;
 }
 

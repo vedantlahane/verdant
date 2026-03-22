@@ -14,18 +14,20 @@ A developer-first tool that turns simple text into interactive 3D architecture d
 
 ```
 verdant/
-├── apps/
-│   └── playground/          # Next.js demo app & landing page
-│       ├── src/
-│       │   ├── app/         # Next.js app router & globals
-│       │   ├── features/    # Landing & playground UI
-│       │   └── public/      # Static assets
-│       └── package.json
+├── playground/              # Next.js demo app & landing page
+│   ├── src/
+│   │   ├── app/             # Next.js app router & globals (including api, playground page)
+│   │   ├── features/        # Landing page + playground UI components
+│   │   └── tests/           # Playground-specific tests
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── next.config.ts
+│   └── public/              # Static assets for the playground app
 ├── packages/
-│   ├── primitives/          # Base 3D primitives (BaseNode, BaseEdge, shapes)
-│   ├── nodes/               # Concrete node components (Server, Database, Cache...)
-│   ├── parser/              # .vrd syntax parser
-│   └── renderer/            # React Three Fiber renderer
+│   ├── primitives/          # Base 3D primitives (BaseNode, BaseEdge, shapes, material/interaction APIs)
+│   ├── nodes/               # Concrete node components (ServerNode, DatabaseNode, etc.)
+│   ├── parser/              # .vrd syntax AST parser, printer, validator
+│   └── renderer/            # React Three Fiber renderer (Playground live 3D canvas)
 ├── pnpm-workspace.yaml      # Monorepo config
 ├── turbo.json               # Turborepo build orchestration
 └── tsconfig.json            # Root TypeScript config

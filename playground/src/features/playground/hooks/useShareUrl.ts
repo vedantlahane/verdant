@@ -1,17 +1,32 @@
+// features/playground/hooks/useShareUrl.ts
+
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-const MAX_HASH_LENGTH = 8000; // Safe URL length limit
+/** Safe URL length limit — most browsers support ~2000 chars in URL bar,
+ *  but hash can be longer. 8000 is conservative for share links. */
+const MAX_HASH_LENGTH = 8000;
+
+interface UseShareUrlReturn {
+  readonly shareCurrentCode: (code: string) => Promise<void>;
+}
 
 /**
- * Handles share URL encoding/decoding and initial load from hash.
+ * Handles share URL encoding/decoding via URL hash (base64).
+ *
+ * On mount, checks `window.location.hash` for a shared diagram
+ * and loads it into the editor. Provides `shareCurrentCode` to
+ * encode the current diagram into a copyable URL.
+ *
+ * @param setCode - Setter to load decoded code into editor
+ * @param setActivePreset - Setter to clear preset indicator on URL load
  */
 export function useShareUrl(
   setCode: (code: string) => void,
   setActivePreset: (preset: string) => void,
-) {
+): UseShareUrlReturn {
   const initializedRef = useRef(false);
 
   // ── Load code from hash on mount ──
@@ -19,25 +34,27 @@ export function useShareUrl(
     if (initializedRef.current) return;
     initializedRef.current = true;
 
-    if (typeof window === "undefined" || !window.location.hash) return;
+    if (typeof window === "undefined") return;
+
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
 
     try {
-      const hash = window.location.hash.slice(1);
-      if (!hash) return;
-
       const decoded = decodeURIComponent(escape(atob(hash)));
       if (decoded.trim()) {
         setCode(decoded);
         setActivePreset("");
       }
     } catch {
-      console.warn("[Verdant] Invalid share link — ignoring hash");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[Verdant] Invalid share link — ignoring hash");
+      }
     }
   }, [setCode, setActivePreset]);
 
   // ── Create share link ──
   const shareCurrentCode = useCallback(
-    async (code: string) => {
+    async (code: string): Promise<void> => {
       try {
         const encoded = btoa(unescape(encodeURIComponent(code)));
 

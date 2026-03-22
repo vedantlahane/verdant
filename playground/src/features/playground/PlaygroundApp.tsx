@@ -1,6 +1,8 @@
+// features/playground/PlaygroundApp.tsx
+
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { toast } from "sonner";
 import type { CameraData, CursorData } from "@verdant/renderer";
 
@@ -19,11 +21,35 @@ import { TopBar } from "./components/TopBar";
 import { NodeInspector } from "./components/NodeInspector";
 import { AxisGizmo } from "./components/AxisGizmo";
 import { StatusBar } from "./components/StatusBar";
-import { Editor, EditorInstance } from "./components/Editor";
+import { Editor } from "./components/Editor";
+import type { EditorInstance } from "./components/Editor";
+import { KeyboardShortcutHelp } from "./components/KeyboardShortcutHelp";
 
+// ── Frozen style constants (pattern 5) ──
+
+const GUTTER_MARK_STYLE = Object.freeze({ height: 24 } as const) as React.CSSProperties;
+
+// ── Stable empty callback for setActivePreset (URL load case) ──
+const NOOP_SET_PRESET = () => {};
+
+/**
+ * Root playground application — orchestrates all layers:
+ *
+ * L0: 3D Canvas (CanvasPreview)
+ * L2: Gutter decorations
+ * L3: Axis gizmo
+ * L4: Top bar
+ * L5: Schema panel
+ * L6: Node inspector
+ * L7: Status bar
+ * L8: Keyboard shortcut help
+ */
 export function PlaygroundApp() {
+  // ── SSR guard ──
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => setIsMounted(true), []);
+
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
 
   const state = usePlaygroundState();
   const editorRef = useRef<EditorInstance | null>(null);
@@ -34,18 +60,11 @@ export function PlaygroundApp() {
   const ai = useAiGeneration({
     code: state.code,
     setCode: state.setCode,
-    setActivePreset: (p) => {
-      // Can't directly call selectPreset here because it also sets code
-      // Just clear the preset indicator
-    },
     setSchemaTab: state.setSchemaTab,
   });
 
   // ── Share URL ──
-  const { shareCurrentCode } = useShareUrl(
-    state.setCode,
-    () => { }, // setActivePreset on load from URL
-  );
+  const { shareCurrentCode } = useShareUrl(state.setCode, NOOP_SET_PRESET);
 
   const handleShare = useCallback(
     () => shareCurrentCode(state.code),
@@ -80,9 +99,12 @@ export function PlaygroundApp() {
     setSchemaTab: state.setSchemaTab,
     exportPng: handleExportPNG,
     toggleCoordinateSystem: state.toggleCoordinateSystem,
+    shortcutHelpOpen,
+    setShortcutHelpOpen,
   });
 
-  // ── Node click ──
+  // ── Stabilized callbacks for child components ──
+
   const handleNodeClick = useCallback(
     (info: { nodeId: string; screenX: number; screenY: number }) => {
       state.setInspectorTarget(info);
@@ -90,7 +112,6 @@ export function PlaygroundApp() {
     [state.setInspectorTarget],
   );
 
-  // ── Stable camera/cursor callbacks ──
   const handleCameraChange = useCallback(
     (data: CameraData) => state.setCameraData(data),
     [state.setCameraData],
@@ -101,8 +122,57 @@ export function PlaygroundApp() {
     [state.setCursorData],
   );
 
-  const hasContent = state.nodeCount > 0 || state.edgeCount > 0;
+  const handleOpenSchema = useCallback(() => {
+    state.setSchemaOpen(true);
+    state.setSchemaTab("code");
+  }, [state.setSchemaOpen, state.setSchemaTab]);
 
+  const handleEditorChange = useCallback(
+    (val: string | undefined) => state.setCode(val ?? ""),
+    [state.setCode],
+  );
+
+  const handleEditorMount = useCallback(
+    (editor: EditorInstance) => {
+      editorRef.current = editor;
+    },
+    [],
+  );
+
+  const handleInspectorClose = useCallback(
+    () => state.setInspectorTarget(null),
+    [state.setInspectorTarget],
+  );
+
+  // Use ref for inspectorTarget to avoid re-creating this callback
+  const inspectorTargetRef = useRef(state.inspectorTarget);
+  inspectorTargetRef.current = state.inspectorTarget;
+
+  const handleNavigateNode = useCallback(
+    (nodeId: string) => {
+      const current = inspectorTargetRef.current;
+      state.setInspectorTarget(
+        current ? { ...current, nodeId } : null,
+      );
+    },
+    [state.setInspectorTarget],
+  );
+
+  const handleCloseShortcutHelp = useCallback(
+    () => setShortcutHelpOpen(false),
+    [],
+  );
+
+  // ── Derived state ──
+
+  const hasContent = useMemo(
+    () => state.nodeCount > 0 || state.edgeCount > 0,
+    [state.nodeCount, state.edgeCount],
+  );
+
+  const selectedNodeId = state.inspectorTarget?.nodeId ?? null;
+
+  // ── SSR bail ──
   if (!isMounted) return null;
 
   return (
@@ -119,30 +189,27 @@ export function PlaygroundApp() {
           onNodeClick={handleNodeClick}
           onCameraChange={handleCameraChange}
           onCursorMove={handleCursorMove}
-          selectedNodeId={state.inspectorTarget?.nodeId ?? null}
-          onOpenSchema={() => {
-            state.setSchemaOpen(true);
-            state.setSchemaTab("code");
-          }}
+          selectedNodeId={selectedNodeId}
+          onOpenSchema={handleOpenSchema}
         />
 
         {/* Layer 2: Gutter decorations */}
         <div className="pg-gutter pg-gutter--left" aria-hidden="true">
           <div className="crosshair crosshair-pulse" />
           <div className="gutter-coord">00</div>
-          <div className="gutter-mark" style={{ height: 24 }} />
+          <div className="gutter-mark" style={GUTTER_MARK_STYLE} />
           <div className="gutter-dot" />
           <div className="gutter-coord">01</div>
-          <div className="gutter-mark" style={{ height: 24 }} />
+          <div className="gutter-mark" style={GUTTER_MARK_STYLE} />
           <div className="crosshair" />
         </div>
         <div className="pg-gutter pg-gutter--right" aria-hidden="true">
           <div className="crosshair" />
           <div className="gutter-coord">10</div>
-          <div className="gutter-mark" style={{ height: 24 }} />
+          <div className="gutter-mark" style={GUTTER_MARK_STYLE} />
           <div className="gutter-dot" />
           <div className="gutter-coord">11</div>
-          <div className="gutter-mark" style={{ height: 24 }} />
+          <div className="gutter-mark" style={GUTTER_MARK_STYLE} />
           <div className="crosshair" />
         </div>
 
@@ -186,8 +253,8 @@ export function PlaygroundApp() {
           editorChildren={
             <Editor
               code={state.code}
-              onChange={(val) => state.setCode(val ?? "")}
-              onMount={(editor) => { editorRef.current = editor; }}
+              onChange={handleEditorChange}
+              onMount={handleEditorMount}
               theme={state.resolvedTheme}
             />
           }
@@ -198,18 +265,20 @@ export function PlaygroundApp() {
           <NodeInspector
             target={state.inspectorTarget}
             ast={state.parseResult.ast}
-            onClose={() => state.setInspectorTarget(null)}
-            onNavigateNode={(nodeId) => {
-              const current = state.inspectorTarget;
-              state.setInspectorTarget(
-                current ? { ...current, nodeId } : null,
-              );
-            }}
+            setCode={state.setCode}
+            onClose={handleInspectorClose}
+            onNavigateNode={handleNavigateNode}
           />
         )}
 
         {/* Layer 7: Status Bar */}
         <StatusBar />
+
+        {/* Layer 8: Keyboard Shortcut Help overlay */}
+        <KeyboardShortcutHelp
+          open={shortcutHelpOpen}
+          onClose={handleCloseShortcutHelp}
+        />
       </div>
     </PlaygroundProvider>
   );

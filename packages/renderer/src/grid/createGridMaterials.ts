@@ -1,26 +1,314 @@
-// createGridMaterials.ts
+// grid/createGridMaterials.ts
 
 import * as THREE from 'three';
 import { FADE_START, FADE_END } from '../constants';
-import { detectDarkMode } from '../utils';
 
-function createFadeShaderMaterial(
+// ═══════════════════════════════════════════════════════════════════
+//  Types
+// ═══════════════════════════════════════════════════════════════════
+
+export interface GridMaterials {
+  // XZ plane grid (uses fade shader)
+  readonly xzMinor: THREE.ShaderMaterial;
+  readonly xzMajor: THREE.ShaderMaterial;
+
+  // YZ / XY plane grids
+  readonly yzMinor: THREE.LineBasicMaterial;
+  readonly yzMajor: THREE.LineBasicMaterial;
+  readonly xyMinor: THREE.LineBasicMaterial;
+  readonly xyMajor: THREE.LineBasicMaterial;
+
+  // Translucent panels
+  readonly xzPanel: THREE.MeshBasicMaterial;
+  readonly yzPanel: THREE.MeshBasicMaterial;
+  readonly xyPanel: THREE.MeshBasicMaterial;
+
+  // Axes
+  readonly xAxis: THREE.LineBasicMaterial;
+  readonly yAxis: THREE.LineBasicMaterial;
+  readonly zAxis: THREE.LineBasicMaterial;
+  readonly zAxisNeg: THREE.LineBasicMaterial;
+
+  // Origin markers
+  readonly crosshair: THREE.LineBasicMaterial;
+  readonly ring: THREE.MeshBasicMaterial;
+  readonly sphere: THREE.MeshBasicMaterial;
+
+  // Tick marks
+  readonly tickX: THREE.MeshBasicMaterial;
+  readonly tickY: THREE.MeshBasicMaterial;
+  readonly tickZ: THREE.MeshBasicMaterial;
+
+  // Axis arrows
+  readonly arrowX: THREE.MeshBasicMaterial;
+  readonly arrowY: THREE.MeshBasicMaterial;
+  readonly arrowZ: THREE.MeshBasicMaterial;
+  readonly arrowZFar: THREE.MeshBasicMaterial;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Color Palette
+//
+//  Separates visual design (palette) from material construction
+//  (factory functions). Adding a new theme is just a new Palette.
+// ═══════════════════════════════════════════════════════════════════
+
+interface Palette {
+  // Grid lines
+  readonly gridColor: string;
+  readonly gridMinorOpacity: number;
+  readonly gridMajorOpacity: number;
+
+  // Secondary planes
+  readonly yzColor: string;
+  readonly xyColor: string;
+  readonly yzMinorOpacity: number;
+  readonly yzMajorOpacity: number;
+  readonly xyMinorOpacity: number;
+  readonly xyMajorOpacity: number;
+
+  // Panels
+  readonly xzPanelColor: string;
+  readonly yzPanelColor: string;
+  readonly xyPanelColor: string;
+  readonly xzPanelOpacity: number;
+  readonly yzPanelOpacity: number;
+  readonly xyPanelOpacity: number;
+
+  // Axes
+  readonly xAxisColor: string;
+  readonly yAxisColor: string;
+  readonly zAxisColor: string;
+  readonly zAxisNegColor: string;
+  readonly xAxisOpacity: number;
+  readonly yAxisOpacity: number;
+  readonly zAxisOpacity: number;
+  readonly zAxisNegOpacity: number;
+
+  // Origin
+  readonly originColor: string;
+  readonly crosshairOpacity: number;
+  readonly ringOpacity: number;
+  readonly sphereOpacity: number;
+
+  // Ticks
+  readonly tickXColor: string;
+  readonly tickYColor: string;
+  readonly tickZColor: string;
+  readonly tickOpacityXY: number;
+  readonly tickOpacityZ: number;
+
+  // Arrows
+  readonly arrowXColor: string;
+  readonly arrowYColor: string;
+  readonly arrowZColor: string;
+  readonly arrowZFarColor: string;
+  readonly arrowOpacityXY: number;
+  readonly arrowOpacityZ: number;
+  readonly arrowOpacityZFar: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Palettes
+// ═══════════════════════════════════════════════════════════════════
+
+const DARK_PALETTE: Readonly<Palette> = Object.freeze({
+  gridColor: '#fdfeff38',
+  gridMinorOpacity: 0.14,
+  gridMajorOpacity: 0.26,
+
+  yzColor: '#81c784',
+  xyColor: '#64b5f6',
+  yzMinorOpacity: 0.07,
+  yzMajorOpacity: 0.14,
+  xyMinorOpacity: 0.07,
+  xyMajorOpacity: 0.14,
+
+  xzPanelColor: '#10224a',
+  yzPanelColor: '#81c784',
+  xyPanelColor: '#64b5f6',
+  xzPanelOpacity: 0.05,
+  yzPanelOpacity: 0.04,
+  xyPanelOpacity: 0.04,
+
+  xAxisColor: '#e57373',
+  yAxisColor: '#81c784',
+  zAxisColor: '#64b5f6',
+  zAxisNegColor: '#1e88e5',
+  xAxisOpacity: 0.48,
+  yAxisOpacity: 0.45,
+  zAxisOpacity: 0.52,
+  zAxisNegOpacity: 0.66,
+
+  originColor: '#ffffff',
+  crosshairOpacity: 0.5,
+  ringOpacity: 0.12,
+  sphereOpacity: 0.4,
+
+  tickXColor: '#f08e8e',
+  tickYColor: '#acf1b0',
+  tickZColor: '#84c3f6',
+  tickOpacityXY: 0.2,
+  tickOpacityZ: 0.2,
+
+  arrowXColor: '#e57373',
+  arrowYColor: '#adeeb0',
+  arrowZColor: '#88c2f2',
+  arrowZFarColor: '#1e88e5',
+  arrowOpacityXY: 0.45,
+  arrowOpacityZ: 0.5,
+  arrowOpacityZFar: 0.75,
+});
+
+const LIGHT_PALETTE: Readonly<Palette> = Object.freeze({
+  gridColor: 'rgba(163, 156, 211, 0.84)',
+  gridMinorOpacity: 0.30,
+  gridMajorOpacity: 0.48,
+
+  yzColor: '#1b5e20',
+  xyColor: '#0d47a1',
+  yzMinorOpacity: 0.12,
+  yzMajorOpacity: 0.22,
+  xyMinorOpacity: 0.12,
+  xyMajorOpacity: 0.22,
+
+  xzPanelColor: '#ffffff',
+  yzPanelColor: '#2e7d32',
+  xyPanelColor: '#1565c0',
+  xzPanelOpacity: 0.08,
+  yzPanelOpacity: 0.07,
+  xyPanelOpacity: 0.07,
+
+  xAxisColor: '#e57373',
+  yAxisColor: '#81c784',
+  zAxisColor: '#64b5f6',
+  zAxisNegColor: '#1e88e5',
+  xAxisOpacity: 0.86,
+  yAxisOpacity: 0.84,
+  zAxisOpacity: 0.9,
+  zAxisNegOpacity: 0.95,
+
+  originColor: '#111111',
+  crosshairOpacity: 0.35,
+  ringOpacity: 0.08,
+  sphereOpacity: 0.3,
+
+  tickXColor: '#f08e8e',
+  tickYColor: '#acf1b0',
+  tickZColor: '#84c3f6',
+  tickOpacityXY: 0.42,
+  tickOpacityZ: 0.44,
+
+  arrowXColor: '#e57373',
+  arrowYColor: '#adeeb0',
+  arrowZColor: '#88c2f2',
+  arrowZFarColor: '#1e88e5',
+  arrowOpacityXY: 0.8,
+  arrowOpacityZ: 0.85,
+  arrowOpacityZFar: 0.95,
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  Color Parsing
+//
+//  Three.js Color constructor doesn't handle:
+//    - #RRGGBBAA hex (8-digit)
+//    - #RGBA hex (4-digit)
+//  We need to extract the alpha and apply it to opacity separately.
+// ═══════════════════════════════════════════════════════════════════
+
+interface NormalizedColor {
+  readonly hex: string;
+  readonly alpha: number;
+}
+
+/**
+ * Parse a CSS color string and extract a separate alpha component.
+ *
+ * Supported formats:
+ *   - `#RGB`           → full opacity
+ *   - `#RRGGBB`        → full opacity
+ *   - `#RGBA`          → expanded, alpha extracted
+ *   - `#RRGGBBAA`      → alpha extracted
+ *   - `rgba(r, g, b, a)` → alpha extracted
+ *   - `rgb(r, g, b)`   → full opacity
+ *   - Named colors / other → passed through, full opacity
+ */
+function parseColor(color: string): NormalizedColor {
+  // 4-digit or 8-digit hex with alpha
+  const hexAlphaMatch = color.match(/^#([0-9a-f]{4}|[0-9a-f]{8})$/i);
+  if (hexAlphaMatch) {
+    const raw = hexAlphaMatch[1];
+    const expanded =
+      raw.length === 4
+        ? raw[0] + raw[0] + raw[1] + raw[1] + raw[2] + raw[2] + raw[3] + raw[3]
+        : raw;
+
+    const rgbHex = expanded.slice(0, 6);
+    const alphaHex = expanded.slice(6, 8);
+    const alpha = clamp01(parseInt(alphaHex, 16) / 255);
+    return { hex: `#${rgbHex}`, alpha };
+  }
+
+  // rgba() or rgb()
+  const rgbaMatch = color.match(
+    /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([0-9.]+))?\s*\)/i,
+  );
+  if (rgbaMatch) {
+    const r = Number(rgbaMatch[1]);
+    const g = Number(rgbaMatch[2]);
+    const b = Number(rgbaMatch[3]);
+    const a = rgbaMatch[4] !== undefined ? clamp01(Number(rgbaMatch[4])) : 1.0;
+
+    const threeColor = new THREE.Color(`rgb(${r},${g},${b})`);
+    return { hex: `#${threeColor.getHexString()}`, alpha: a };
+  }
+
+  // Standard 3/6-digit hex or named color → full opacity
+  return { hex: color, alpha: 1.0 };
+}
+
+function clamp01(value: number): number {
+  return value < 0 ? 0 : value > 1 ? 1 : value;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Material Factory Functions
+// ═══════════════════════════════════════════════════════════════════
+
+/** Common transparent material properties to avoid repetition */
+const TRANSPARENT_OPTS = {
+  transparent: true,
+  depthWrite: false,
+  depthTest: false,
+} as const;
+
+/**
+ * Create a ShaderMaterial that fades grid lines based on
+ * world-space XZ distance from origin.
+ *
+ * This is used only for the ground (XZ) plane — the YZ and XY
+ * planes use simpler LineBasicMaterial since they don't need
+ * distance-based fading.
+ */
+function createFadeMaterial(
   baseOpacity: number,
   fadeStart: number,
   fadeEnd: number,
   color: string,
 ): THREE.ShaderMaterial {
+  const parsed = parseColor(color);
+  const finalOpacity = clamp01(baseOpacity * parsed.alpha);
+
   return new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    depthTest: false,
+    ...TRANSPARENT_OPTS,
     uniforms: {
-      uColor: { value: new THREE.Color(color) },
-      uBaseOpacity: { value: baseOpacity },
+      uColor: { value: new THREE.Color(parsed.hex) },
+      uBaseOpacity: { value: finalOpacity },
       uFadeStart: { value: fadeStart },
       uFadeEnd: { value: fadeEnd },
     },
-    vertexShader: `
+    vertexShader: /* glsl */ `
       varying vec3 vWorldPos;
       void main() {
         vec4 worldPos = modelMatrix * vec4(position, 1.0);
@@ -28,7 +316,7 @@ function createFadeShaderMaterial(
         gl_Position = projectionMatrix * viewMatrix * worldPos;
       }
     `,
-    fragmentShader: `
+    fragmentShader: /* glsl */ `
       uniform vec3 uColor;
       uniform float uBaseOpacity;
       uniform float uFadeStart;
@@ -43,199 +331,97 @@ function createFadeShaderMaterial(
   });
 }
 
-function lineMat(color: string, opacity: number): THREE.LineBasicMaterial {
+function createLineMaterial(
+  color: string,
+  opacity: number,
+): THREE.LineBasicMaterial {
   return new THREE.LineBasicMaterial({
     color,
-    transparent: true,
     opacity,
-    depthWrite: false,
-    depthTest: false,
+    ...TRANSPARENT_OPTS,
   });
 }
 
-function meshMat(color: string, opacity: number, side: THREE.Side = THREE.DoubleSide): THREE.MeshBasicMaterial {
+function createMeshMaterial(
+  color: string,
+  opacity: number,
+  side: THREE.Side = THREE.DoubleSide,
+): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
     color,
-    transparent: true,
     opacity,
     side,
-    depthWrite: false,
-    depthTest: false,
+    ...TRANSPARENT_OPTS,
   });
 }
 
-export interface GridMaterials {
-  // XZ plane grid
-  xzMinor: THREE.ShaderMaterial;
-  xzMajor: THREE.ShaderMaterial;
+// ═══════════════════════════════════════════════════════════════════
+//  Public API
+// ═══════════════════════════════════════════════════════════════════
 
-  // YZ / XY plane grids
-  yzMinor: THREE.LineBasicMaterial;
-  yzMajor: THREE.LineBasicMaterial;
-  xyMinor: THREE.LineBasicMaterial;
-  xyMajor: THREE.LineBasicMaterial;
-
-  // Panels
-  xzPanel: THREE.MeshBasicMaterial;
-  yzPanel: THREE.MeshBasicMaterial;
-  xyPanel: THREE.MeshBasicMaterial;
-
-  // Axes
-  xAxis: THREE.LineBasicMaterial;
-  yAxis: THREE.LineBasicMaterial;
-  zAxis: THREE.LineBasicMaterial;
-  zAxisNeg: THREE.LineBasicMaterial;
-
-  // Origin
-  crosshair: THREE.LineBasicMaterial;
-  ring: THREE.MeshBasicMaterial;
-  sphere: THREE.MeshBasicMaterial;
-
-  // Ticks
-  tickX: THREE.MeshBasicMaterial;
-  tickY: THREE.MeshBasicMaterial;
-  tickZ: THREE.MeshBasicMaterial;
-
-  // Arrows
-  arrowX: THREE.MeshBasicMaterial;
-  arrowY: THREE.MeshBasicMaterial;
-  arrowZ: THREE.MeshBasicMaterial;
-  arrowZFar: THREE.MeshBasicMaterial;
-}
-
-interface Palette {
-  gridColor: string;
-  gridMinorOpacity: number;
-  gridMajorOpacity: number;
-  yzColor: string;
-  xyColor: string;
-  yzMinorOpacity: number;
-  yzMajorOpacity: number;
-  xyMinorOpacity: number;
-  xyMajorOpacity: number;
-  xzPanelColor: string;
-  yzPanelColor: string;
-  xyPanelColor: string;
-  xzPanelOpacity: number;
-  yzPanelOpacity: number;
-  xyPanelOpacity: number;
-  xAxisOpacity: number;
-  yAxisOpacity: number;
-  zAxisOpacity: number;
-  zAxisNegOpacity: number;
-  originColor: string;
-  crosshairOpacity: number;
-  ringOpacity: number;
-  sphereOpacity: number;
-  tickOpacityXY: number;
-  tickOpacityZ: number;
-  arrowOpacityXY: number;
-  arrowOpacityZ: number;
-  arrowOpacityZFar: number;
-}
-
-const DARK_PALETTE: Palette = {
-  gridColor: '#fdfeff38',
-  gridMinorOpacity: 0.14,
-  gridMajorOpacity: 0.26,
-  yzColor: '#81c784',
-  xyColor: '#64b5f6',
-  yzMinorOpacity: 0.07,
-  yzMajorOpacity: 0.14,
-  xyMinorOpacity: 0.07,
-  xyMajorOpacity: 0.14,
-  xzPanelColor: '#10224a',
-  yzPanelColor: '#81c784',
-  xyPanelColor: '#64b5f6',
-  xzPanelOpacity: 0.05,
-  yzPanelOpacity: 0.04,
-  xyPanelOpacity: 0.04,
-  xAxisOpacity: 0.48,
-  yAxisOpacity: 0.45,
-  zAxisOpacity: 0.52,
-  zAxisNegOpacity: 0.66,
-  originColor: '#ffffff',
-  crosshairOpacity: 0.5,
-  ringOpacity: 0.12,
-  sphereOpacity: 0.4,
-  tickOpacityXY: 0.2,
-  tickOpacityZ: 0.2,
-  arrowOpacityXY: 0.45,
-  arrowOpacityZ: 0.5,
-  arrowOpacityZFar: 0.75,
-};
-
-const LIGHT_PALETTE: Palette = {
-  gridColor: 'rgba(163, 156, 211, 0.84)',
-  gridMinorOpacity: 0.30,
-  gridMajorOpacity: 0.48,
-  yzColor: '#1b5e20',
-  xyColor: '#0d47a1',
-  yzMinorOpacity: 0.12,
-  yzMajorOpacity: 0.22,
-  xyMinorOpacity: 0.12,
-  xyMajorOpacity: 0.22,
-  xzPanelColor: '#ffffff',
-  yzPanelColor: '#2e7d32',
-  xyPanelColor: '#1565c0',
-  xzPanelOpacity: 0.08,
-  yzPanelOpacity: 0.07,
-  xyPanelOpacity: 0.07,
-  xAxisOpacity: 0.86,
-  yAxisOpacity: 0.84,
-  zAxisOpacity: 0.9,
-  zAxisNegOpacity: 0.95,
-  originColor: '#111111',
-  crosshairOpacity: 0.35,
-  ringOpacity: 0.08,
-  sphereOpacity: 0.3,
-  tickOpacityXY: 0.42,
-  tickOpacityZ: 0.44,
-  arrowOpacityXY: 0.8,
-  arrowOpacityZ: 0.85,
-  arrowOpacityZFar: 0.95,
-};
-
+/**
+ * Create all materials for the coordinate grid.
+ *
+ * Callers MUST call `disposeGridMaterials` on unmount to free
+ * GPU resources (shader programs, uniform buffers).
+ *
+ * @param isDark - Whether to use the dark or light color palette.
+ */
 export function createGridMaterials(isDark: boolean): GridMaterials {
   const p = isDark ? DARK_PALETTE : LIGHT_PALETTE;
 
   return {
-    xzMinor: createFadeShaderMaterial(p.gridMinorOpacity, FADE_START, FADE_END, p.gridColor),
-    xzMajor: createFadeShaderMaterial(p.gridMajorOpacity, FADE_START, FADE_END, p.gridColor),
+    // XZ ground plane — fading shader
+    xzMinor: createFadeMaterial(p.gridMinorOpacity, FADE_START, FADE_END, p.gridColor),
+    xzMajor: createFadeMaterial(p.gridMajorOpacity, FADE_START, FADE_END, p.gridColor),
 
-    yzMinor: lineMat(p.yzColor, p.yzMinorOpacity),
-    yzMajor: lineMat(p.yzColor, p.yzMajorOpacity),
-    xyMinor: lineMat(p.xyColor, p.xyMinorOpacity),
-    xyMajor: lineMat(p.xyColor, p.xyMajorOpacity),
+    // YZ / XY secondary planes — simple line materials
+    yzMinor: createLineMaterial(p.yzColor, p.yzMinorOpacity),
+    yzMajor: createLineMaterial(p.yzColor, p.yzMajorOpacity),
+    xyMinor: createLineMaterial(p.xyColor, p.xyMinorOpacity),
+    xyMajor: createLineMaterial(p.xyColor, p.xyMajorOpacity),
 
-    xzPanel: meshMat(p.xzPanelColor, p.xzPanelOpacity),
-    yzPanel: meshMat(p.yzPanelColor, p.yzPanelOpacity),
-    xyPanel: meshMat(p.xyPanelColor, p.xyPanelOpacity),
+    // Panels
+    xzPanel: createMeshMaterial(p.xzPanelColor, p.xzPanelOpacity),
+    yzPanel: createMeshMaterial(p.yzPanelColor, p.yzPanelOpacity),
+    xyPanel: createMeshMaterial(p.xyPanelColor, p.xyPanelOpacity),
 
-    xAxis: lineMat('#e57373', p.xAxisOpacity),
-    yAxis: lineMat('#81c784', p.yAxisOpacity),
-    zAxis: lineMat('#64b5f6', p.zAxisOpacity),
-    zAxisNeg: lineMat('#1e88e5', p.zAxisNegOpacity),
+    // Axes
+    xAxis: createLineMaterial(p.xAxisColor, p.xAxisOpacity),
+    yAxis: createLineMaterial(p.yAxisColor, p.yAxisOpacity),
+    zAxis: createLineMaterial(p.zAxisColor, p.zAxisOpacity),
+    zAxisNeg: createLineMaterial(p.zAxisNegColor, p.zAxisNegOpacity),
 
-    crosshair: lineMat(p.originColor, p.crosshairOpacity),
-    ring: meshMat(p.originColor, p.ringOpacity),
-    sphere: meshMat(p.originColor, p.sphereOpacity, THREE.FrontSide),
+    // Origin
+    crosshair: createLineMaterial(p.originColor, p.crosshairOpacity),
+    ring: createMeshMaterial(p.originColor, p.ringOpacity),
+    sphere: createMeshMaterial(p.originColor, p.sphereOpacity, THREE.FrontSide),
 
-    tickX: meshMat('#f08e8e', p.tickOpacityXY),
-    tickY: meshMat('#acf1b0', p.tickOpacityXY),
-    tickZ: meshMat('#84c3f6', p.tickOpacityZ),
+    // Ticks
+    tickX: createMeshMaterial(p.tickXColor, p.tickOpacityXY),
+    tickY: createMeshMaterial(p.tickYColor, p.tickOpacityXY),
+    tickZ: createMeshMaterial(p.tickZColor, p.tickOpacityZ),
 
-    arrowX: meshMat('#e57373', p.arrowOpacityXY),
-    arrowY: meshMat('#adeeb0', p.arrowOpacityXY),
-    arrowZ: meshMat('#88c2f2', p.arrowOpacityZ),
-    arrowZFar: meshMat('#1e88e5', p.arrowOpacityZFar),
+    // Arrows
+    arrowX: createMeshMaterial(p.arrowXColor, p.arrowOpacityXY),
+    arrowY: createMeshMaterial(p.arrowYColor, p.arrowOpacityXY),
+    arrowZ: createMeshMaterial(p.arrowZColor, p.arrowOpacityZ),
+    arrowZFar: createMeshMaterial(p.arrowZFarColor, p.arrowOpacityZFar),
   };
 }
 
-export function disposeGridMaterials(m: GridMaterials): void {
-  for (const value of Object.values(m)) {
-    if (value && typeof value.dispose === 'function') {
-      value.dispose();
+/**
+ * Dispose all materials in the collection.
+ *
+ * For ShaderMaterials this also frees the compiled shader program.
+ * Safe to call multiple times — `Material.dispose()` is idempotent.
+ */
+export function disposeGridMaterials(materials: GridMaterials): void {
+  const values = Object.values(materials);
+  for (let i = 0; i < values.length; i++) {
+    const mat = values[i];
+    if (mat && typeof (mat as any).dispose === 'function') {
+      (mat as any).dispose();
     }
   }
 }

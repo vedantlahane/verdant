@@ -22,6 +22,7 @@ export type {
   VrdEdge,
   VrdEdgeProps,
   VrdGroup,
+  VrdGroupProps,
   VrdConfig,
   VrdParseResult,
   VrdDiagnostic,
@@ -33,6 +34,13 @@ export type {
   NodeSize,
   EdgeStyle,
   ShapeType,
+  NodeStatus,
+  AnimationType,
+  RoutingType,
+  PortSide,
+  BadgePosition,
+  VrdBadge,
+  VrdPort,
 } from './types';
 
 // ── Patterns (for tooling / editor integrations) ──
@@ -55,3 +63,6 @@ export { parseValue, parsePosition, parseWidth } from './values';
 
 // ── Validation (can be used standalone) ──
 export { validateAst } from './validate';
+
+// ── Pretty Printer ──
+export { printVrd } from './printer';

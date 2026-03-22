@@ -1,74 +1,125 @@
-// CameraTracker.tsx
+// camera/CameraTracker.tsx
+
 import { useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import { CameraData } from '../types';
+import type { CameraData, Vec3 } from '../types';
+import { CAMERA_EMIT_FRAME_INTERVAL } from '../constants';
+
+// ═══════════════════════════════════════════════════════════════════
+//  CameraTracker
+//
+//  Emits camera state to the parent via `onCameraChange` at a
+//  throttled rate (every N frames). Renders nothing — this is a
+//  pure side-effect component.
+//
+//  Key design decisions:
+//  - Reusable THREE objects allocated once via useMemo (not useRef,
+//    which doesn't participate in React's lifecycle cleanup).
+//  - String-key deduplication prevents emitting identical data
+//    when the camera hasn't moved (e.g., idle auto-rotate paused).
+//  - effectiveFov scales with distance ratio so the HUD can show
+//    "how much of the scene is visible" independent of physical zoom.
+// ═══════════════════════════════════════════════════════════════════
 
 interface CameraTrackerProps {
-  onCameraChange: (data: CameraData) => void;
+  readonly onCameraChange: (data: CameraData) => void;
+}
+
+/** Round to 1 decimal place — balances precision vs dedup key stability */
+function round1(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+
+/** Round to 2 decimal places — for axis projections */
+function round2(v: number): number {
+  return Math.round(v * 100) / 100;
+}
+
+/**
+ * Compute the axis projection vector by rotating a unit axis
+ * through the camera's inverse quaternion.
+ *
+ * The vector is mutated in-place for zero allocation.
+ */
+function computeAxisProjection(
+  axis: THREE.Vector3,
+  x: number,
+  y: number,
+  z: number,
+  invQ: THREE.Quaternion,
+): Vec3 {
+  axis.set(x, y, z).applyQuaternion(invQ);
+  return [round2(axis.x), round2(axis.y), round2(axis.z)];
 }
 
 export function CameraTracker({ onCameraChange }: CameraTrackerProps) {
   const { camera } = useThree();
   const frameCount = useRef(0);
-  const lastEmit = useRef('');
-  const _invQ = useMemo(() => new THREE.Quaternion(), []);
-  const _v = useMemo(() => new THREE.Vector3(), []);
-  const _target = useMemo(() => new THREE.Vector3(), []);
-  const initialDistance = useRef<number | null>(null);
+  const lastEmitKey = useRef('');
+  const baselineDistance = useRef<number | null>(null);
+
+  // Reusable THREE objects — allocated once per mount
+  const inverseQuaternion = useMemo(() => new THREE.Quaternion(), []);
+  const workVec = useMemo(() => new THREE.Vector3(), []);
+  const targetVec = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((state) => {
+    // ── Frame throttle ──
     frameCount.current++;
-    if (frameCount.current % 8 !== 0) return;
+    if (frameCount.current % CAMERA_EMIT_FRAME_INTERVAL !== 0) return;
 
-    const px = Math.round(camera.position.x * 10) / 10;
-    const py = Math.round(camera.position.y * 10) / 10;
-    const pz = Math.round(camera.position.z * 10) / 10;
+    // ── Position ──
+    const px = round1(camera.position.x);
+    const py = round1(camera.position.y);
+    const pz = round1(camera.position.z);
 
+    // ── FOV ──
     const perspCam = camera as THREE.PerspectiveCamera;
     const fov = Math.round(perspCam.fov ?? 45);
 
+    // ── Distance & effective FOV ──
     let distance = 0;
-    let effectiveFov = fov; // starts same as actual fov
+    let effectiveFov = fov;
 
     const controls = (state as any).controls;
     if (controls?.target) {
-      _target.copy(controls.target);
-      distance = Math.round(camera.position.distanceTo(_target) * 10) / 10;
+      targetVec.copy(controls.target);
+      distance = round1(camera.position.distanceTo(targetVec));
 
-      // Set baseline distance once
-      if (initialDistance.current === null) {
-        initialDistance.current = distance;
+      // Establish baseline on first measurement
+      if (baselineDistance.current === null) {
+        baselineDistance.current = distance;
       }
 
-      const baseDist = initialDistance.current || distance;
-      const fovRad = THREE.MathUtils.degToRad(fov);
+      const baseDist = baselineDistance.current || distance;
 
-      // ✅ FIX: distance / baseDist (not baseDist / distance)
-      // Closer → smaller effFov (narrower visible area)
-      // Farther → larger effFov  (wider visible area)
-      const eff = 2 * Math.atan(Math.tan(fovRad / 2) * (distance / baseDist));
-      effectiveFov = Math.round(THREE.MathUtils.radToDeg(eff) * 10) / 10;
-      //                        ─────────────────────────────────────────────
-      //                        ✅ also: round to 1 decimal, not integer
+      // effectiveFov scales with distance:
+      //   closer → smaller (narrower visible area)
+      //   farther → larger (wider visible area)
+      //
+      // Formula: 2 × atan(tan(fov/2) × (distance / baseDist))
+      const halfFovRad = THREE.MathUtils.degToRad(fov) * 0.5;
+      const effRad = 2 * Math.atan(Math.tan(halfFovRad) * (distance / baseDist));
+      effectiveFov = round1(THREE.MathUtils.radToDeg(effRad));
     }
 
-    _invQ.copy(camera.quaternion).invert();
+    // ── Axis projections ──
+    inverseQuaternion.copy(camera.quaternion).invert();
 
-    const round = (v: THREE.Vector3): [number, number, number] => [
-      Math.round(v.x * 100) / 100,
-      Math.round(v.y * 100) / 100,
-      Math.round(v.z * 100) / 100,
-    ];
+    const ax = computeAxisProjection(workVec, 1, 0, 0, inverseQuaternion);
+    const ay = computeAxisProjection(workVec, 0, 1, 0, inverseQuaternion);
+    const az = computeAxisProjection(workVec, 0, 0, 1, inverseQuaternion);
 
-    const ax = round(_v.set(1, 0, 0).applyQuaternion(_invQ));
-    const ay = round(_v.set(0, 1, 0).applyQuaternion(_invQ));
-    const az = round(_v.set(0, 0, 1).applyQuaternion(_invQ));
+    // ── Deduplication ──
+    // Concatenating rounded numbers is cheaper than deep-comparing
+    // the previous CameraData object every frame.
+    const key = `${px},${py},${pz},${fov},${distance},${effectiveFov},${ax[0]},${ax[1]},${ax[2]},${ay[0]},${ay[1]},${ay[2]},${az[0]},${az[1]},${az[2]}`;
 
-    const key = `${px},${py},${pz},${fov},${distance},${effectiveFov},${ax},${ay},${az}`;
-    if (key === lastEmit.current) return;
-    lastEmit.current = key;
+    if (key === lastEmitKey.current) return;
+    lastEmitKey.current = key;
 
+    // ── Emit ──
     onCameraChange({
       position: [px, py, pz],
       fov,
@@ -78,5 +129,6 @@ export function CameraTracker({ onCameraChange }: CameraTrackerProps) {
     });
   });
 
+  // Render nothing — pure side-effect component
   return null;
 }

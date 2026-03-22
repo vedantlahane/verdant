@@ -4,6 +4,9 @@ import {
   VALID_CAMERAS,
   VALID_SIZES,
   VALID_EDGE_STYLES,
+  VALID_STATUSES,
+  VALID_SHAPES,
+  VALID_ROUTING_TYPES,
   KNOWN_CONFIG_KEYS,
 } from './types';
 
@@ -24,6 +27,8 @@ export function validateAst(
   validateEdgeReferences(ast, declaredNodeIds, diagnostics);
   validateEdgeProperties(ast, diagnostics);
   validateNodeProperties(ast, diagnostics);
+  validateNodeV2Properties(ast, diagnostics);
+  validateEdgeV2Properties(ast, diagnostics);
   validateGroups(ast, declaredNodeIds, diagnostics);
 
   return diagnostics;
@@ -170,6 +175,41 @@ function validateNodeProperties(ast: VrdAST, diags: VrdDiagnostic[]): void {
           message: `Invalid position on node "${node.id}". Expected {x, y, z} with finite numbers.`,
         });
       }
+    }
+  }
+}
+
+// ── Node v2 property validation ──
+
+function validateNodeV2Properties(ast: VrdAST, diags: VrdDiagnostic[]): void {
+  for (const node of ast.nodes) {
+    if (node.props.status && !VALID_STATUSES.has(node.props.status as string)) {
+      diags.push({
+        line: node.loc?.line ?? 0,
+        severity: 'error',
+        message: `Invalid status "${node.props.status}" on node "${node.id}".`,
+      });
+    }
+    if (node.props.shape && !VALID_SHAPES.has(node.props.shape as string)) {
+      diags.push({
+        line: node.loc?.line ?? 0,
+        severity: 'warning',
+        message: `Invalid shape "${node.props.shape}" on node "${node.id}".`,
+      });
+    }
+  }
+}
+
+// ── Edge v2 property validation ──
+
+function validateEdgeV2Properties(ast: VrdAST, diags: VrdDiagnostic[]): void {
+  for (const edge of ast.edges) {
+    if (edge.props.routing && !VALID_ROUTING_TYPES.has(edge.props.routing as string)) {
+      diags.push({
+        line: edge.loc?.line ?? 0,
+        severity: 'error',
+        message: `Invalid routing "${edge.props.routing}".`,
+      });
     }
   }
 }

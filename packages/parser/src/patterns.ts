@@ -50,10 +50,43 @@ export const NODE_INLINE_RE = new RegExp(
   `^(${TYPE_PATTERN})\\s+(${ID_PATTERN})$`,
 );
 
+// ── Port-to-port edge patterns ──
+// NOTE: These must be checked BEFORE regular edge patterns in the parse loop,
+// since `a.port -> b.port` would otherwise match EDGE_INLINE_RE with `a.port` as the full node ID.
+
+// Port-to-port directed edge block: `a.http-out -> b.http-in:`
+export const PORT_EDGE_BLOCK_RE = new RegExp(
+  `^(${ID_PATTERN})\\.(${ID_PATTERN})\\s*->\\s*(${ID_PATTERN})\\.(${ID_PATTERN})\\s*:$`,
+);
+
+// Port-to-port directed edge inline: `a.http-out -> b.http-in` or `a.http-out -> b.http-in: "label"`
+// Captures: [nodeId, portName, nodeId, portName, optional label]
+export const PORT_EDGE_INLINE_RE = new RegExp(
+  `^(${ID_PATTERN})\\.(${ID_PATTERN})\\s*->\\s*(${ID_PATTERN})\\.(${ID_PATTERN})(?:\\s*:\\s*"([^"]*)")?$`,
+);
+
+// Port-to-port bidirectional block: `a.port <-> b.port:`
+export const PORT_BIDI_EDGE_BLOCK_RE = new RegExp(
+  `^(${ID_PATTERN})\\.(${ID_PATTERN})\\s*<->\\s*(${ID_PATTERN})\\.(${ID_PATTERN})\\s*:$`,
+);
+
+// Port-to-port bidirectional inline: `a.port <-> b.port` or `a.port <-> b.port: "label"`
+export const PORT_BIDI_EDGE_INLINE_RE = new RegExp(
+  `^(${ID_PATTERN})\\.(${ID_PATTERN})\\s*<->\\s*(${ID_PATTERN})\\.(${ID_PATTERN})(?:\\s*:\\s*"([^"]*)")?$`,
+);
+
+// ── Animation block ──
+
+// Animation block: `animation <name>:`
+export const ANIMATION_BLOCK_RE = new RegExp(
+  `^animation\\s+(${ID_PATTERN})\\s*:$`,
+);
+
 // ── Key-Value ──
 
 // `label: "Web Server"` or `glow: true` or `color: #52B788`
-export const KV_RE = /^([a-zA-Z][\w-]*)\s*:\s*(.+)$/;
+// Also handles compound keys like `port <name>` and `badge <position>`
+export const KV_RE = /^([a-zA-Z][\w -]*[\w-]|[a-zA-Z][\w-]*)\s*:\s*(.+)$/;
 
 // ── Inline comment stripping ──
 // Strips `# comment` from end of line, respecting quoted strings.

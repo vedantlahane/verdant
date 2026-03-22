@@ -1,15 +1,19 @@
+// features/playground/hooks/useMonacoMarkers.ts
+
 "use client";
 
 import { useEffect } from "react";
+import type { Monaco } from "@monaco-editor/react";
 import type { VrdParseResult } from "@verdant/parser";
+import type { EditorInstance } from "../components/Editor";
 
 /**
  * Syncs parser diagnostics → Monaco editor markers.
  * Separated from language registration so it runs on every parse.
  */
 export function useMonacoMarkers(
-  monaco: any,
-  editorRef: React.MutableRefObject<any>,
+  monaco: Monaco | null,
+  editorRef: React.RefObject<EditorInstance | null>,
   parseResult: VrdParseResult,
 ): void {
   useEffect(() => {
@@ -18,7 +22,10 @@ export function useMonacoMarkers(
     const model = editorRef.current.getModel();
     if (!model) return;
 
-    const markers = parseResult.diagnostics
+    const diagnostics = parseResult.diagnostics;
+
+    // Build markers from diagnostics that have valid line numbers
+    const markers = diagnostics
       .filter((d) => d.line > 0)
       .map((d) => {
         const lineLength = model.getLineLength(d.line);

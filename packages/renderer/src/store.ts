@@ -1,12 +1,24 @@
+// store.ts
+
 import { create } from 'zustand';
-import { VrdAST, VrdDiagnostic } from '@verdant/parser';
-import { ThemeColors, THEME_COLORS, DEFAULT_NODE_COLORS } from '@verdant/themes';
-import { computeLayout, computePositionsForNewNodes, LayoutType } from './layout';
+import { subscribeWithSelector } from 'zustand/middleware';
+import type { VrdAST, VrdNode, VrdDiagnostic } from '@verdant/parser';
+import type { ThemeColors } from '@verdant/themes';
+import { THEME_COLORS, DEFAULT_NODE_COLORS } from '@verdant/themes';
+import { computeLayout, computePositionsForNewNodes } from './layout';
+import type { LayoutType } from './layout';
 import {
   readPersistedState,
   writePersistedState,
 } from './store.persistence';
-import { sanitizePosition } from './utils';
+import { sanitizeVec3, isFiniteVec3 } from './utils';
+import type { Vec3, MutVec3, ContextMenuState } from './types';
+import { CONTEXT_MENU_CLOSED } from './types';
+import { PERSIST_DEBOUNCE_MS } from './constants';
+
+// ═══════════════════════════════════════════════════════════════════
+//  Debounced Persistence
+// ═══════════════════════════════════════════════════════════════════
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -22,190 +34,439 @@ function schedulePersist(get: () => RendererState): void {
       state.selectedNodeId,
       state.themeName,
     );
-  }, 300);
+  }, PERSIST_DEBOUNCE_MS);
 }
 
-// ── Store interface ──
+// ═══════════════════════════════════════════════════════════════════
+//  Store Interface
+// ═══════════════════════════════════════════════════════════════════
 
 export interface RendererState {
-  // Data
-  ast: VrdAST | null;
-  nodeIndex: Map<string, import('@verdant/parser').VrdNode>;
-  positions: Record<string, [number, number, number]>;
-  diagnostics: VrdDiagnostic[];
+  // ── Data ──
+  readonly ast: VrdAST | null;
+  readonly nodeIndex: ReadonlyMap<string, VrdNode>;
+  readonly positions: Readonly<Record<string, Vec3>>;
+  readonly diagnostics: readonly VrdDiagnostic[];
 
-  // Interaction
-  selectedNodeId: string | null;
-  hoveredNodeId: string | null;
-  draggingNodeId: string | null;
+  // ── Selection ──
+  readonly selectionSet: ReadonlySet<string>;
+  readonly selectedNodeId: string | null;
 
-  // Theme
-  themeName: string;
-  themeColors: ThemeColors;
+  // ── Interaction ──
+  readonly hoveredNodeId: string | null;
+  readonly draggingNodeId: string | null;
 
-  // Actions
+  // ── Status ──
+  readonly undoDepth: number;
+  readonly layoutName: LayoutType;
+  readonly fps: number;
+
+  // ── Theme ──
+  readonly themeName: string;
+  readonly themeColors: ThemeColors;
+
+  // ── Overlay ──
+  readonly contextMenu: ContextMenuState;
+
+  // ── Actions ──
   setAst: (ast: VrdAST, diagnostics?: VrdDiagnostic[]) => void;
   selectNode: (id: string | null) => void;
+  toggleNodeSelection: (id: string) => void;
+  selectMultiple: (ids: readonly string[]) => void;
+  clearSelection: () => void;
   hoverNode: (id: string | null) => void;
   setDraggingNode: (id: string | null) => void;
-  updateNodePosition: (id: string, position: [number, number, number]) => void;
+  updateNodePosition: (id: string, position: Vec3) => void;
+  batchUpdatePositions: (updates: ReadonlyMap<string, Vec3>) => void;
   setTheme: (name: string) => void;
   getNodeColor: (type: string, customColor?: string) => string;
+  setSelectionSet: (ids: ReadonlySet<string>) => void;
+  setUndoDepth: (depth: number) => void;
+  setFps: (fps: number) => void;
+  setContextMenu: (state: ContextMenuState) => void;
+  closeContextMenu: () => void;
 }
 
-export const useRendererStore = create<RendererState>((set, get) => ({
-  ast: null,
-  nodeIndex: new Map(),
-  positions: {},
-  diagnostics: [],
-  selectedNodeId: null,
-  hoveredNodeId: null,
-  draggingNodeId: null,
-  themeName: 'moss',
-  themeColors: THEME_COLORS['moss'],
+// ═══════════════════════════════════════════════════════════════════
+//  Helpers — extracted from the monolithic setAst
+// ═══════════════════════════════════════════════════════════════════
 
-  setAst: (ast, diagnostics = []) => {
-    const layoutType = (ast.config.layout as LayoutType) || 'auto';
-    const prevPositions = get().positions;
-    const prevAst = get().ast;
-    const persisted = readPersistedState(ast);
+/**
+ * Resolve the effective theme name from (in priority order):
+ * 1. AST config `theme` field
+ * 2. Persisted theme
+ * 3. Current store theme
+ */
+function resolveTheme(
+  astTheme: string | undefined,
+  persistedTheme: string | undefined,
+  currentTheme: string,
+): { name: string; colors: ThemeColors } {
+  const name = astTheme || persistedTheme || currentTheme;
+  const colors = THEME_COLORS[name] || THEME_COLORS['moss'];
+  return { name, colors };
+}
 
-    const prevIds = new Set(prevAst?.nodes.map((n) => n.id) ?? []);
-    const nextIds = new Set(ast.nodes.map((n) => n.id));
+/**
+ * Resolve selection after an AST change.
+ * Preserves current selection if the node still exists,
+ * falls back to persisted selection, then null.
+ */
+function resolveSelection(
+  currentId: string | null,
+  persistedId: string | null | undefined,
+  validIds: ReadonlySet<string>,
+): string | null {
+  if (currentId && validIds.has(currentId)) return currentId;
+  if (persistedId && validIds.has(persistedId)) return persistedId;
+  return null;
+}
 
-    const newNodes = ast.nodes.filter((n) => !prevIds.has(n.id));
-    const removedIds = new Set(
-      Array.from(prevIds).filter((id) => !nextIds.has(id)),
+/**
+ * Build a lookup index from node ID → VrdNode.
+ */
+function buildNodeIndex(nodes: readonly VrdNode[]): Map<string, VrdNode> {
+  const index = new Map<string, VrdNode>();
+  for (const node of nodes) {
+    index.set(node.id, node);
+  }
+  return index;
+}
+
+/**
+ * Compute final positions for a first-load scenario
+ * (no previous AST or positions in store).
+ *
+ * Priority:
+ * 1. Persisted positions (from localStorage)
+ * 2. Computed layout for remaining nodes
+ */
+function computeFirstLoadPositions(
+  ast: VrdAST,
+  layoutType: LayoutType,
+  persistedPositions: Readonly<Record<string, Vec3>> | undefined,
+): Record<string, MutVec3> {
+  const finalPositions: Record<string, MutVec3> = {};
+
+  // Restore persisted positions
+  if (persistedPositions) {
+    for (const node of ast.nodes) {
+      const saved = persistedPositions[node.id];
+      if (saved && isFiniteVec3(saved)) {
+        finalPositions[node.id] = [saved[0], saved[1], saved[2]];
+      }
+    }
+  }
+
+  // Compute layout for nodes missing persisted positions
+  const missingNodes = ast.nodes.filter((n) => !finalPositions[n.id]);
+  if (missingNodes.length > 0) {
+    const computed = computeLayout(
+      ast.nodes,
+      ast.edges,
+      layoutType,
+      ast.groups,
     );
+    for (const node of missingNodes) {
+      const pos = computed.get(node.id);
+      if (pos) {
+        finalPositions[node.id] = pos;
+      }
+    }
+  }
 
-    let finalPositions: Record<string, [number, number, number]>;
-    const isFirstLoad = !prevAst || Object.keys(prevPositions).length === 0;
+  return finalPositions;
+}
 
-    if (isFirstLoad) {
-      finalPositions = {};
+/**
+ * Compute incremental position updates when the AST changes
+ * (add/remove nodes while preserving existing positions).
+ */
+function computeIncrementalPositions(
+  ast: VrdAST,
+  prevPositions: Readonly<Record<string, Vec3>>,
+  prevIds: ReadonlySet<string>,
+  nextIds: ReadonlySet<string>,
+): Record<string, MutVec3> {
+  const finalPositions: Record<string, MutVec3> = {};
 
-      // Restore persisted positions
-      if (persisted?.positions) {
-        for (const node of ast.nodes) {
-          const saved = persisted.positions[node.id];
-          if (saved && Array.isArray(saved) && saved.length === 3) {
-            const [x, y, z] = saved;
-            if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
-              finalPositions[node.id] = [x, y, z];
-            }
-          }
+  // Copy surviving positions
+  for (const id of Object.keys(prevPositions)) {
+    if (nextIds.has(id)) {
+      const p = prevPositions[id];
+      finalPositions[id] = [p[0], p[1], p[2]];
+    }
+  }
+
+  // Place new nodes
+  const newNodes = ast.nodes.filter((n) => !prevIds.has(n.id));
+  if (newNodes.length > 0) {
+    const newPos = computePositionsForNewNodes(
+      newNodes,
+      finalPositions,
+      ast.edges,
+    );
+    Object.assign(finalPositions, newPos);
+  }
+
+  return finalPositions;
+}
+
+/**
+ * Apply user-specified positions from node props.
+ * These always override computed/persisted positions.
+ */
+function applyUserPositionOverrides(
+  nodes: readonly VrdNode[],
+  positions: Record<string, MutVec3>,
+): void {
+  for (const node of nodes) {
+    if (!node.props.position) continue;
+    const p = node.props.position as { x: number; y: number; z: number };
+    positions[node.id] = sanitizeVec3(p.x, p.y, p.z);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Frozen Empty Collections
+//  Avoids creating new objects on every read of "empty" state.
+// ═══════════════════════════════════════════════════════════════════
+
+const EMPTY_SET = Object.freeze(new Set<string>()) as ReadonlySet<string>;
+const EMPTY_DIAGNOSTICS: readonly VrdDiagnostic[] = Object.freeze([]);
+const EMPTY_NODE_INDEX: ReadonlyMap<string, VrdNode> = new Map();
+
+// ═══════════════════════════════════════════════════════════════════
+//  Store
+//
+//  Uses `subscribeWithSelector` middleware for efficient external
+//  subscriptions to specific slices (e.g. primitives SelectionManager
+//  only needs selectionSet changes, not position updates).
+// ═══════════════════════════════════════════════════════════════════
+
+export const useRendererStore = create<RendererState>()(
+  subscribeWithSelector((set, get) => ({
+    // ── Initial state ──
+    ast: null,
+    nodeIndex: EMPTY_NODE_INDEX,
+    positions: {},
+    diagnostics: EMPTY_DIAGNOSTICS,
+    selectionSet: EMPTY_SET,
+    selectedNodeId: null,
+    hoveredNodeId: null,
+    draggingNodeId: null,
+    undoDepth: 0,
+    layoutName: 'auto' as LayoutType,
+    fps: 0,
+    themeName: 'moss',
+    themeColors: THEME_COLORS['moss'],
+    contextMenu: CONTEXT_MENU_CLOSED,
+
+    // ────────────────────────────────────────────────────
+    //  setAst — decomposed into helper functions
+    // ────────────────────────────────────────────────────
+
+    setAst: (ast, diagnostics = []) => {
+      const prevState = get();
+      const prevAst = prevState.ast;
+      const prevPositions = prevState.positions;
+
+      const layoutType = (ast.config.layout as LayoutType) || 'auto';
+      const persisted = readPersistedState(ast);
+
+      const prevIds = new Set(prevAst?.nodes.map((n) => n.id) ?? []);
+      const nextIds = new Set(ast.nodes.map((n) => n.id));
+
+      // ── Positions ──
+      const isFirstLoad = !prevAst || Object.keys(prevPositions).length === 0;
+      const finalPositions = isFirstLoad
+        ? computeFirstLoadPositions(ast, layoutType, persisted?.positions)
+        : computeIncrementalPositions(ast, prevPositions, prevIds, nextIds);
+
+      applyUserPositionOverrides(ast.nodes, finalPositions);
+
+      // ── Theme ──
+      const theme = resolveTheme(
+        ast.config.theme as string | undefined,
+        persisted?.themeName,
+        prevState.themeName,
+      );
+
+      // ── Selection ──
+      const resolvedId = resolveSelection(
+        prevState.selectedNodeId,
+        persisted?.selectedNodeId,
+        nextIds,
+      );
+      const selectionSet = resolvedId
+        ? new Set([resolvedId])
+        : EMPTY_SET;
+
+      // ── Commit ──
+      set({
+        ast,
+        nodeIndex: buildNodeIndex(ast.nodes),
+        positions: finalPositions,
+        diagnostics,
+        selectionSet,
+        selectedNodeId: resolvedId,
+        hoveredNodeId: null,
+        layoutName: layoutType,
+        themeName: theme.name,
+        themeColors: theme.colors,
+      });
+
+      writePersistedState(ast, finalPositions, resolvedId, theme.name);
+    },
+
+    // ────────────────────────────────────────────────────
+    //  Selection Actions
+    // ────────────────────────────────────────────────────
+
+    selectNode: (id) => {
+      const newSet = id ? new Set([id]) : EMPTY_SET;
+      set({
+        selectionSet: newSet,
+        selectedNodeId: id,
+      });
+      schedulePersist(get);
+    },
+
+    toggleNodeSelection: (id) => {
+      const { selectionSet } = get();
+      const next = new Set(selectionSet);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      const primary = next.size > 0 ? [...next][0] : null;
+      set({
+        selectionSet: next.size > 0 ? next : EMPTY_SET,
+        selectedNodeId: primary,
+      });
+      schedulePersist(get);
+    },
+
+    selectMultiple: (ids) => {
+      const next = new Set(ids);
+      set({
+        selectionSet: next.size > 0 ? next : EMPTY_SET,
+        selectedNodeId: next.size > 0 ? ids[0] : null,
+      });
+      schedulePersist(get);
+    },
+
+    clearSelection: () => {
+      set({
+        selectionSet: EMPTY_SET,
+        selectedNodeId: null,
+      });
+      schedulePersist(get);
+    },
+
+    // ────────────────────────────────────────────────────
+    //  Interaction
+    // ────────────────────────────────────────────────────
+
+    hoverNode: (id) => {
+      // Skip if unchanged — prevents unnecessary subscriber notifications
+      if (get().hoveredNodeId === id) return;
+      set({ hoveredNodeId: id });
+    },
+
+    setDraggingNode: (id) => {
+      if (get().draggingNodeId === id) return;
+      set({ draggingNodeId: id });
+    },
+
+    updateNodePosition: (id, position) => {
+      const prev = get().positions[id];
+      // Skip if position hasn't meaningfully changed (avoids render storm during drag)
+      if (
+        prev &&
+        Math.abs(prev[0] - position[0]) < 0.001 &&
+        Math.abs(prev[1] - position[1]) < 0.001 &&
+        Math.abs(prev[2] - position[2]) < 0.001
+      ) {
+        return;
+      }
+      set((state) => ({
+        positions: { ...state.positions, [id]: position },
+      }));
+      schedulePersist(get);
+    },
+
+    batchUpdatePositions: (updates) => {
+      if (updates.size === 0) return;
+      set((state) => {
+        const next = { ...state.positions };
+        for (const [id, pos] of updates) {
+          next[id] = pos;
         }
-      }
+        return { positions: next };
+      });
+      schedulePersist(get);
+    },
 
-      // Compute layout for nodes missing persisted positions
-      const missingNodes = ast.nodes.filter((n) => !finalPositions[n.id]);
-      if (missingNodes.length > 0) {
-        const computed = computeLayout(
-          ast.nodes,
-          ast.edges,
-          layoutType,
-          ast.groups,
-        );
-        for (const node of missingNodes) {
-          const pos = computed.get(node.id);
-          if (!pos) continue;
-          const safe = sanitizePosition(pos.x, pos.y, pos.z);
-          finalPositions[node.id] = [safe.x, safe.y, safe.z];
-        }
-      }
-    } else {
-      finalPositions = { ...prevPositions };
+    // ────────────────────────────────────────────────────
+    //  Theme
+    // ────────────────────────────────────────────────────
 
-      for (const id of removedIds) {
-        delete finalPositions[id];
-      }
+    setTheme: (name) => {
+      if (name === get().themeName) return;
+      const themeColors = THEME_COLORS[name] || THEME_COLORS['moss'];
+      set({ themeName: name, themeColors });
+      schedulePersist(get);
+    },
 
-      if (newNodes.length > 0) {
-        const newPos = computePositionsForNewNodes(
-          newNodes,
-          finalPositions,
-          ast.edges,
-        );
-        Object.assign(finalPositions, newPos);
-      }
-    }
+    getNodeColor: (type, customColor) => {
+      if (customColor) return customColor;
+      const { themeColors } = get();
+      return themeColors.nodeDefaults?.[type] ?? themeColors.accent;
+    },
 
-    // User-specified positions always override
-    for (const node of ast.nodes) {
-      if (node.props.position) {
-        const p = node.props.position as { x: number; y: number; z: number };
-        const safe = sanitizePosition(p.x, p.y, p.z);
-        finalPositions[node.id] = [safe.x, safe.y, safe.z];
-      }
-    }
+    // ────────────────────────────────────────────────────
+    //  External Sync (from primitives SelectionManager)
+    // ────────────────────────────────────────────────────
 
-    // Theme
-    const configTheme =
-      (ast.config.theme as string) ||
-      persisted?.themeName ||
-      get().themeName;
-    const themeColors = THEME_COLORS[configTheme] || THEME_COLORS['moss'];
+    setSelectionSet: (ids) => {
+      const arr = [...ids];
+      set({
+        selectionSet: ids.size > 0 ? new Set(ids) : EMPTY_SET,
+        selectedNodeId: arr[0] ?? null,
+      });
+    },
 
-    // Selection preservation
-    const prevSelected = get().selectedNodeId;
-    const selectionValid = prevSelected ? nextIds.has(prevSelected) : false;
-    const persistedSelected = persisted?.selectedNodeId;
-    const persistedSelectionValid = persistedSelected
-      ? nextIds.has(persistedSelected)
-      : false;
-    const finalSelectedNodeId: string | null = selectionValid
-      ? prevSelected!
-      : persistedSelectionValid
-        ? persistedSelected!
-        : null;
+    setUndoDepth: (depth) => {
+      if (get().undoDepth === depth) return;
+      set({ undoDepth: depth });
+    },
 
-    // Build node index
-    const nodeIndex = new Map<string, import('@verdant/parser').VrdNode>();
-    for (const node of ast.nodes) {
-      nodeIndex.set(node.id, node);
-    }
+    setFps: (fps) => {
+      // Quantize to whole numbers to avoid re-renders for 59.97 → 60.01
+      const rounded = Math.round(fps);
+      if (get().fps === rounded) return;
+      set({ fps: rounded });
+    },
 
-    set({
-      ast,
-      nodeIndex,
-      positions: finalPositions,
-      diagnostics,
-      selectedNodeId: finalSelectedNodeId,
-      hoveredNodeId: null,
-      themeName: configTheme,
-      themeColors,
-    });
+    // ────────────────────────────────────────────────────
+    //  Context Menu
+    // ────────────────────────────────────────────────────
 
-    writePersistedState(ast, finalPositions, finalSelectedNodeId, configTheme);
-  },
+    setContextMenu: (contextMenu) => {
+      set({ contextMenu });
+    },
 
-  selectNode: (id) => {
-    set({ selectedNodeId: id });
-    schedulePersist(get);
-  },
+    closeContextMenu: () => {
+      if (!get().contextMenu.visible) return;
+      set({ contextMenu: CONTEXT_MENU_CLOSED });
+    },
+  })),
+);
 
-  hoverNode: (id) => set({ hoveredNodeId: id }),
-
-  setDraggingNode: (id) => set({ draggingNodeId: id }),
-
-  updateNodePosition: (id, position) => {
-    set((state) => ({
-      positions: { ...state.positions, [id]: position },
-    }));
-    schedulePersist(get);
-  },
-
-  setTheme: (name) => {
-    const themeColors = THEME_COLORS[name] || THEME_COLORS['moss'];
-    set({ themeName: name, themeColors });
-    schedulePersist(get);
-  },
-
-  getNodeColor: (type, customColor) => {
-    if (customColor) return customColor;
-    const { themeColors } = get();
-    return themeColors.nodeDefaults?.[type] ?? themeColors.accent;
-  },
-}));
+// ═══════════════════════════════════════════════════════════════════
+//  Re-exports for backward compatibility
+// ═══════════════════════════════════════════════════════════════════
 
 export { THEME_COLORS as THEMES, DEFAULT_NODE_COLORS };

@@ -1,12 +1,16 @@
+// features/playground/hooks/useMonacoTheme.ts
+
 "use client";
 
 import { useEffect } from "react";
+import type { Monaco } from "@monaco-editor/react";
 
 /**
  * Syncs resolved theme → Monaco editor theme.
+ * Relies on theme definitions already registered by `useMonacoLanguage`.
  */
 export function useMonacoTheme(
-  monaco: any,
+  monaco: Monaco | null,
   resolvedTheme: string,
 ): void {
   useEffect(() => {

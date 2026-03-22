@@ -1,73 +1,119 @@
-import React, { useRef, useState, useEffect } from 'react';
+// primitives/src/groups/GroupCollapse.tsx
+
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { usePrimitives } from '../provider/PrimitivesContext';
+import { usePrimitivesOptional } from '../provider/PrimitivesContext';
 
 export interface GroupCollapseProps {
+  /** Whether the group is currently collapsed. */
   collapsed: boolean;
+  /** Group display name. */
   label: string;
+  /** Number of children (shown as badge on proxy node). */
   childCount: number;
+  /** Group color for proxy node. */
+  color?: string;
   children?: React.ReactNode;
+  /** Called after collapse animation completes. */
   onCollapseComplete?: () => void;
+  /** Called after expand animation completes. */
+  onExpandComplete?: () => void;
 }
 
-/** Safely attempt to get the primitives context — returns null if outside provider */
-function tryUsePrimitives() {
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return usePrimitives();
-  } catch {
-    return null;
-  }
-}
+// ── Shared geometry for proxy node ──
+const _proxyGeometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
 
 export function GroupCollapse({
   collapsed,
   label,
   childCount,
+  color = '#4a5568',
   children,
   onCollapseComplete,
+  onExpandComplete,
 }: GroupCollapseProps) {
-  const ctx = tryUsePrimitives();
+  const ctx = usePrimitivesOptional();
   const transitionEngine = ctx?.transitionEngine ?? null;
 
   const prevCollapsed = useRef(collapsed);
   const [showChildren, setShowChildren] = useState(!collapsed);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const proxyId = useMemo(
+    () => `group-collapse-${label}-${Math.random().toString(36).slice(2, 8)}`,
+    [label],
+  );
 
   useEffect(() => {
     const wasCollapsed = prevCollapsed.current;
     prevCollapsed.current = collapsed;
 
+    // No change
+    if (collapsed === wasCollapsed) return;
+
     if (collapsed && !wasCollapsed) {
-      // Collapsing: play exit animations then hide children
+      // ── Collapsing ──
+      setIsTransitioning(true);
+
       if (transitionEngine) {
-        const proxyId = `group-collapse-proxy-${label}`;
-        transitionEngine.playExit(proxyId, 'fade').then(() => {
+        transitionEngine.playExit(proxyId, 'scale', 200).then(() => {
           setShowChildren(false);
+          setIsTransitioning(false);
           onCollapseComplete?.();
         });
       } else {
         setShowChildren(false);
+        setIsTransitioning(false);
         onCollapseComplete?.();
       }
     } else if (!collapsed && wasCollapsed) {
-      // Expanding: show children and play enter animations
+      // ── Expanding ──
       setShowChildren(true);
+      setIsTransitioning(true);
+
       if (transitionEngine) {
-        const proxyId = `group-collapse-proxy-${label}`;
-        transitionEngine.playEnter(proxyId, 'fade');
+        transitionEngine.playEnter(proxyId, 'scale', 250);
+        // Enter animations are fire-and-forget
+        setTimeout(() => {
+          setIsTransitioning(false);
+          onExpandComplete?.();
+        }, 250);
+      } else {
+        setIsTransitioning(false);
+        onExpandComplete?.();
       }
     }
-  }, [collapsed, label, transitionEngine, onCollapseComplete]);
+  }, [collapsed, label, transitionEngine, proxyId, onCollapseComplete, onExpandComplete]);
 
-  if (collapsed) {
-    // Render proxy node with label and child count badge
+  // ── Collapsed: render proxy node ──
+  if (collapsed && !showChildren) {
     return (
       <group>
-        <mesh>
-          <boxGeometry args={[1.5, 1.5, 1.5]} />
-          <meshStandardMaterial color="#4a5568" transparent opacity={0.8} />
+        <mesh geometry={_proxyGeometry}>
+          <meshStandardMaterial
+            color={color}
+            transparent
+            opacity={0.8}
+            metalness={0.1}
+            roughness={0.7}
+          />
         </mesh>
+
+        {/* Collapsed indicator dots */}
+        <mesh position={[0, 0, 0.8]}>
+          <sphereGeometry args={[0.06, 8, 8]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.6} />
+        </mesh>
+        <mesh position={[-0.15, 0, 0.8]}>
+          <sphereGeometry args={[0.06, 8, 8]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.4} />
+        </mesh>
+        <mesh position={[0.15, 0, 0.8]}>
+          <sphereGeometry args={[0.06, 8, 8]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.4} />
+        </mesh>
+
         <Html position={[0, 1.2, 0]} center pointerEvents="none">
           <div
             style={{
@@ -76,21 +122,23 @@ export function GroupCollapse({
               fontWeight: 600,
               whiteSpace: 'nowrap',
               textShadow: '0 0 4px #000000',
-              background: 'rgba(0,0,0,0.5)',
-              padding: '2px 6px',
-              borderRadius: '3px',
+              background: 'rgba(0,0,0,0.6)',
+              padding: '3px 8px',
+              borderRadius: '4px',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px',
+              gap: '6px',
             }}
           >
+            <span>▸</span>
             <span>{label}</span>
             <span
               style={{
-                background: '#4299e1',
+                background: color,
                 borderRadius: '10px',
-                padding: '0 5px',
+                padding: '1px 6px',
                 fontSize: '10px',
+                fontWeight: 700,
               }}
             >
               {childCount}
@@ -101,5 +149,10 @@ export function GroupCollapse({
     );
   }
 
-  return <>{showChildren ? children : null}</>;
+  // ── Expanded: render children ──
+  return (
+    <group>
+      {showChildren ? children : null}
+    </group>
+  );
 }

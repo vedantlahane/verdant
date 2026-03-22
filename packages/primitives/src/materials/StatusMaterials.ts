@@ -1,6 +1,9 @@
-import * as THREE from 'three';
+// primitives/src/materials/StatusMaterials.ts
 
-export type NodeStatus = 'healthy' | 'warning' | 'error' | 'unknown';
+import * as THREE from 'three';
+import type { NodeStatus } from '../types';
+
+export type { NodeStatus };
 
 export interface StatusColorConfig {
   healthy?: string;
@@ -17,37 +20,67 @@ const DEFAULT_COLORS: Required<StatusColorConfig> = {
 };
 
 /**
- * Creates a set of MeshStandardMaterial instances for each NodeStatus.
+ * Creates a set of `MeshStandardMaterial` instances, one per `NodeStatus`.
  *
- * - healthy: green tint, no emissive
- * - warning: amber tint, emissive set for pulsing glow (handled by BaseNode)
- * - error: red tint, emissive set at higher intensity than warning
- * - unknown: grey tint, no emissive
+ * | Status    | Color  | Emissive | Intensity | Notes                          |
+ * |-----------|--------|----------|-----------|--------------------------------|
+ * | healthy   | green  | none     | 0         | Solid, calm                    |
+ * | warning   | amber  | amber    | 0.4       | Subtle glow (pulsable by node) |
+ * | error     | red    | red      | 0.8       | Strong glow (pulsable by node) |
+ * | unknown   | grey   | none     | 0         | Muted, inactive                |
+ *
+ * @param config - Optional color overrides per status.
+ * @returns A `Record<NodeStatus, THREE.MeshStandardMaterial>`.
  */
 export function createStatusMaterials(
-  config?: StatusColorConfig
+  config?: StatusColorConfig,
 ): Record<NodeStatus, THREE.MeshStandardMaterial> {
-  const colors = { ...DEFAULT_COLORS, ...config };
+  const c = { ...DEFAULT_COLORS, ...config };
 
-  const healthy = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(colors.healthy),
-  });
+  const base = {
+    metalness: 0.1,
+    roughness: 0.6,
+  };
 
-  const warning = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(colors.warning),
-    emissive: new THREE.Color(colors.warning),
-    emissiveIntensity: 0.4,
-  });
-
-  const error = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(colors.error),
-    emissive: new THREE.Color(colors.error),
-    emissiveIntensity: 0.8,
-  });
-
-  const unknown = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(colors.unknown),
-  });
-
-  return { healthy, warning, error, unknown };
+  return {
+    healthy: new THREE.MeshStandardMaterial({
+      ...base,
+      color: new THREE.Color(c.healthy),
+    }),
+    warning: new THREE.MeshStandardMaterial({
+      ...base,
+      color: new THREE.Color(c.warning),
+      emissive: new THREE.Color(c.warning),
+      emissiveIntensity: 0.4,
+    }),
+    error: new THREE.MeshStandardMaterial({
+      ...base,
+      color: new THREE.Color(c.error),
+      emissive: new THREE.Color(c.error),
+      emissiveIntensity: 0.8,
+    }),
+    unknown: new THREE.MeshStandardMaterial({
+      ...base,
+      color: new THREE.Color(c.unknown),
+    }),
+  };
 }
+
+/**
+ * Disposes all materials in a status materials record.
+ * Safe to call multiple times.
+ */
+export function disposeStatusMaterials(
+  materials: Record<NodeStatus, THREE.MeshStandardMaterial>,
+): void {
+  for (const mat of Object.values(materials)) {
+    if (mat && typeof mat.dispose === 'function') {
+      mat.dispose();
+    }
+  }
+}
+
+export const StatusMaterials = {
+  createStatusMaterials,
+  disposeStatusMaterials,
+};

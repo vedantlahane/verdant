@@ -6,11 +6,16 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc -w",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "packageManager": "pnpm@10.32.1",
   "dependencies": {
     "@verdant/primitives": "workspace:*",
     "@react-three/drei": "^10.7.7"
+  },
+  "devDependencies": {
+    "fast-check": "^4.6.0",
+    "vitest": "^3.0.0"
   }
 }

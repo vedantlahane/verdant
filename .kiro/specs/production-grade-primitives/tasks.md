@@ -305,7 +305,7 @@ Incremental upgrade of `@verdant/primitives` from v1 to v2.0 in TypeScript. Each
   - When `postProcessing` is disabled, do not import or initialize any post-processing passes (zero bundle overhead)
   - _Requirements: 18.1, 18.2, 18.3_
 
-- [-] 30. Implement `DataBinding`
+- [x] 30. Implement `DataBinding`
   - Create `packages/primitives/src/databinding/DataBinding.ts`
   - `bind(config)` subscribes to an RxJS-compatible observable and updates the target node/edge property within one rendered frame on each emission
   - Supports binding to `status`, `label`, `color`, and `badges`
@@ -325,14 +325,14 @@ Incremental upgrade of `@verdant/primitives` from v1 to v2.0 in TypeScript. Each
     - **Property 20: Data binding error handling sets status to unknown**
     - **Validates: Requirements 19.5**
 
-- [~] 31. Checkpoint — Ensure all tests pass
+- [x] 31. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ---
 
 ### Sprint 5: GLTF Import/Export and Minimap
 
-- [~] 32. Implement GLTF import and export
+- [x] 32. Implement GLTF import and export
   - Create `packages/primitives/src/export/GLTFExport.ts` — serializes scene graph (node meshes, edge paths, labels, group boundaries) into a valid GLTF 2.0 document; includes node metadata (`id`, `type`, `label`, `status`) as GLTF extras; returns `Promise<Blob>`; rejects with `ExportError` on failure
   - Extend `GeometryFactory` to handle `CustomShape` with `gltfUrl`: load GLTF, extract first mesh, register as shape geometry; fall back to `box` geometry with `console.error` on load failure
   - _Requirements: 22.1, 22.2, 22.3, 22.4_
@@ -345,7 +345,7 @@ Incremental upgrade of `@verdant/primitives` from v1 to v2.0 in TypeScript. Each
     - **Property 25: GLTF load failure falls back to box geometry**
     - **Validates: Requirements 22.3**
 
-- [~] 33. Implement `Minimap`
+- [x] 33. Implement `Minimap`
   - Create `packages/primitives/src/minimap/Minimap.tsx`
   - When `minimap` is enabled in `PrimitivesConfig`, render a scaled-down top-down projection of all nodes and group boundaries in a corner overlay
   - Display a viewport indicator rectangle for the current camera's visible area
@@ -353,14 +353,14 @@ Incremental upgrade of `@verdant/primitives` from v1 to v2.0 in TypeScript. Each
   - Update node positions within one rendered frame of any position change
   - _Requirements: 23.1, 23.2, 23.3, 23.4_
 
-- [~] 34. Wire everything together and update public exports
+- [x] 34. Wire everything together and update public exports
   - Update `packages/primitives/src/index.ts` to export all new public APIs: `PrimitivesProvider`, `usePrimitives`, upgraded `BaseNode`, `BaseEdge`, all shape components, `NodeBadge`, `GroupContainer`, `NestedGroup`, `Minimap`, `ContextMenu`, type exports
   - Update `packages/primitives/src/types.ts` with all v2 type additions (`NodeStatus`, `NodeBadge`, `FlowParticleConfig`, `AnimationType`, etc.)
   - Verify `packages/nodes` consumers (`ServerNode`, etc.) still compile without modification (backward-compat check)
   - Add `fast-check` as a dev dependency: `pnpm add -D fast-check` in `packages/primitives`
   - _Requirements: all_
 
-- [~] 35. Final checkpoint — Ensure all tests pass
+- [x] 35. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

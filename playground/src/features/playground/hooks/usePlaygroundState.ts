@@ -1,34 +1,55 @@
+// features/playground/hooks/usePlaygroundState.ts
+
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useThemeMode } from "@/features/shared/hooks/useThemeMode";
+import { useRendererStore } from "@verdant/renderer";
 import type { CameraData, CursorData } from "@verdant/renderer";
-import { PRESETS } from "../constants/presets";
-import { useDebouncedParse } from "./useDebouncedParse";
-import type { InspectorTarget, PlaygroundState } from "../types";
 
+import { PRESETS, DEFAULT_PRESET_KEY } from "../constants/presets";
+import { useDebouncedParse } from "./useDebouncedParse";
+import { DEFAULT_CAMERA_DATA } from "../types";
+import type { InspectorTarget, PlaygroundState, SchemaTab } from "../types";
+
+/** FPS display update interval in milliseconds */
+const FPS_UPDATE_INTERVAL_MS = 1000;
+
+/** Renderer ready delay in milliseconds — lets first frame render */
+const RENDERER_READY_DELAY_MS = 600;
+
+/**
+ * Central state composer for the playground.
+ *
+ * Owns all local UI state, delegates parsing to `useDebouncedParse`,
+ * and pulls renderer metrics from the Zustand store.
+ *
+ * Returns a stable `PlaygroundState` — action functions are referentially
+ * stable across renders (from `useCallback` / `useState` setters).
+ */
 export function usePlaygroundState(): PlaygroundState {
-  // ── Code ──
-  const [code, setCode] = useState(PRESETS.simple.code);
+  // ── Code ──────────────────────────────────────
+  const [code, setCode] = useState(() => PRESETS[DEFAULT_PRESET_KEY].code);
   const parseResult = useDebouncedParse(code);
 
   const nodeCount = parseResult.ast.nodes.length;
   const edgeCount = parseResult.ast.edges.length;
 
-  const errorCount = useMemo(
-    () => parseResult.diagnostics.filter((d) => d.severity === "error").length,
-    [parseResult.diagnostics],
-  );
+  // Single-pass diagnostic counting
+  const { errorCount, warningCount } = useMemo(() => {
+    let errors = 0;
+    let warnings = 0;
+    for (const d of parseResult.diagnostics) {
+      if (d.severity === "error") errors++;
+      else if (d.severity === "warning") warnings++;
+    }
+    return { errorCount: errors, warningCount: warnings };
+  }, [parseResult.diagnostics]);
 
-  const warningCount = useMemo(
-    () => parseResult.diagnostics.filter((d) => d.severity === "warning").length,
-    [parseResult.diagnostics],
-  );
-
-  // ── UI ──
+  // ── UI ────────────────────────────────────────
   const [schemaOpen, setSchemaOpen] = useState(true);
-  const [schemaTab, setSchemaTab] = useState<"code" | "ai">("code");
-  const [activePreset, setActivePreset] = useState<string>("simple");
+  const [schemaTab, setSchemaTab] = useState<SchemaTab>("code");
+  const [activePreset, setActivePreset] = useState<string>(DEFAULT_PRESET_KEY);
   const [isRendererReady, setIsRendererReady] = useState(false);
   const [showCoordinateSystem, setShowCoordinateSystem] = useState(true);
 
@@ -45,40 +66,49 @@ export function usePlaygroundState(): PlaygroundState {
     setSchemaTab("code");
   }, []);
 
-  // ── Camera ──
-  const [cameraData, setCameraData] = useState<CameraData>({
-    position: [0, 6, 12],
-    fov: 45,
-    distance: 14.0,
-    effectiveFov: 45,
-    axisProjections: {
-      x: [1, 0, 0],
-      y: [0, 0.89, 0.45],
-      z: [0, -0.45, 0.89],
-    },
-  });
+  // ── Camera ────────────────────────────────────
+  const [cameraData, setCameraData] = useState<CameraData>(DEFAULT_CAMERA_DATA);
   const [cursorData, setCursorData] = useState<CursorData | null>(null);
 
-  // ── Inspector ──
+  // ── Inspector ─────────────────────────────────
   const [inspectorTarget, setInspectorTarget] = useState<InspectorTarget | null>(null);
 
-  // ── Theme ──
+  // ── Status bar (from renderer Zustand store) ──
+  const selectionSet = useRendererStore((s) => s.selectionSet);
+  const undoDepth = useRendererStore((s) => s.undoDepth);
+  const layoutName = useRendererStore((s) => s.layoutName);
+  const rawFps = useRendererStore((s) => s.fps);
+
+  // FPS throttle — reads latest value from ref on a fixed interval.
+  // Avoids the lossy useEffect + Date.now() check pattern.
+  const [fps, setFps] = useState(0);
+  const rawFpsRef = useRef(rawFps);
+  rawFpsRef.current = rawFps;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFps(rawFpsRef.current);
+    }, FPS_UPDATE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  const selectionCount = selectionSet.size;
+
+  // ── Theme ─────────────────────────────────────
   const { resolvedTheme, themeMode, setThemeMode } = useThemeMode("dark");
 
   const toggleTheme = useCallback(() => {
-    if (themeMode === "system") {
-      setThemeMode(resolvedTheme === "dark" ? "light" : "dark");
-    } else {
-      setThemeMode(themeMode === "dark" ? "light" : "dark");
-    }
+    const current = themeMode === "system" ? resolvedTheme : themeMode;
+    setThemeMode(current === "dark" ? "light" : "dark");
   }, [themeMode, resolvedTheme, setThemeMode]);
 
-  // ── Init renderer delay ──
+  // ── Renderer ready delay ──────────────────────
   useEffect(() => {
-    const t = setTimeout(() => setIsRendererReady(true), 600);
+    const t = setTimeout(() => setIsRendererReady(true), RENDERER_READY_DELAY_MS);
     return () => clearTimeout(t);
   }, []);
 
+  // ── Return ────────────────────────────────────
   return {
     code,
     setCode,
@@ -107,7 +137,12 @@ export function usePlaygroundState(): PlaygroundState {
     inspectorTarget,
     setInspectorTarget,
 
-    resolvedTheme: (resolvedTheme as "light" | "dark") ?? "dark",
+    selectionCount,
+    undoDepth,
+    layoutName,
+    fps,
+
+    resolvedTheme: resolvedTheme === "light" ? "light" : "dark",
     toggleTheme,
   };
 }

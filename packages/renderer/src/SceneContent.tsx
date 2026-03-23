@@ -10,10 +10,17 @@ import {
   NestedGroup,
   usePrimitives,
 } from '@verdant/primitives';
-import { useRendererStore } from './store';
 import type { VrdAST } from '@verdant/parser';
-import { projectToScreen } from './utils';
-import { BlueprintGroundPlane } from './grid/BlueprintGroundPlane';
+import { useRendererStore } from './store';
+import { projectToScreen, safeGroupWalk, computeSceneBounds, VEC3_ORIGIN } from './utils';
+import type { SceneBounds } from './types';
+
+// ── New grid system (Phase 1) ──                                   ← CHANGED
+import { RaycastFloor } from './grid/RaycastFloor';
+import { AxisLines } from './grid/AxisLines';
+import { NodeReferenceLines } from './grid/NodeReferenceLines';
+import { AxisGizmo } from './grid/AxisGizmo';
+
 import { DraggableNode } from './nodes/DraggableNode';
 import { MeasurementLinesGroup } from './measurement/MeasurementLinesGroup';
 import { useAutoRotate } from './hooks/useAutoRotate';
@@ -25,11 +32,8 @@ import type {
   SceneContentProps,
   MeasurementLine,
   Vec3,
-  CursorData,
-  PersistedViewState,
   VerdantRendererHandle,
 } from './types';
-import { VEC3_ORIGIN, VEC3_ORIGIN as ORIGIN } from './utils';
 import {
   AUTO_ROTATE_SPEED,
   ORBIT_MIN_DISTANCE,
@@ -40,12 +44,60 @@ import {
   DEFAULT_CAMERA_TARGET,
 } from './constants';
 
+// ═══════════════════════════════════════════════════════════════════
+//  Typed Controls Ref (Bug fix — replaces 8+ `React.RefObject<any>`)
+// ═══════════════════════════════════════════════════════════════════
+
+/** Structural type for drei OrbitControls ref */
+interface OrbitControlsImpl {
+  target: THREE.Vector3;
+  update: () => void;
+  autoRotate: boolean;
+  autoRotateSpeed: number;
+  enabled: boolean;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Shared zoomToFit (Bug #2 — single implementation)
+// ═══════════════════════════════════════════════════════════════════
+
+/** Module-scoped reusable vector to avoid allocation per call (Bug #22) */
+const _offset = new THREE.Vector3();                                  // ← NEW
+
+/**
+ * Unified zoomToFit used by both imperative handle and keyboard 'F'.
+ *
+ * Uses `computeSceneBounds` from utils to avoid ad-hoc Box3 allocations.
+ * Buffer factor: 1.5 (consistent everywhere now — Bug #2).
+ */
+export function zoomToFit(                                            // ← NEW (exported for useKeyboardNavigation)
+  positions: Readonly<Record<string, Vec3>>,
+  camera: THREE.Camera,
+  controls: OrbitControlsImpl | null,
+): void {
+  if (!controls || Object.keys(positions).length === 0) return;
+
+  const bounds = computeSceneBounds(positions);
+  const { center, maxExtent } = bounds;
+
+  const fov = (camera as THREE.PerspectiveCamera).fov ?? DEFAULT_CAMERA_FOV;
+  const minDim = Math.max(maxExtent, 20);
+  let distance = minDim / (2 * Math.tan((Math.PI * fov) / 360));
+  distance = Math.max(distance * 1.5, 30);
+
+  _offset.set(0, 0.5, 1).normalize().multiplyScalar(distance);
+
+  camera.position.set(
+    center[0] + _offset.x,
+    center[1] + _offset.y,
+    center[2] + _offset.z,
+  );
+  controls.target.set(center[0], center[1], center[2]);
+  controls.update();
+}
 
 // ═══════════════════════════════════════════════════════════════════
 //  Measurement Lines Hook
-//
-//  Computes the set of measurement lines connecting the active
-//  (selected) node to its neighbors via edges.
 // ═══════════════════════════════════════════════════════════════════
 
 function useMeasurementLines(
@@ -81,10 +133,61 @@ function useMeasurementLines(
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  Group Utilities (Bug #16 — centralized using safeGroupWalk)
+// ═══════════════════════════════════════════════════════════════════
+
+/** Collect all descendant node IDs for a group (including nested subgroups) */
+function collectGroupNodeIds(group: VrdAST['groups'][number]): string[] {
+  const ids: string[] = [...group.children];
+  safeGroupWalk(group.groups, (child) => {
+    ids.push(...child.children);
+  });
+  return ids;
+}
+
+/** Compute axis-aligned bounds from a set of node positions with padding */
+function computeGroupBounds(
+  nodeIds: string[],
+  positions: Readonly<Record<string, Vec3>>,
+  padding: number,
+): { position: [number, number, number]; size: [number, number, number]; hasValid: boolean } {
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  let hasValid = false;
+
+  for (const id of nodeIds) {
+    const p = positions[id];
+    if (!p) continue;
+    hasValid = true;
+    if (p[0] < minX) minX = p[0];
+    if (p[0] > maxX) maxX = p[0];
+    if (p[1] < minY) minY = p[1];
+    if (p[1] > maxY) maxY = p[1];
+    if (p[2] < minZ) minZ = p[2];
+    if (p[2] > maxZ) maxZ = p[2];
+  }
+
+  if (!hasValid) {
+    return { position: [0, 0, 0], size: [4, 4, 4], hasValid: false };
+  }
+
+  return {
+    position: [
+      (minX + maxX) / 2,
+      (minY + maxY) / 2,
+      (minZ + maxZ) / 2,
+    ],
+    size: [
+      Math.max(maxX - minX + padding * 2, 4),
+      Math.max(maxY - minY + padding * 2, 4),
+      Math.max(maxZ - minZ + padding * 2, 4),
+    ],
+    hasValid: true,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  Edge Rendering
-//
-//  Extracted to avoid re-creating edge element arrays when only
-//  node selection or hover state changes.
 // ═══════════════════════════════════════════════════════════════════
 
 interface EdgesLayerProps {
@@ -120,7 +223,7 @@ const EdgesLayer = React.memo(function EdgesLayer({
             key={`edge-${edge.from}-${edge.to}-${i}`}
             from={fromPos}
             to={toPos}
-            label={edge.props.label}
+            label={edge.props.label ?? ''}
             animated={edge.props.style === 'animated' || !edge.props.style}
             style={edge.props.style || 'solid'}
             color={edge.props.color || accentColor}
@@ -139,7 +242,7 @@ const EdgesLayer = React.memo(function EdgesLayer({
 });
 
 // ═══════════════════════════════════════════════════════════════════
-//  Groups Rendering
+//  Groups Rendering (Bug #9, #16 — memoized + safeGroupWalk)
 // ═══════════════════════════════════════════════════════════════════
 
 interface GroupsLayerProps {
@@ -152,76 +255,50 @@ const GroupsLayer = React.memo(function GroupsLayer({
   const ast = useRendererStore((s) => s.ast);
   const positions = useRendererStore((s) => s.positions);
 
-  if (!ast) return null;
+  const groupData = useMemo(() => {                                   // ← CHANGED: memoized (Bug #9)
+    if (!ast) return [];
 
-  // Render all groups mapped to their absolute positions as flat children.
-  const flatGroups: Array<{ group: VrdAST['groups'][number]; depth: number }> = [];
-  const getSubtreeGroups = (groups: typeof ast.groups, depth: number) => {
-    for (const g of groups) {
-      flatGroups.push({ group: g, depth });
-      getSubtreeGroups(g.groups, depth + 1);
-    }
-  };
-  getSubtreeGroups(ast.groups, 0);
+    const result: Array<{
+      id: string;
+      label: string;
+      depth: number;
+      collapsed: boolean;
+      position: [number, number, number];
+      size: [number, number, number];
+    }> = [];
 
-  // Helper to recursively collect all node IDs for bounds calculation
-  const getGroupNodeIds = (group: VrdAST['groups'][number]): string[] => {
-    let ids = [...group.children];
-    for (const childGroup of group.groups) {
-      ids = ids.concat(getGroupNodeIds(childGroup));
-    }
-    return ids;
-  };
+    safeGroupWalk(ast.groups, (group, depth) => {                     // ← CHANGED: uses safeGroupWalk (Bug #16)
+      const nodeIds = collectGroupNodeIds(group);
+      const bounds = computeGroupBounds(nodeIds, positions, 2.5);
+
+      result.push({
+        id: group.id,
+        label: group.label ?? '',
+        depth,
+        collapsed: group.props?.collapsed === true,
+        position: bounds.position,
+        size: bounds.size,
+      });
+    });
+
+    return result;
+  }, [ast, positions]);
+
+  if (groupData.length === 0) return null;
 
   return (
     <>
-      {flatGroups.map(({ group, depth }) => {
-        const nodeIds = getGroupNodeIds(group);
-        let minX = Infinity, minY = Infinity, minZ = Infinity;
-        let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-        let hasValid = false;
-
-        for (const id of nodeIds) {
-          const p = positions[id];
-          if (p) {
-            hasValid = true;
-            if (p[0] < minX) minX = p[0];
-            if (p[0] > maxX) maxX = p[0];
-            if (p[1] < minY) minY = p[1];
-            if (p[1] > maxY) maxY = p[1];
-            if (p[2] < minZ) minZ = p[2];
-            if (p[2] > maxZ) maxZ = p[2];
-          }
-        }
-
-        const padding = 2.5;
-        let position: [number, number, number] = [0, 0, 0];
-        let size: [number, number, number] = [4, 4, 4];
-
-        if (hasValid) {
-          const w = Math.max(maxX - minX + padding * 2, 4);
-          const h = Math.max(maxY - minY + padding * 2, 4);
-          const d = Math.max(maxZ - minZ + padding * 2, 4);
-          size = [w, h, d];
-          position = [
-            (minX + maxX) / 2,
-            (minY + maxY) / 2,
-            (minZ + maxZ) / 2,
-          ];
-        }
-
-        const collapsed = group.props?.collapsed === true;
-        const GroupComponent = depth > 0 ? NestedGroup : GroupContainer;
-
+      {groupData.map((g) => {
+        const GroupComponent = g.depth > 0 ? NestedGroup : GroupContainer;
         return (
           <GroupComponent
-            key={group.id}
-            label={group.label}
+            key={g.id}
+            label={g.label}
             color={accentColor}
-            collapsed={collapsed}
-            size={size}
-            position={position}
-            depth={depth}
+            collapsed={g.collapsed}
+            size={g.size}
+            position={g.position}
+            depth={g.depth}
           />
         );
       })}
@@ -234,7 +311,7 @@ const GroupsLayer = React.memo(function GroupsLayer({
 // ═══════════════════════════════════════════════════════════════════
 
 interface NodesLayerProps {
-  readonly controlsRef: React.RefObject<any>;
+  readonly controlsRef: React.RefObject<OrbitControlsImpl | null>;    // ← CHANGED: typed ref
   readonly onNodeClick: (nodeId: string, pos: Vec3, e: any) => void;
   readonly onHoverEnter: (id: string) => void;
   readonly onHoverLeave: () => void;
@@ -302,6 +379,12 @@ const SceneLighting = React.memo(function SceneLighting() {
 });
 
 // ═══════════════════════════════════════════════════════════════════
+//  Reusable Vector3 for handleDoubleClick (Bug #23)
+// ═══════════════════════════════════════════════════════════════════
+
+const _dblClickOffset = new THREE.Vector3();                          // ← NEW
+
+// ═══════════════════════════════════════════════════════════════════
 //  Main Component
 // ═══════════════════════════════════════════════════════════════════
 
@@ -331,50 +414,20 @@ export const SceneContent = React.forwardRef<
 
     const { camera, size } = useThree();
 
-  const controlsRef = useRef<any>(null);
+    const controlsRef = useRef<OrbitControlsImpl | null>(null);       // ← CHANGED: typed ref
 
-  // Resolve active node: external prop takes priority over store
-  const activeNodeId = externalSelectedId ?? selectedNodeId;
+    // Track orbit target for AxisGizmo                               ← NEW
+    const orbitTargetRef = useRef<Vec3>(initialTarget);
+
+    const activeNodeId = externalSelectedId ?? selectedNodeId;
 
     const { commandHistory } = usePrimitives();
 
-    const zoomToFit = useCallback(() => {
-      if (!ast || ast.nodes.length === 0 || !controlsRef.current) return;
+    // ── Unified zoomToFit (Bug #2) ──                              ← CHANGED
 
-      const box = new THREE.Box3();
-      for (const node of ast.nodes) {
-        const pos = positions[node.id];
-        if (pos) {
-          box.expandByPoint(new THREE.Vector3(pos[0], pos[1], pos[2]));
-        }
-      }
-
-      if (box.isEmpty()) return;
-
-      const center = new THREE.Vector3();
-      box.getCenter(center);
-
-      const size = new THREE.Vector3();
-      box.getSize(size);
-
-      // Get max dimension for scaling
-      const maxDim = Math.max(size.x, size.y, size.z, 20); // enforce min bounding bounds
-      const fov = (camera as THREE.PerspectiveCamera).fov ?? 45;
-
-      // Distance to fit the box
-      let distance = maxDim / (2 * Math.tan((Math.PI * fov) / 360));
-      // Buffer factor
-      distance = Math.max(distance * 1.5, 30);
-
-      // New camera position: relative to center
-      const offset = new THREE.Vector3(0, 0.5, 1).normalize().multiplyScalar(distance);
-      const newPos = center.clone().add(offset);
-
-      // Apply
-      camera.position.set(newPos.x, newPos.y, newPos.z);
-      controlsRef.current.target.set(center.x, center.y, center.z);
-      controlsRef.current.update();
-    }, [ast, positions, camera]);
+    const handleZoomToFit = useCallback(() => {
+      zoomToFit(positions, camera, controlsRef.current);
+    }, [positions, camera]);
 
     const resetCamera = useCallback(() => {
       if (!controlsRef.current) return;
@@ -392,6 +445,7 @@ export const SceneContent = React.forwardRef<
         DEFAULT_CAMERA_TARGET[2],
       );
       controlsRef.current.update();
+      orbitTargetRef.current = DEFAULT_CAMERA_TARGET;
     }, [camera]);
 
     React.useImperativeHandle(
@@ -399,15 +453,15 @@ export const SceneContent = React.forwardRef<
       () => ({
         undo: () => commandHistory?.undo(),
         redo: () => commandHistory?.redo(),
-        zoomToFit,
+        zoomToFit: handleZoomToFit,
         resetCamera,
       }),
-      [commandHistory, zoomToFit, resetCamera],
+      [commandHistory, handleZoomToFit, resetCamera],
     );
 
     // ── Hooks ──
 
-    const { isInteractingRef, handleInteractionStart, handleInteractionEnd } =
+    const { handleInteractionStart, handleInteractionEnd } =
       useAutoRotate(controlsRef, autoRotate);
 
     useCursorTracking(controlsRef, onCursorMove);
@@ -418,130 +472,146 @@ export const SceneContent = React.forwardRef<
 
     const handleControlsChange = useViewPersistence(controlsRef, onViewChange);
 
+    // ── Measurement lines ──
 
-  // ── Measurement lines ──
+    const measurementLines = useMeasurementLines(activeNodeId);
 
-  const measurementLines = useMeasurementLines(activeNodeId);
+    // ── Initial camera target ──
 
-  // ── Initial camera target ──
+    useEffect(() => {
+      if (!controlsRef.current) return;
+      controlsRef.current.target.set(
+        initialTarget[0],
+        initialTarget[1],
+        initialTarget[2],
+      );
+      controlsRef.current.update();
+      orbitTargetRef.current = initialTarget;
+    }, [initialTarget]);
 
-  useEffect(() => {
-    if (!controlsRef.current) return;
-    controlsRef.current.target.set(
-      initialTarget[0],
-      initialTarget[1],
-      initialTarget[2],
+    // ── Interaction callbacks ──
+
+    const handleNodeClick = useCallback(
+      (nodeId: string, position: Vec3, e: any) => {
+        e.stopPropagation();
+        selectNode(nodeId);
+        if (onNodeClick) {
+          const screen = projectToScreen(position, camera, size);
+          onNodeClick({ nodeId, screenX: screen.x, screenY: screen.y });
+        }
+      },
+      [camera, size, selectNode, onNodeClick],
     );
-    controlsRef.current.update();
-  }, [initialTarget]);
 
-  // ── Interaction callbacks ──
+    const handleHoverEnter = useCallback(
+      (id: string) => {
+        hoverNode(id);
+        if (typeof document !== 'undefined') {
+          document.body.style.cursor = 'grab';
+        }
+      },
+      [hoverNode],
+    );
 
-  const handleNodeClick = useCallback(
-    (nodeId: string, position: Vec3, e: any) => {
-      e.stopPropagation();
-      selectNode(nodeId);
-      if (onNodeClick) {
-        const screen = projectToScreen(position, camera, size);
-        onNodeClick({ nodeId, screenX: screen.x, screenY: screen.y });
-      }
-    },
-    [camera, size, selectNode, onNodeClick],
-  );
-
-  const handleHoverEnter = useCallback(
-    (id: string) => {
-      hoverNode(id);
+    const handleHoverLeave = useCallback(() => {
+      hoverNode(null);
       if (typeof document !== 'undefined') {
-        document.body.style.cursor = 'grab';
+        document.body.style.cursor = '';
       }
-    },
-    [hoverNode],
-  );
+    }, [hoverNode]);
 
-  const handleHoverLeave = useCallback(() => {
-    hoverNode(null);
-    if (typeof document !== 'undefined') {
-      document.body.style.cursor = '';
-    }
-  }, [hoverNode]);
+    const handlePointerMissed = useCallback(
+      () => selectNode(null),
+      [selectNode],
+    );
 
-  const handlePointerMissed = useCallback(
-    () => selectNode(null),
-    [selectNode],
-  );
+    // Bug #12 fix: detect whether we're clicking a node or empty canvas
+    const handleContextMenu = useCallback(                            // ← CHANGED
+      (e: any) => {
+        e.stopPropagation();
+        const nativeEvent = e.nativeEvent as MouseEvent | undefined;
 
-  const handleContextMenu = useCallback(
-    (e: any) => {
+        // If the event has an object intersection, it's on a node;
+        // otherwise it's on empty canvas
+        const isOnNode = selectedNodeId != null;                      // ← CHANGED
+        setContextMenu({
+          visible: true,
+          x: nativeEvent?.clientX ?? 0,
+          y: nativeEvent?.clientY ?? 0,
+          targetId: isOnNode ? selectedNodeId : undefined,
+          targetType: isOnNode ? 'node' : 'canvas',                   // ← CHANGED (Bug #12)
+        });
+      },
+      [selectedNodeId, setContextMenu],
+    );
+
+    // Bug #23 fix: reuse module-scoped Vector3
+    const handleDoubleClick = useCallback((e: any) => {               // ← CHANGED
       e.stopPropagation();
-      const nativeEvent = e.nativeEvent as MouseEvent | undefined;
-      setContextMenu({
-        visible: true,
-        x: nativeEvent?.clientX ?? 0,
-        y: nativeEvent?.clientY ?? 0,
-        targetId: selectedNodeId ?? undefined,
-        targetType: 'node',
-      });
-    },
-    [selectedNodeId, setContextMenu],
-  );
+      if (!controlsRef.current) return;
 
-  const handleDoubleClick = useCallback((e: any) => {
-    e.stopPropagation();
-    if (!controlsRef.current) return;
-    
-    // Shift rotation pivot to exactly where the user double-clicks (cursor pointer)
-    const newTarget = e.point as THREE.Vector3;
-    const controls = controlsRef.current;
-    
-    // Mathematically shift the camera by the same relative offset to prevent screen-jump
-    const offset = new THREE.Vector3().subVectors(newTarget, controls.target);
-    camera.position.add(offset);
-    
-    controls.target.copy(newTarget);
-    controls.update();
-  }, [camera]);
+      const newTarget = e.point as THREE.Vector3;
+      const controls = controlsRef.current;
 
-  if (!ast) return null;
+      _dblClickOffset.subVectors(newTarget, controls.target);        // ← CHANGED: no allocation
+      camera.position.add(_dblClickOffset);
 
-  return (
-    <group onDoubleClick={handleDoubleClick}>
-      <SceneLighting />
+      controls.target.copy(newTarget);
+      controls.update();
 
-      {showCoordinateSystem && <BlueprintGroundPlane />}
+      orbitTargetRef.current = [newTarget.x, newTarget.y, newTarget.z]; // ← NEW: track for gizmo
+    }, [camera]);
 
-      <MeasurementLinesGroup
-        lines={measurementLines}
-        accentColor={themeColors.accent}
-      />
+    if (!ast) return null;
 
-      <group
-        onPointerMissed={handlePointerMissed}
-        onContextMenu={handleContextMenu}
-      >
-        <NodesLayer
-          controlsRef={controlsRef}
-          onNodeClick={handleNodeClick}
-          onHoverEnter={handleHoverEnter}
-          onHoverLeave={handleHoverLeave}
+    return (
+      <group onDoubleClick={handleDoubleClick}>
+        <SceneLighting />
+
+        {/* Raycast floor always present (needed for double-click pivot) */}
+        <RaycastFloor />                                              {/* ← CHANGED */}
+
+        {showCoordinateSystem && (                                    /* ← CHANGED: new grid system */
+          <>
+            <AxisLines />
+            <NodeReferenceLines mode="selected" />
+            <AxisGizmo target={orbitTargetRef.current} />
+          </>
+        )}
+
+        <MeasurementLinesGroup
+          lines={measurementLines}
+          accentColor={themeColors.accent}
         />
-        <EdgesLayer accentColor={themeColors.edgeDefault} />
-        <GroupsLayer accentColor={themeColors.accent} />
-      </group>
 
-      <OrbitControls
-        ref={controlsRef}
-        makeDefault
-        enableDamping
-        dampingFactor={ORBIT_DAMPING_FACTOR}
-        minDistance={ORBIT_MIN_DISTANCE}
-        maxDistance={ORBIT_MAX_DISTANCE}
-        autoRotate={autoRotate}
-        autoRotateSpeed={AUTO_ROTATE_SPEED}
-        onChange={handleControlsChange}
-        onStart={handleInteractionStart}
-        onEnd={handleInteractionEnd}
-      />
-    </group>
-  );
-});
+        <group
+          onPointerMissed={handlePointerMissed}
+          onContextMenu={handleContextMenu}
+        >
+          <NodesLayer
+            controlsRef={controlsRef}
+            onNodeClick={handleNodeClick}
+            onHoverEnter={handleHoverEnter}
+            onHoverLeave={handleHoverLeave}
+          />
+          <EdgesLayer accentColor={themeColors.edgeDefault} />
+          <GroupsLayer accentColor={themeColors.accent} />
+        </group>
+
+        <OrbitControls
+          ref={controlsRef as React.RefObject<any>}
+          makeDefault
+          enableDamping
+          dampingFactor={ORBIT_DAMPING_FACTOR}
+          minDistance={ORBIT_MIN_DISTANCE}
+          maxDistance={ORBIT_MAX_DISTANCE}
+          autoRotate={autoRotate}
+          autoRotateSpeed={AUTO_ROTATE_SPEED}
+          onChange={handleControlsChange}
+          onStart={handleInteractionStart}
+          onEnd={handleInteractionEnd}
+        />
+      </group>
+    );
+  },
+);

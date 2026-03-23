@@ -11,6 +11,11 @@ export type Vec3 = readonly [number, number, number];
  */
 export type MutVec3 = [number, number, number];
 
+// ── Axis ──                                                       // ← NEW
+
+/** Axis identifier used across grid, reference lines, and gizmo components. */
+export type AxisId = 'x' | 'y' | 'z';                              // ← NEW
+
 // ── Camera ──
 
 export interface CameraData {
@@ -57,12 +62,28 @@ export interface MeasurementLine {
   readonly direction: 'outgoing' | 'incoming';
 }
 
-// ── Coordinate Grid ──
+// ── Coordinate Grid (Legacy) ──
 
-export interface TickData {
+/**
+ * @deprecated Will be removed in grid redesign (Phase 1).
+ * Tick marks are replaced by per-node reference lines.
+ */
+export interface TickData {                                          // ← CHANGED: added @deprecated
   readonly pos: Vec3;
-  readonly axis: 'x' | 'y' | 'z';
+  readonly axis: AxisId;                                             // ← CHANGED: was 'x' | 'y' | 'z'
   readonly val: number;
+}
+
+// ── Scene Bounds ──                                               // ← NEW section
+
+/** Axis-aligned bounding box computed from node positions. */
+export interface SceneBounds {                                       // ← NEW
+  readonly min: Vec3;
+  readonly max: Vec3;
+  /** Largest extent across any single axis */
+  readonly maxExtent: number;
+  /** Center of the bounding box */
+  readonly center: Vec3;
 }
 
 // ── Context Menu (discriminated union — impossible invalid states) ──
@@ -117,6 +138,11 @@ export interface VerdantRendererProps {
   autoRotate?: boolean;
   showCoordinateSystem?: boolean;
 
+  /** Set to false to force WebGL even when WebGPU is available */
+  preferWebGPU?: boolean;
+  /** Called once when the renderer backend is determined */
+  onBackendDetected?: (backend: 'webgpu' | 'webgl') => void;
+
   // Callbacks
   onNodeClick?: (info: NodeClickInfo) => void;
   onCameraChange?: (data: CameraData) => void;
@@ -149,4 +175,4 @@ export interface VerdantRendererHandle {
   readonly redo: () => void;
   readonly zoomToFit: () => void;
   readonly resetCamera: () => void;
-}
+}

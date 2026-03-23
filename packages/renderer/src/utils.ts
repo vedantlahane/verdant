@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import type { VrdGroup } from '@verdant/parser';
-import type { Vec3, MutVec3, ScreenPoint } from './types';
+import type { Vec3, MutVec3, ScreenPoint, SceneBounds } from './types';
 import { MAX_GROUP_DEPTH } from './constants';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -57,6 +57,84 @@ export function sanitizePosition(
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  Set Equality                                                     ← NEW
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Shallow equality check for ReadonlySet values.
+ *
+ * Used by `useExternalCallback` to avoid spurious `onSelectionChange`
+ * emissions when a new Set is created with identical contents (Bug #3).
+ *
+ * O(n) where n = size of smaller set. Short-circuits on size mismatch.
+ */
+export function setsEqual<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean {
+  if (a === b) return true;
+  if (a.size !== b.size) return false;
+  for (const item of a) {
+    if (!b.has(item)) return false;
+  }
+  return true;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Scene Bounds                                                     ← NEW
+//
+//  Computes an AABB from node positions. Used by:
+//  - Dynamic axis lines (extend to scene bounds + padding)
+//  - Unified zoomToFit (Phase 2, replaces two divergent impls)
+// ═══════════════════════════════════════════════════════════════════
+
+/** Fallback bounds when scene has no nodes */
+const DEFAULT_BOUNDS: SceneBounds = Object.freeze({
+  min: Object.freeze([-10, -10, -10]) as Vec3,
+  max: Object.freeze([10, 10, 10]) as Vec3,
+  maxExtent: 20,
+  center: VEC3_ORIGIN,
+});
+
+/**
+ * Compute an axis-aligned bounding box from a positions record.
+ *
+ * Returns `DEFAULT_BOUNDS` if the record is empty, ensuring consumers
+ * always get valid finite bounds without special-casing.
+ */
+export function computeSceneBounds(
+  positions: Readonly<Record<string, Vec3>>,
+): SceneBounds {
+  const keys = Object.keys(positions);
+  if (keys.length === 0) return DEFAULT_BOUNDS;
+
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+  for (const key of keys) {
+    const p = positions[key];
+    if (p[0] < minX) minX = p[0];
+    if (p[1] < minY) minY = p[1];
+    if (p[2] < minZ) minZ = p[2];
+    if (p[0] > maxX) maxX = p[0];
+    if (p[1] > maxY) maxY = p[1];
+    if (p[2] > maxZ) maxZ = p[2];
+  }
+
+  const extX = maxX - minX;
+  const extY = maxY - minY;
+  const extZ = maxZ - minZ;
+
+  return {
+    min: [minX, minY, minZ] as Vec3,
+    max: [maxX, maxY, maxZ] as Vec3,
+    maxExtent: Math.max(extX, extY, extZ),
+    center: [
+      (minX + maxX) * 0.5,
+      (minY + maxY) * 0.5,
+      (minZ + maxZ) * 0.5,
+    ] as Vec3,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  Screen Projection
 // ═══════════════════════════════════════════════════════════════════
 
@@ -75,7 +153,6 @@ export function projectToScreen(
   camera: THREE.Camera,
   size: { readonly width: number; readonly height: number },
 ): ScreenPoint {
-  // Avoid spread: `set(...worldPos)` creates an intermediate array
   _projVec.set(worldPos[0], worldPos[1], worldPos[2]).project(camera);
   return {
     x: ((_projVec.x + 1) * 0.5) * size.width,
@@ -111,13 +188,12 @@ export function seededRandom(seed: number): () => number {
 /**
  * DJB2 hash → non-negative 32-bit integer.
  *
- * The original used `Math.abs()` which has an edge case:
- * `Math.abs(-2147483648)` → `2147483648` (exceeds signed 32-bit range).
- * We use `>>> 0` (unsigned right-shift) for a guaranteed [0, 2³²-1] result.
+ * Uses `>>> 0` (unsigned right-shift) for a guaranteed [0, 2³²-1] result.
+ * This avoids the `Math.abs(-2147483648) → 2147483648` edge case.
  *
- * ⚠️  This changes hash output for ~1 in 2³¹ inputs.
- *     Existing localStorage keys using the old hash will become orphaned
- *     (benign: they'll be ignored and new entries are created).
+ * ⚠️  This changes hash output for ~1 in 2³¹ inputs vs the old Math.abs
+ *     version. Existing localStorage keys using the old hash will become
+ *     orphaned (benign: ignored and new entries are created).
  */
 export function hashString(str: string): number {
   let hash = 5381;
@@ -129,10 +205,7 @@ export function hashString(str: string): number {
 
 /**
  * Compact base-36 hash suitable for localStorage keys.
- *
- * The original implementation used a different algorithm (Java's `String.hashCode`:
- * `h * 31 + char`) than `hashString` (DJB2: `h * 33 + char`).
- * Now consolidated to DJB2 for consistency.
+ * Consolidated to DJB2 for consistency.
  */
 export function hashForStorageKey(input: string): string {
   return hashString(input).toString(36);
@@ -157,7 +230,6 @@ export function safeGroupWalk(
 ): void {
   if (groups.length === 0) return;
 
-  // Pre-allocate with reasonable capacity estimate
   const stack: Array<{ group: VrdGroup; depth: number }> =
     new Array(Math.min(groups.length * 2, 256));
   let stackSize = 0;
@@ -179,7 +251,6 @@ export function safeGroupWalk(
 
     const children = group.groups;
     for (let i = children.length - 1; i >= 0; i--) {
-      // Grow if needed (rare — only with very wide trees)
       if (stackSize >= stack.length) stack.length *= 2;
       stack[stackSize++] = { group: children[i], depth: depth + 1 };
     }
@@ -190,7 +261,6 @@ export function safeGroupWalk(
 //  Dark Mode Detection
 // ═══════════════════════════════════════════════════════════════════
 
-/** Set of known light-mode background values (O(1) lookup vs O(n) array scan) */
 const LIGHT_BG_VALUES: ReadonlySet<string> = new Set([
   '#ffffff',
   '#fff',

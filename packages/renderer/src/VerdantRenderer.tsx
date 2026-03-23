@@ -1,28 +1,34 @@
 // VerdantRenderer.tsx
 
-import React, { useEffect, useMemo, useCallback, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useCallback, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PrimitivesProvider } from '@verdant/primitives';
 import type { PrimitivesConfig } from '@verdant/primitives';
 import { Minimap, ContextMenu } from '@verdant/primitives';
 import type { VrdConfig } from '@verdant/parser';
-import { useRendererStore } from './store';
+import { useRendererStore, cancelPendingPersist } from './store';
 import { SceneContent } from './SceneContent';
 import { CameraTracker } from './camera/CameraTracker';
+import { useRenderer } from './renderer/useRenderer';                  // ← NEW
 import {
   getAstViewStorageKey,
   readViewState,
   writeViewState,
 } from './store.persistence';
-import type { VerdantRendererProps, PersistedViewState, Vec3, ContextMenuState, VerdantRendererHandle } from './types';
-
+import { safeGroupWalk, setsEqual, VEC3_ORIGIN as ORIGIN } from './utils';
+import type {
+  VerdantRendererProps,
+  PersistedViewState,
+  Vec3,
+  VerdantRendererHandle,
+} from './types';
 import {
   DEFAULT_CAMERA_POSITION,
   DEFAULT_CAMERA_FOV,
   DEFAULT_CAMERA_TARGET,
   DPR_RANGE,
 } from './constants';
-import { VEC3_ORIGIN as ORIGIN } from './utils';
+import { __DEV__ } from './shared';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AST Config → Primitives Config
@@ -31,12 +37,6 @@ import { VEC3_ORIGIN as ORIGIN } from './utils';
 const DEFAULT_BLOOM_INTENSITY = 1.0;
 const DEFAULT_MAX_UNDO_HISTORY = 100;
 
-/**
- * Convert a VRD AST config block into a PrimitivesProvider config.
- *
- * This is a pure function (no side effects, no hooks) so it can be
- * called in useMemo or in tests.
- */
 export function astConfigToPrimitivesConfig(
   config: VrdConfig,
 ): PrimitivesConfig {
@@ -58,72 +58,7 @@ export function astConfigToPrimitivesConfig(
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  WebGL Context Recovery
-//
-//  When the GPU resets (driver update, resource pressure, sleep/wake),
-//  the WebGL context is lost. We listen for the browser's built-in
-//  recovery events and remount the Canvas via a key increment.
-//
-//  The cleanup function returned by `onCreated` is NOT called by R3F
-//  (it ignores the return value). So we manage listener cleanup
-//  via a ref + useEffect in the component.
-// ═══════════════════════════════════════════════════════════════════
-
-function useWebGLRecovery(): {
-  canvasKey: number;
-  canvasRef: React.MutableRefObject<HTMLCanvasElement | null>;
-  handleCreated: (state: any) => void;
-} {
-  const [canvasKey, setCanvasKey] = useState(0);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  const handleCreated = useCallback((state: any) => {
-    canvasRef.current = state.gl.domElement as HTMLCanvasElement;
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const handleContextLost = (e: Event) => {
-      e.preventDefault();
-      if (__DEV__) {
-        console.warn(
-          '[VerdantRenderer] WebGL context lost — will attempt recovery',
-        );
-      }
-    };
-
-    const handleContextRestored = () => {
-      if (__DEV__) {
-        console.info(
-          '[VerdantRenderer] WebGL context restored — remounting canvas',
-        );
-      }
-      setCanvasKey((k) => k + 1);
-    };
-
-    canvas.addEventListener('webglcontextlost', handleContextLost);
-    canvas.addEventListener('webglcontextrestored', handleContextRestored);
-
-    return () => {
-      canvas.removeEventListener('webglcontextlost', handleContextLost);
-      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
-    };
-  }, [canvasKey]); // Re-attach listeners when canvas remounts
-
-  return { canvasKey, canvasRef, handleCreated };
-}
-
-const __DEV__ =
-  typeof process !== 'undefined' &&
-  process.env?.NODE_ENV !== 'production';
-
-// ═══════════════════════════════════════════════════════════════════
 //  Context Menu Overlay
-//
-//  Extracted to prevent the full VerdantRenderer from re-rendering
-//  when context menu state changes.
 // ═══════════════════════════════════════════════════════════════════
 
 interface ContextMenuOverlayProps {
@@ -147,10 +82,6 @@ const ContextMenuOverlay = React.memo(function ContextMenuOverlay({
 
 // ═══════════════════════════════════════════════════════════════════
 //  Minimap Overlay
-//
-//  Subscribes to positions and ast independently so it only
-//  re-renders when node positions actually change, not on every
-//  hover/selection/camera event.
 // ═══════════════════════════════════════════════════════════════════
 
 interface MinimapOverlayProps {
@@ -171,10 +102,7 @@ const MinimapOverlay = React.memo(function MinimapOverlay({
     const resNodes = ast.nodes.map((node) => ({
       id: node.id,
       position: (positions[node.id] ?? ORIGIN) as [number, number, number],
-      color: getNodeColor(
-        node.type,
-        node.props.color as string | undefined,
-      ),
+      color: getNodeColor(node.type, node.props.color as string | undefined),
     }));
 
     const resEdges = ast.edges.map((edge) => ({
@@ -183,92 +111,97 @@ const MinimapOverlay = React.memo(function MinimapOverlay({
       color: themeColors.edgeDefault || 'rgba(255,255,255,0.25)',
     }));
 
-    // Helper to collect descendants
-    const getGroupNodeIds = (g: typeof ast.groups[number]): string[] => {
-      let ids = [...g.children];
-      for (const childGroup of g.groups) ids = ids.concat(getGroupNodeIds(childGroup));
-      return ids;
-    };
+    const resGroups: Array<{
+      id: string;
+      bounds: { min: [number, number]; max: [number, number] };
+      color: string;
+    }> = [];
 
-    const flatGroups: Array<typeof ast.groups[number]> = [];
-    const getSubtreeGroups = (gs: typeof ast.groups) => {
-      for (const g of gs) {
-        flatGroups.push(g);
-        getSubtreeGroups(g.groups);
-      }
-    };
-    getSubtreeGroups(ast.groups);
+    safeGroupWalk(ast.groups, (group) => {
+      const nodeIds = [...group.children];
+      safeGroupWalk(group.groups, (child) => {
+        nodeIds.push(...child.children);
+      });
 
-    const resGroups = flatGroups.map((g) => {
-      const gNodes = getGroupNodeIds(g);
       let minX = Infinity, minZ = Infinity;
       let maxX = -Infinity, maxZ = -Infinity;
       let hasValid = false;
 
-      for (const id of gNodes) {
+      for (const id of nodeIds) {
         const p = positions[id];
-        if (p) {
-          hasValid = true;
-          if (p[0] < minX) minX = p[0];
-          if (p[0] > maxX) maxX = p[0];
-          if (p[2] < minZ) minZ = p[2];
-          if (p[2] > maxZ) maxZ = p[2];
-        }
-      }
-
-      if (!hasValid) {
-        return { id: g.id, bounds: { min: [0, 0] as [number, number], max: [0, 0] as [number, number] }, color: themeColors.accent };
+        if (!p) continue;
+        hasValid = true;
+        if (p[0] < minX) minX = p[0];
+        if (p[0] > maxX) maxX = p[0];
+        if (p[2] < minZ) minZ = p[2];
+        if (p[2] > maxZ) maxZ = p[2];
       }
 
       const padding = 2.5;
-      return {
-        id: g.id,
-        bounds: {
-          min: [minX - padding, minZ - padding] as [number, number],
-          max: [maxX + padding, maxZ + padding] as [number, number],
-        },
+      resGroups.push({
+        id: group.id,
+        bounds: hasValid
+          ? { min: [minX - padding, minZ - padding], max: [maxX + padding, maxZ + padding] }
+          : { min: [0, 0], max: [0, 0] },
         color: themeColors.accent,
-      };
+      });
     });
 
     return { nodes: resNodes, edges: resEdges, groups: resGroups };
   }, [ast, positions, getNodeColor, themeColors]);
 
   if (!config) return null;
-
   return <Minimap nodes={nodes} edges={edges} groups={groups} config={config} />;
 });
 
 // ═══════════════════════════════════════════════════════════════════
-//  GL Configuration
+//  Canvas Style
 // ═══════════════════════════════════════════════════════════════════
 
-/** Frozen to avoid new object reference on every render */
-const GL_CONFIG = Object.freeze({
-  antialias: true,
-  alpha: false,
-  powerPreference: 'default' as const,
+const CANVAS_STYLE: React.CSSProperties = Object.freeze({
+  width: '100%',
+  height: '100%',
 });
 
 // ═══════════════════════════════════════════════════════════════════
-//  Main Component
+//  External Callback Hook (Bug #3 fix)
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Top-level renderer component.
- *
- * Responsibilities:
- * - Canvas setup (WebGL config, DPR, camera)
- * - Store hydration (AST, theme)
- * - View state persistence (camera position/target/fov)
- * - DOM overlays (Minimap, ContextMenu) outside the R3F reconciler
- * - WebGL context loss recovery
- *
- * The 3D scene itself is delegated to SceneContent.
- */
-/**
- * Top-level renderer component.
- */
+function useExternalCallback<T>(
+  value: T,
+  callback?: (value: T) => void,
+  isEqual?: (a: T, b: T) => boolean,
+): void {
+  const prevRef = useRef<T>(value);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      prevRef.current = value;
+      return;
+    }
+
+    const equal = isEqual
+      ? isEqual(prevRef.current, value)
+      : prevRef.current === value;
+
+    if (equal) return;
+    prevRef.current = value;
+    callback?.(value);
+  }, [value, callback, isEqual]);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Main Component
+//
+//  Phase 3 changes:
+//  - useWebGLRecovery() → useRenderer() (unified backend management)
+//  - GL_CONFIG → glConfig from useRenderer (consistent with backend)
+//  - Canvas key driven by useRenderer.canvasKey
+//  - Backend reported via onBackendChange callback
+// ═══════════════════════════════════════════════════════════════════
+
 export const VerdantRenderer = React.forwardRef<
   VerdantRendererHandle,
   VerdantRendererProps
@@ -282,6 +215,8 @@ export const VerdantRenderer = React.forwardRef<
       className,
       autoRotate = true,
       showCoordinateSystem = true,
+      preferWebGPU = true,
+      onBackendDetected,
       onNodeClick,
       onCameraChange,
       onCursorMove,
@@ -307,194 +242,170 @@ export const VerdantRenderer = React.forwardRef<
       [],
     );
 
+    // ── Renderer setup (replaces useWebGLRecovery) ──             ← CHANGED
 
-  // ── WebGL recovery ──
-
-  const { canvasKey, handleCreated } = useWebGLRecovery();
-
-  // ── View persistence ──
-
-  const viewStorageKey = useMemo(
-    () => getAstViewStorageKey(ast),
-    [ast],
-  );
-
-  const initialView = useMemo(
-    () => readViewState(viewStorageKey),
-    [viewStorageKey],
-  );
-
-  const cameraPosition = useMemo<Vec3>(
-    () => initialView?.position ?? DEFAULT_CAMERA_POSITION,
-    [initialView],
-  );
-
-  const cameraFov = useMemo<number>(
-    () => initialView?.fov ?? DEFAULT_CAMERA_FOV,
-    [initialView],
-  );
-
-  const initialTarget = useMemo<Vec3>(
-    () => initialView?.target ?? DEFAULT_CAMERA_TARGET,
-    [initialView],
-  );
-
-  const handleViewChange = useCallback(
-    (view: PersistedViewState) => {
-      writeViewState(viewStorageKey, view);
-    },
-    [viewStorageKey],
-  );
-
-  // ── Store hydration ──
-
-  useEffect(() => {
-    setAst(ast);
-  }, [ast, setAst]);
-
-  useEffect(() => {
-    setTheme(theme);
-  }, [theme, setTheme]);
-
-  // ── Primitives config ──
-
-  const primitivesConfig = useMemo(
-    () => astConfigToPrimitivesConfig(ast.config),
-    [ast.config],
-  );
-
-  // ── External callbacks ──
-
-  useExternalCallback(
-    useRendererStore((s) => s.selectionSet),
-    onSelectionChange,
-  );
-
-  useExternalCallback(
-    useRendererStore((s) => s.undoDepth),
-    onUndoDepthChange,
-  );
-
-  // ── Context menu actions ──
-
-  const selectNode = useRendererStore((s) => s.selectNode);
-
-  const contextMenuActions = useMemo(
-    () => [
-      {
-        id: 'delete-selected',
-        label: 'Delete selected',
-        appliesTo: ['node', 'edge', 'group'] as Array<
-          'node' | 'edge' | 'group' | 'canvas'
-        >,
-        handler: () => {
-          selectNode(null);
-        },
+    const {
+      canvasKey,
+      glConfig,
+      handleCreated,
+      backend,
+      isDetected,
+    } = useRenderer({
+      config: {
+        antialias: true,
+        alpha: false,
+        powerPreference: 'default',
       },
-      {
-        id: 'duplicate-node',
-        label: 'Duplicate node',
-        appliesTo: ['node'] as Array<
-          'node' | 'edge' | 'group' | 'canvas'
-        >,
-        handler: () => {
-          // TODO: implement when store supports AST mutation
-        },
+      preferWebGPU,
+    });
+
+    useEffect(() => {
+      if (isDetected && onBackendDetected) {
+        onBackendDetected(backend);
+      }
+    }, [isDetected, backend, onBackendDetected]);
+
+    // ── View persistence ──
+
+    const viewStorageKey = useMemo(
+      () => getAstViewStorageKey(ast),
+      [ast],
+    );
+
+    const initialView = useMemo(
+      () => readViewState(viewStorageKey),
+      [viewStorageKey],
+    );
+
+    const cameraPosition = useMemo<Vec3>(
+      () => initialView?.position ?? DEFAULT_CAMERA_POSITION,
+      [initialView],
+    );
+
+    const cameraFov = useMemo<number>(
+      () => initialView?.fov ?? DEFAULT_CAMERA_FOV,
+      [initialView],
+    );
+
+    const initialTarget = useMemo<Vec3>(
+      () => initialView?.target ?? DEFAULT_CAMERA_TARGET,
+      [initialView],
+    );
+
+    const handleViewChange = useCallback(
+      (view: PersistedViewState) => {
+        writeViewState(viewStorageKey, view);
       },
-    ],
-    [selectNode],
-  );
+      [viewStorageKey],
+    );
 
-  // ── Background color ──
+    // ── Store hydration ──
 
-  const bg = theme === 'light' ? '#ffffff' : '#000000';
+    useEffect(() => {
+      setAst(ast);
+    }, [ast, setAst]);
 
-  // ── Container style ──
+    useEffect(() => {
+      setTheme(theme);
+    }, [theme, setTheme]);
 
-  const containerStyle = useMemo<React.CSSProperties>(
-    () => ({
-      position: 'relative',
-      width,
-      height,
-      overflow: 'hidden',
-    }),
-    [width, height],
-  );
+    useEffect(() => {
+      return () => {
+        cancelPendingPersist();
+      };
+    }, []);
 
-  return (
-    <div className={className} style={containerStyle}>
-      <Canvas
-        key={canvasKey}
-        style={CANVAS_STYLE}
-        camera={{ position: cameraPosition, fov: cameraFov }}
-        gl={GL_CONFIG}
-        dpr={DPR_RANGE}
-        onCreated={handleCreated}
-      >
-        <color attach="background" args={[bg]} />
-        <PrimitivesProvider config={primitivesConfig}>
-          <SceneContent
-            ref={sceneHandleRef}
-            autoRotate={autoRotate}
-            showCoordinateSystem={showCoordinateSystem}
-            onNodeClick={onNodeClick}
-            onCursorMove={onCursorMove}
-            selectedNodeId={selectedNodeId}
-            initialTarget={initialTarget}
-            onViewChange={handleViewChange}
-          />
-          {onCameraChange && (
-            <CameraTracker onCameraChange={onCameraChange} />
-          )}
-        </PrimitivesProvider>
-      </Canvas>
+    // ── Primitives config ──
 
-      {/* DOM overlays — outside R3F reconciler */}
-      {primitivesConfig.minimap?.enabled && (
-        <MinimapOverlay config={primitivesConfig.minimap} />
-      )}
-      <ContextMenuOverlay actions={contextMenuActions} />
-    </div>
-  );
-});
+    const primitivesConfig = useMemo(
+      () => astConfigToPrimitivesConfig(ast.config),
+      [ast.config],
+    );
 
-// ═══════════════════════════════════════════════════════════════════
-//  Internal Hooks
-// ═══════════════════════════════════════════════════════════════════
+    // ── External callbacks ──
 
-/** Frozen style for the Canvas element — avoids new object each render */
-const CANVAS_STYLE: React.CSSProperties = Object.freeze({
-  width: '100%',
-  height: '100%',
-});
+    useExternalCallback(
+      useRendererStore((s) => s.selectionSet),
+      onSelectionChange,
+      setsEqual as (a: ReadonlySet<string>, b: ReadonlySet<string>) => boolean,
+    );
 
-/**
- * Fire an external callback when a store value changes.
- *
- * Avoids the pattern of:
- *   useEffect(() => { if (cb) cb(value); }, [value, cb]);
- *
- * Which has the subtle bug of firing on mount even when the value
- * hasn't "changed" — it's just being read for the first time.
- * This hook tracks the previous value and only fires on actual changes.
- */
-function useExternalCallback<T>(value: T, callback?: (value: T) => void): void {
-  const prevRef = useRef<T>(value);
-  const isFirstRender = useRef(true);
+    useExternalCallback(
+      useRendererStore((s) => s.undoDepth),
+      onUndoDepthChange,
+    );
 
-  useEffect(() => {
-    // Skip the initial mount — the parent set the initial value,
-    // so telling them about it is redundant
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      prevRef.current = value;
-      return;
-    }
+    // ── Context menu actions ──
 
-    // Only fire if the value actually changed
-    if (prevRef.current === value) return;
-    prevRef.current = value;
+    const selectNode = useRendererStore((s) => s.selectNode);
 
-    callback?.(value);
-  }, [value, callback]);
-}
+    const contextMenuActions = useMemo(
+      () => [
+        {
+          id: 'delete-selected',
+          label: 'Delete selected',
+          appliesTo: ['node', 'edge', 'group'] as Array<'node' | 'edge' | 'group' | 'canvas'>,
+          handler: () => { selectNode(null); },
+        },
+        {
+          id: 'duplicate-node',
+          label: 'Duplicate node',
+          appliesTo: ['node'] as Array<'node' | 'edge' | 'group' | 'canvas'>,
+          handler: () => { /* TODO */ },
+        },
+      ],
+      [selectNode],
+    );
+
+    // ── Background color ──
+
+    const bg = theme === 'light' ? '#ffffff' : '#000000';
+
+    // ── Container style ──
+
+    const containerStyle = useMemo<React.CSSProperties>(
+      () => ({
+        position: 'relative',
+        width,
+        height,
+        overflow: 'hidden',
+      }),
+      [width, height],
+    );
+
+    return (
+      <div className={className} style={containerStyle}>
+        <Canvas
+          key={canvasKey}
+          style={CANVAS_STYLE}
+          camera={{ position: cameraPosition, fov: cameraFov }}
+          gl={glConfig}
+          dpr={DPR_RANGE}
+          onCreated={handleCreated}
+        >
+          <color attach="background" args={[bg]} />
+          <PrimitivesProvider config={primitivesConfig}>
+            <SceneContent
+              ref={sceneHandleRef}
+              autoRotate={autoRotate}
+              showCoordinateSystem={showCoordinateSystem}
+              onNodeClick={onNodeClick}
+              onCursorMove={onCursorMove}
+              selectedNodeId={selectedNodeId}
+              initialTarget={initialTarget}
+              onViewChange={handleViewChange}
+            />
+            {onCameraChange && (
+              <CameraTracker onCameraChange={onCameraChange} />
+            )}
+          </PrimitivesProvider>
+        </Canvas>
+
+        {primitivesConfig.minimap?.enabled && (
+          <MinimapOverlay config={primitivesConfig.minimap} />
+        )}
+        <ContextMenuOverlay actions={contextMenuActions} />
+      </div>
+    );
+  },
+);

@@ -4,6 +4,7 @@ import type { VrdAST } from '@verdant/parser';
 import type { PersistedViewState, Vec3 } from './types';
 import { hashForStorageKey, isFiniteVec3 } from './utils';
 import { MAX_LOCALSTORAGE_KEY_LENGTH } from './constants';
+import { __DEV__ } from './shared';                                    // ← CHANGED: consolidated (Bug #25)
 
 // ═══════════════════════════════════════════════════════════════════
 //  Storage Key Prefixes
@@ -24,16 +25,9 @@ export interface PersistedRendererState {
 
 // ═══════════════════════════════════════════════════════════════════
 //  AST Signature
-//
-//  Produces a compact, deterministic hash of the AST's structural
-//  identity (node IDs + edge topology + edge labels). Two ASTs
-//  with the same signature should share persisted camera/layout state.
-//
-//  Hashed to base-36 to keep localStorage keys short.
 // ═══════════════════════════════════════════════════════════════════
 
 function computeAstSignature(ast: VrdAST): string {
-  // Sort for determinism — input order should not affect signature
   const nodesSig = ast.nodes
     .map((n) => n.id)
     .sort()
@@ -49,13 +43,6 @@ function computeAstSignature(ast: VrdAST): string {
 
 // ═══════════════════════════════════════════════════════════════════
 //  Safe localStorage Access
-//
-//  All reads/writes go through these two functions which handle:
-//  - SSR (no `window`)
-//  - Private browsing / disabled storage
-//  - Quota exceeded
-//  - Corrupt/unparseable data
-//  - Key length limits
 // ═══════════════════════════════════════════════════════════════════
 
 function safeRead<T>(key: string): T | null {
@@ -65,7 +52,6 @@ function safeRead<T>(key: string): T | null {
     if (raw === null) return null;
     return JSON.parse(raw) as T;
   } catch {
-    // Corrupt JSON or SecurityError — remove the bad entry
     try {
       window.localStorage.removeItem(key);
     } catch {
@@ -79,7 +65,7 @@ function safeWrite(key: string, value: unknown): void {
   if (typeof window === 'undefined') return;
 
   if (key.length > MAX_LOCALSTORAGE_KEY_LENGTH) {
-    if (__DEV__) {
+    if (__DEV__) {                                                     // ← CHANGED: uses shared __DEV__
       console.warn(
         `[VerdantRenderer] localStorage key exceeds ${MAX_LOCALSTORAGE_KEY_LENGTH} chars — skipping write. Key: "${key.slice(0, 60)}…"`,
       );
@@ -94,14 +80,7 @@ function safeWrite(key: string, value: unknown): void {
   }
 }
 
-/**
- * Compile-time dead-code elimination flag.
- * Bundlers (Vite/webpack/esbuild) replace `process.env.NODE_ENV`
- * so the `console.warn` calls vanish in production builds.
- */
-const __DEV__ =
-  typeof process !== 'undefined' &&
-  process.env?.NODE_ENV !== 'production';
+// Removed local __DEV__ — now imported from shared.ts (Bug #25)       ← CHANGED
 
 // ═══════════════════════════════════════════════════════════════════
 //  Key Builders
@@ -119,11 +98,6 @@ function getViewStorageKey(ast: VrdAST): string {
 //  Validation Helpers
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Validate a persisted Vec3 array.
- * Returns `null` if the value is missing, malformed, or contains
- * non-finite numbers.
- */
 function validateVec3(v: unknown): Vec3 | null {
   if (!Array.isArray(v) || v.length !== 3) return null;
   const [x, y, z] = v;
@@ -138,11 +112,6 @@ function validateVec3(v: unknown): Vec3 | null {
   return isFiniteVec3(vec) ? vec : null;
 }
 
-/**
- * Validate a full PersistedRendererState object.
- * Returns a sanitized copy with only valid positions, or `null`
- * if the object is fundamentally malformed.
- */
 function validateRendererState(
   raw: unknown,
 ): PersistedRendererState | null {
@@ -161,8 +130,6 @@ function validateRendererState(
     return null;
   }
 
-  // Sanitize individual positions — drop invalid entries instead of
-  // rejecting the entire state
   const positions: Record<string, Vec3> = {};
   let validCount = 0;
 
@@ -174,7 +141,6 @@ function validateRendererState(
     }
   }
 
-  // If everything was corrupt, treat as missing
   if (validCount === 0 && Object.keys(rawPositions as object).length > 0) {
     return null;
   }
@@ -192,9 +158,6 @@ function validateRendererState(
   };
 }
 
-/**
- * Validate a PersistedViewState (camera position + target + fov).
- */
 function validateViewState(raw: unknown): PersistedViewState | null {
   if (raw === null || typeof raw !== 'object') return null;
 
@@ -217,10 +180,6 @@ function validateViewState(raw: unknown): PersistedViewState | null {
 //  Public API — Renderer State
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Read persisted renderer state (positions, selection, theme)
- * for the given AST.
- */
 export function readPersistedState(
   ast: VrdAST,
 ): PersistedRendererState | null {
@@ -228,10 +187,6 @@ export function readPersistedState(
   return validateRendererState(raw);
 }
 
-/**
- * Write renderer state to localStorage, debounced by the caller
- * (typically `schedulePersist` in store.ts).
- */
 export function writePersistedState(
   ast: VrdAST,
   positions: Readonly<Record<string, Vec3>>,
@@ -250,22 +205,10 @@ export function writePersistedState(
 //  Public API — View (Camera) State
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Compute the localStorage key for camera view persistence.
- * Exposed so `VerdantRenderer` can pass a stable key to its
- * `onViewChange` callback without recomputing the signature.
- */
 export function getAstViewStorageKey(ast: VrdAST): string {
   return getViewStorageKey(ast);
 }
 
-/**
- * Read persisted camera view state.
- *
- * @param storageKey — Pre-computed key from `getAstViewStorageKey`.
- *   Accepts the key (not the AST) to allow memo-stable reads in
- *   React components where the key is already computed.
- */
 export function readViewState(
   storageKey: string,
 ): PersistedViewState | null {
@@ -273,9 +216,6 @@ export function readViewState(
   return validateViewState(raw);
 }
 
-/**
- * Write camera view state to localStorage.
- */
 export function writeViewState(
   storageKey: string,
   view: PersistedViewState,
@@ -287,10 +227,6 @@ export function writeViewState(
 //  Cleanup Utilities
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Remove all Verdant renderer entries from localStorage.
- * Useful for a "Reset workspace" action in the UI.
- */
 export function clearAllPersistedState(): void {
   if (typeof window === 'undefined') return;
   try {
@@ -309,15 +245,10 @@ export function clearAllPersistedState(): void {
       window.localStorage.removeItem(key);
     }
   } catch {
-    // SecurityError or unavailable storage — nothing to do
+    // SecurityError or unavailable storage
   }
 }
 
-/**
- * Remove persisted state for a specific AST.
- * Useful when a diagram is deleted or its structure changes enough
- * that cached positions are no longer meaningful.
- */
 export function clearPersistedStateForAst(ast: VrdAST): void {
   if (typeof window === 'undefined') return;
   try {

@@ -3,7 +3,6 @@
 import React, { useCallback, useRef } from 'react';
 import type { NodeProps } from '@verdant/primitives';
 import { useDraggable } from '../hooks/useDraggable';
-import type { DraggableHandlers } from '../hooks/useDraggable';
 import { getNodeComponent } from './nodeMap';
 import type { Vec3, MutVec3 } from '../types';
 
@@ -12,44 +11,23 @@ import type { Vec3, MutVec3 } from '../types';
 // ═══════════════════════════════════════════════════════════════════
 
 export interface DraggableNodeProps {
-  /** VRD node data (id, type, props) */
   readonly node: Readonly<{
     id: string;
     type: string;
     props: Readonly<Record<string, unknown>>;
   }>;
-
-  /** Current world-space position */
   readonly position: Vec3;
-
-  /** Whether this node is in the selection set */
   readonly isSelected: boolean;
-
-  /** Whether the pointer is over this node */
   readonly isHovered: boolean;
-
-  /** Resolved color (custom or theme-derived) */
   readonly color: string;
-
-  /** Ref to the OrbitControls — disabled during drag */
   readonly controlsRef: React.RefObject<any>;
-
-  /** Click handler — receives node ID, position, and event */
   readonly onNodeClick: (nodeId: string, pos: Vec3, e: any) => void;
-
-  /** Pointer enter handler */
   readonly onHoverEnter: (id: string) => void;
-
-  /** Pointer leave handler */
   readonly onHoverLeave: () => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════
 //  Node Props Builder
-//
-//  Builds the props object passed to the visual node component.
-//  Extracted to keep the render body clean and to enable future
-//  extension (e.g., adding badge/port/status props).
 // ═══════════════════════════════════════════════════════════════════
 
 function buildNodeProps(
@@ -72,8 +50,15 @@ function buildNodeProps(
     glow: node.props.glow === true,
     shape: node.props.shape as string | undefined,
     status: node.props.status as any,
-    badges: node.props.badges as any,
-    ports: node.props.ports as any,
+    badges: node.props.badges as any,                                  // Bug #13: now tracked in comparator
+    ports: node.props.ports as any,                                    // Bug #13: now tracked in comparator
+    subtitle: node.props.subtitle as string | undefined,               // Bug #13: now tracked in comparator
+    enterAnimation: node.props.enterAnimation as any,                  // Bug #13: now tracked in comparator
+    bindings: node.props.bindings as any,                              // Bug #13: now tracked in comparator
+    visible: node.props.visible as boolean | undefined,                // Bug #13: now tracked in comparator
+    locked: node.props.locked as boolean | undefined,                  // Bug #13: now tracked in comparator
+    breathe: node.props.breathe as boolean | undefined,
+    animationDuration: node.props.animationDuration as number | undefined,
     onClick,
     onPointerOver,
     onPointerOut,
@@ -82,22 +67,6 @@ function buildNodeProps(
 
 // ═══════════════════════════════════════════════════════════════════
 //  Component
-//
-//  Wraps a visual node component with drag behavior.
-//
-//  Separation of concerns:
-//  - Visual appearance: delegated to the node component from nodeMap
-//  - Drag mechanics: delegated to useDraggable hook
-//  - This component: glues them together + handles controls toggle
-//
-//  Performance:
-//  - React.memo with custom comparator avoids re-render when
-//    the positions record gets a new reference but this node's
-//    position hasn't changed
-//  - positionRef is updated on every render (via assignment, not
-//    setState) so the drag hook always reads the latest position
-//    without causing re-renders
-//  - Event handlers are stable useCallback refs
 // ═══════════════════════════════════════════════════════════════════
 
 export const DraggableNode = React.memo(
@@ -114,13 +83,8 @@ export const DraggableNode = React.memo(
   }: DraggableNodeProps) {
     const Component = getNodeComponent(node.type);
 
-    // Mutable ref for the drag hook — updated every render
-    // so the hook always reads the latest position without
-    // being a dependency (which would recreate the callbacks)
     const positionRef = useRef<MutVec3>(position as MutVec3);
     positionRef.current = position as MutVec3;
-
-    // ── Drag callbacks ──
 
     const handleDragStart = useCallback(() => {
       if (controlsRef.current) {
@@ -142,14 +106,12 @@ export const DraggableNode = React.memo(
         onDragEnd: handleDragEnd,
       });
 
-    // ── Interaction callbacks ──
-
     const handleClick = useCallback(
       (e: any) => {
         if (hasMoved) return;
         onNodeClick(node.id, positionRef.current, e);
       },
-      [node.id, onNodeClick, hasMoved], // Added hasMoved dependency
+      [node.id, onNodeClick, hasMoved],
     );
 
     const handlePointerOver = useCallback(
@@ -159,8 +121,6 @@ export const DraggableNode = React.memo(
       },
       [node.id, onHoverEnter],
     );
-
-    // ── Build props ──
 
     const nodeProps = buildNodeProps(
       node,
@@ -184,16 +144,16 @@ export const DraggableNode = React.memo(
     );
   },
   (prev, next) => {
-    // Node identity changed
+    // Node identity
     if (prev.node.id !== next.node.id) return false;
     if (prev.node.type !== next.node.type) return false;
 
-    // Visual state changed
+    // Visual state
     if (prev.isSelected !== next.isSelected) return false;
     if (prev.isHovered !== next.isHovered) return false;
     if (prev.color !== next.color) return false;
 
-    // Position changed (value equality, not reference)
+    // Position (value equality)
     const pp = prev.position;
     const np = next.position;
     if (pp[0] !== np[0] || pp[1] !== np[1] || pp[2] !== np[2]) return false;
@@ -205,7 +165,18 @@ export const DraggableNode = React.memo(
     if (prev.node.props.shape !== next.node.props.shape) return false;
     if (prev.node.props.status !== next.node.props.status) return false;
 
-    // Callback identity (stable refs from parent — should not change)
+    // Bug #13 fix: previously missing from comparator                 ← CHANGED
+    if (prev.node.props.badges !== next.node.props.badges) return false;
+    if (prev.node.props.ports !== next.node.props.ports) return false;
+    if (prev.node.props.subtitle !== next.node.props.subtitle) return false;
+    if (prev.node.props.enterAnimation !== next.node.props.enterAnimation) return false;
+    if (prev.node.props.bindings !== next.node.props.bindings) return false;
+    if (prev.node.props.visible !== next.node.props.visible) return false;
+    if (prev.node.props.locked !== next.node.props.locked) return false;
+    if (prev.node.props.breathe !== next.node.props.breathe) return false;
+    if (prev.node.props.animationDuration !== next.node.props.animationDuration) return false;
+
+    // Callback identity
     if (prev.onNodeClick !== next.onNodeClick) return false;
     if (prev.onHoverEnter !== next.onHoverEnter) return false;
     if (prev.onHoverLeave !== next.onHoverLeave) return false;

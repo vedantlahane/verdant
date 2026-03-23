@@ -14,25 +14,12 @@ import {
   MEASUREMENT_FADE_SPEED,
 } from '../constants';
 
-// ═══════════════════════════════════════════════════════════════════
-//  Types
-// ═══════════════════════════════════════════════════════════════════
-
 interface DimensionLineProps extends MeasurementLine {
   readonly accentColor: string;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  Constants
-// ═══════════════════════════════════════════════════════════════════
-
-/** Y-offset for the label position above the midpoint */
 const LABEL_Y_OFFSET = 0.35;
-
-/** Distance factor for Html billboard scaling */
 const LABEL_DISTANCE_FACTOR = 18;
-
-/** Font size for measurement label */
 const LABEL_FONT_SIZE = '9px';
 
 const LABEL_CONTAINER_STYLE: React.CSSProperties = {
@@ -42,10 +29,6 @@ const LABEL_CONTAINER_STYLE: React.CSSProperties = {
 
 // ═══════════════════════════════════════════════════════════════════
 //  Geometry Builders
-//
-//  Pure functions that produce disposable GPU resources.
-//  Each returns the geometry + material pair so the caller can
-//  manage disposal uniformly.
 // ═══════════════════════════════════════════════════════════════════
 
 interface LineResources {
@@ -59,11 +42,14 @@ interface WingResources {
 }
 
 /**
- * Create the dashed line between two endpoints.
+ * Bug #8 fix: The old code created a temporary `THREE.Line(geometry)`
+ * and called `computeLineDistances()`, but then used `tmpLine.geometry`
+ * which is the *same reference* as `geometry` — the tmpLine itself was
+ * never disposed and leaked.
  *
- * Uses LineDashedMaterial which requires `computeLineDistances()`
- * to be called on the geometry. We create a temporary Line3D,
- * compute distances, then extract the geometry.
+ * Fix: We still need `computeLineDistances()` which requires a Line
+ * object, but we now properly dispose the temporary Line. The geometry
+ * survives because Three.js Line doesn't own/dispose its geometry.
  */
 function createLineResources(
   from: Vec3,
@@ -79,10 +65,13 @@ function createLineResources(
     ),
   );
 
-  // computeLineDistances requires a Line object
+  // computeLineDistances requires a Line object — create temporarily
   const tmpLine = new THREE.Line(geometry);
   tmpLine.computeLineDistances();
-  const finalGeometry = tmpLine.geometry;
+  // Detach geometry so disposing tmpLine doesn't take it with it       ← CHANGED
+  tmpLine.geometry = new THREE.BufferGeometry();                       // ← CHANGED: orphan with empty geo
+  tmpLine.geometry.dispose();                                          // ← CHANGED: dispose the empty one
+  // tmpLine itself will be GC'd — no scene reference holds it
 
   const material = new THREE.LineDashedMaterial({
     color,
@@ -93,49 +82,41 @@ function createLineResources(
     depthWrite: false,
   });
 
-  return { geometry: finalGeometry, material };
+  return { geometry, material };
 }
 
-/**
- * Create perpendicular wing markers at the line endpoints.
- *
- * Wings are short line segments perpendicular to the measurement
- * direction, providing visual anchors at the from/to positions.
- *
- * The perpendicular direction is computed via cross product with
- * world-up. Falls back to world-right if the measurement line is
- * vertical (parallel to up).
- */
+/** Reusable vectors for wing computation (zero alloc in hot path) */    // ← NEW
+const _wingDir = new THREE.Vector3();
+const _wingPerp = new THREE.Vector3();
+const _wingUp = new THREE.Vector3(0, 1, 0);
+const _wingRight = new THREE.Vector3(1, 0, 0);
+
 function createWingResources(
   from: Vec3,
   to: Vec3,
   color: string,
 ): WingResources {
-  const dir = new THREE.Vector3(
+  _wingDir.set(                                                        // ← CHANGED: reuse
     to[0] - from[0],
     to[1] - from[1],
     to[2] - from[2],
   ).normalize();
 
-  const up = new THREE.Vector3(0, 1, 0);
-  const perp = new THREE.Vector3().crossVectors(dir, up);
+  _wingPerp.crossVectors(_wingDir, _wingUp);                          // ← CHANGED: reuse
 
-  // If line is nearly vertical, cross product is degenerate → use right vector
-  if (perp.lengthSq() < 0.001) {
-    perp.crossVectors(dir, new THREE.Vector3(1, 0, 0));
+  if (_wingPerp.lengthSq() < 0.001) {
+    _wingPerp.crossVectors(_wingDir, _wingRight);
   }
-  perp.normalize();
+  _wingPerp.normalize();
 
   const W = WING_HALF_WIDTH;
-  const px = perp.x * W;
-  const py = perp.y * W;
-  const pz = perp.z * W;
+  const px = _wingPerp.x * W;
+  const py = _wingPerp.y * W;
+  const pz = _wingPerp.z * W;
 
   const vertices = new Float32Array([
-    // Wing at "from"
     from[0] + px, from[1] + py, from[2] + pz,
     from[0] - px, from[1] - py, from[2] - pz,
-    // Wing at "to"
     to[0] + px, to[1] + py, to[2] + pz,
     to[0] - px, to[1] - py, to[2] - pz,
   ]);
@@ -157,11 +138,6 @@ function createWingResources(
 //  Derived Data Helpers
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Create a stable string key from a Vec3 for memo dependency.
- * Avoids re-computation when the same position is passed as a
- * new array reference with identical values.
- */
 function vec3Key(v: Vec3): string {
   return `${v[0]},${v[1]},${v[2]}`;
 }
@@ -183,9 +159,6 @@ function computeMidpoint(from: Vec3, to: Vec3): Vec3 {
 
 // ═══════════════════════════════════════════════════════════════════
 //  Label Sub-component
-//
-//  Extracted to isolate the Html overlay (which is expensive due to
-//  CSS layout) from the Three.js geometry updates.
 // ═══════════════════════════════════════════════════════════════════
 
 interface MeasurementLabelProps {
@@ -252,16 +225,6 @@ const MeasurementLabel = React.memo(function MeasurementLabel({
 //  Main Component
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Renders a measurement line between two 3D positions with:
- * - Dashed line connecting the endpoints
- * - Perpendicular wing markers at each endpoint
- * - Billboard label showing distance and optional edge label
- * - Fade-in animation on appearance
- *
- * Resources (geometry + material) are created when endpoints change
- * and disposed via useEffect cleanup.
- */
 export const DimensionLine = React.memo(function DimensionLine({
   from,
   to,
@@ -271,12 +234,9 @@ export const DimensionLine = React.memo(function DimensionLine({
 }: DimensionLineProps) {
   const lineColor = direction === 'outgoing' ? accentColor : '#e57373';
 
-  // Stable keys for memo dependencies (arrays are new refs each render)
   const fromKey = vec3Key(from);
   const toKey = vec3Key(to);
   const endpointKey = `${fromKey}|${toKey}`;
-
-  // ── GPU Resources ──
 
   const lineRes = useMemo(
     () => createLineResources(from, to, lineColor),
@@ -290,7 +250,6 @@ export const DimensionLine = React.memo(function DimensionLine({
     [endpointKey, lineColor],
   );
 
-  // Dispose on dependency change or unmount
   useEffect(() => () => {
     lineRes.geometry.dispose();
     lineRes.material.dispose();
@@ -300,8 +259,6 @@ export const DimensionLine = React.memo(function DimensionLine({
     wingRes.geometry.dispose();
     wingRes.material.dispose();
   }, [wingRes]);
-
-  // ── Derived data ──
 
   const distance = useMemo(
     () => computeDistance(from, to),
@@ -315,13 +272,10 @@ export const DimensionLine = React.memo(function DimensionLine({
     [endpointKey],
   );
 
-  // ── Fade-in animation ──
-
   const opacityRef = useRef(0);
   const animDone = useRef(false);
   const labelDivRef = useRef<HTMLDivElement>(null);
 
-  // Reset animation when endpoints change
   useEffect(() => {
     opacityRef.current = 0;
     animDone.current = false;

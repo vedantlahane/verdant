@@ -46,35 +46,102 @@ export const FORCE_GROUP_COHESION_DIVISOR = 0.5;
 export const FORCE_OVERLAP_PENALTY = 5;
 
 // ═══════════════════════════════════════════════════════════════════
-//  Coordinate Grid
+//  Axis & Reference System (NEW)                                    ← NEW section
+//
+//  Replaces the legacy coordinate grid with:
+//  1. Three colored axis lines (dynamic extent based on scene bounds)
+//  2. Per-node reference lines projecting to axis planes
+//  3. A camera-zoom-compensated axis gizmo at interaction point
 // ═══════════════════════════════════════════════════════════════════
 
-/** Half-extent of the ground grid in world units (grid spans [-GRID_SIZE, +GRID_SIZE]) */
+/** Axis line color: X → red */
+export const AXIS_COLOR_X = '#e57373';                               // ← NEW
+
+/** Axis line color: Y → green */
+export const AXIS_COLOR_Y = '#81c784';                               // ← NEW
+
+/** Axis line color: Z → blue */
+export const AXIS_COLOR_Z = '#64b5f6';                               // ← NEW
+
+/**
+ * Padding (world units) added beyond scene bounds for axis line extent.
+ * Axes extend from `sceneBounds.min[axis] - padding` to
+ * `sceneBounds.max[axis] + padding`, with a minimum total extent of
+ * `MIN_AXIS_EXTENT`.
+ */
+export const AXIS_EXTENT_PADDING = 5;                                // ← NEW
+
+/** Minimum axis half-extent when scene has few/co-located nodes */
+export const MIN_AXIS_EXTENT = 10;                                   // ← NEW
+
+/** Opacity for reference lines on selected/hovered nodes */
+export const REFERENCE_LINE_OPACITY = 0.3;                           // ← NEW
+
+/** Opacity for reference lines in 'all' visibility mode */
+export const REFERENCE_LINE_OPACITY_FAINT = 0.08;                    // ← NEW
+
+/** Dash length for reference lines (world units) */
+export const REFERENCE_LINE_DASH_SIZE = 0.2;                         // ← NEW
+
+/** Gap length for reference lines (world units) */
+export const REFERENCE_LINE_GAP_SIZE = 0.15;                         // ← NEW
+
+/**
+ * Axis gizmo screen-space size in pixels.
+ * The gizmo scales inversely with camera distance to maintain
+ * consistent apparent size regardless of zoom level.
+ */
+export const AXIS_GIZMO_SCREEN_SIZE = 40;                            // ← NEW
+
+/** Axis gizmo line width (pixels, where supported) */
+export const AXIS_GIZMO_LINE_WIDTH = 2;                              // ← NEW
+
+// ═══════════════════════════════════════════════════════════════════
+//  Legacy Coordinate Grid
+//
+//  @deprecated — All constants in this section will be removed once
+//  the grid subsystem files (BlueprintGroundPlane, createGridGeometries,
+//  createGridMaterials, AxisLabelSprite) are deleted in Phase 1.
+//
+//  Consumers referencing GRID_SIZE or AXIS_LENGTH should migrate to
+//  the dynamic axis system which computes extent from scene bounds.
+// ═══════════════════════════════════════════════════════════════════
+
+/** @deprecated Use dynamic axis extent computed from scene bounds. */
 export const GRID_SIZE = 1200;
 
-/** Full extent of the Y-axis above and below origin */
+/** @deprecated Use dynamic axis extent computed from scene bounds. */
 export const AXIS_Y_LENGTH = 1200;
 
-/** Major grid line spacing (world units) */
+/** @deprecated Removed in grid redesign — no more grid planes. */
 export const MAJOR_STEP = 4;
 
-/** Minor grid line spacing (world units) */
+/** @deprecated Removed in grid redesign — no more grid planes. */
 export const MINOR_STEP = 1;
 
-/** Length of each axis line from origin to arrow tip */
+/** @deprecated Use dynamic axis extent computed from scene bounds. */
 export const AXIS_LENGTH = 1200;
 
-/** World-unit distance between tick marks */
-export const TICK_EVERY = 1;
-
-/** Half-extent of each tick mark cube (world units) */
+/** @deprecated Removed in grid redesign — no more tick marks. */
 export const TICK_SIZE = 0.12;
 
-/** Distance from origin where grid fade begins */
-export const FADE_START = 60; // GRID_SIZE * 0.3; // 12
+/**
+ * @deprecated Removed in grid redesign — no more fade shader.
+ *
+ * Note: Previous inline comment referenced `GRID_SIZE * 0.3 = 12`
+ * which was stale (0.3 × 1200 = 360, not 12). Actual value is 60.
+ */
+export const FADE_START = 60;                                        // ← CHANGED: fixed stale comment
 
-/** Distance from origin where grid is fully transparent */
-export const FADE_END = 120; // GRID_SIZE * 0.95; // 38
+/**
+ * @deprecated Removed in grid redesign — no more fade shader.
+ *
+ * Note: Previous inline comment referenced `GRID_SIZE * 0.95 = 38`
+ * which was stale (0.95 × 1200 = 1140, not 38). Actual value is 120.
+ */
+export const FADE_END = 120;                                         // ← CHANGED: fixed stale comment
+
+// TICK_EVERY was removed — it was exported but never imported anywhere (Bug #18)
 
 // ═══════════════════════════════════════════════════════════════════
 //  Measurement Lines

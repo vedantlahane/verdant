@@ -1,13 +1,4 @@
 // index.ts
-//
-// Public API surface of @verdant/renderer.
-//
-// Design principles:
-// - Export only what consumers need — internal hooks, sub-components,
-//   and utilities are implementation details
-// - Re-export types with `export type` for isolatedModules compatibility
-// - Group exports by domain with comments for navigability
-// - Avoid barrel re-exports of entire modules (tree-shaking hostile)
 
 // ═══════════════════════════════════════════════════════════════════
 //  Components
@@ -19,7 +10,7 @@ export { VerdantRenderer, astConfigToPrimitivesConfig } from './VerdantRenderer'
 //  Store
 // ═══════════════════════════════════════════════════════════════════
 
-export { useRendererStore } from './store';
+export { useRendererStore, cancelPendingPersist, flushPendingPersist } from './store';
 export type { RendererState } from './store';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -28,6 +19,12 @@ export type { RendererState } from './store';
 
 export { computeLayout, computePositionsForNewNodes } from './layout';
 export type { LayoutType, LayoutDirection } from './layout';
+
+// ═══════════════════════════════════════════════════════════════════
+//  Scene Utilities
+// ═══════════════════════════════════════════════════════════════════
+
+export { zoomToFit } from './SceneContent';
 
 // ═══════════════════════════════════════════════════════════════════
 //  Node Registry
@@ -59,66 +56,53 @@ export {
 //  Utilities
 // ═══════════════════════════════════════════════════════════════════
 
-export { projectToScreen, detectDarkMode, VEC3_ORIGIN } from './utils';
+export {
+  projectToScreen,
+  detectDarkMode,
+  VEC3_ORIGIN,
+  setsEqual,
+  computeSceneBounds,
+} from './utils';
 
 // ═══════════════════════════════════════════════════════════════════
 //  Constants
-//
-//  Exported for consumers who need to align with renderer defaults
-//  (e.g., editor showing grid size, external camera controllers
-//  matching orbit limits).
 // ═══════════════════════════════════════════════════════════════════
 
 export {
-  // Layout
   MIN_NODE_DISTANCE,
-
-  // Grid
-  GRID_SIZE,
-  AXIS_LENGTH,
-
-  // Camera
+  AXIS_COLOR_X,
+  AXIS_COLOR_Y,
+  AXIS_COLOR_Z,
+  AXIS_EXTENT_PADDING,
+  MIN_AXIS_EXTENT,
+  REFERENCE_LINE_OPACITY,
   DEFAULT_CAMERA_POSITION,
   DEFAULT_CAMERA_FOV,
   DEFAULT_CAMERA_TARGET,
   ORBIT_MIN_DISTANCE,
   ORBIT_MAX_DISTANCE,
-
-  // Rendering
   INSTANCING_THRESHOLD,
 } from './constants';
 
+/** @deprecated Use dynamic axis extent computed from scene bounds. */
+export { GRID_SIZE, AXIS_LENGTH } from './constants';
+
 // ═══════════════════════════════════════════════════════════════════
 //  Types
-//
-//  All public types in one section for easy discovery.
-//  Using `export type` ensures these are erased at compile time
-//  and don't affect bundle size.
 // ═══════════════════════════════════════════════════════════════════
 
 export type {
-  // Core data
   Vec3,
   MutVec3,
-
-  // Props
+  AxisId,
   VerdantRendererProps,
   SceneContentProps,
-
-  // Camera
   CameraData,
   CursorData,
   VerdantRendererHandle,
-
-
-  // Scene elements
   MeasurementLine,
-  TickData,
-
-  // Persistence
+  SceneBounds,
   PersistedViewState,
-
-  // Interaction
   NodeClickInfo,
   ScreenPoint,
   ContextMenuState,
@@ -126,7 +110,20 @@ export type {
 
 export { CONTEXT_MENU_CLOSED } from './types';
 
-export type { DraggableHandlers, UseDraggableOptions } from './hooks/useDraggable';
 export type { PersistedRendererState } from './store.persistence';
-export type { GridGeometries } from './grid/createGridGeometries';
-export type { GridMaterials } from './grid/createGridMaterials';
+
+/** @deprecated TickData is removed in the grid redesign. */
+export type { TickData } from './types';
+
+// ═══════════════════════════════════════════════════════════════════
+//  Renderer / WebGPU
+// ═══════════════════════════════════════════════════════════════════
+
+export type { RendererBackend } from './renderer/detectWebGPU';
+export { isWebGPUAvailable, isWebGPUAvailableSync, detectBestBackend } from './renderer/detectWebGPU';
+
+export type { RendererConfig, RendererResult } from './renderer/createRenderer';
+export { createWebGLRenderer, createWebGPURenderer, createOptimalRenderer } from './renderer/createRenderer';
+
+export type { UseRendererOptions, UseRendererResult } from './renderer/useRenderer';
+export { useRenderer } from './renderer/useRenderer';

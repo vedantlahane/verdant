@@ -9,6 +9,7 @@
     "outDir": "dist",
     "strict": true
   },
-  "include": ["src"]
+  "include": ["src", "src/renderer/detectWebGPU.ts"],
+  "exclude": ["src/grid/deprecated"]
 }
 

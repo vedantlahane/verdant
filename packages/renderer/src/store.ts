@@ -18,6 +18,14 @@ import { PERSIST_DEBOUNCE_MS } from './constants';
 
 // ═══════════════════════════════════════════════════════════════════
 //  Debounced Persistence
+//
+//  Bug #5 fix: The timer is now cancellable via `cancelPendingPersist()`
+//  which VerdantRenderer must call in its unmount cleanup. This prevents
+//  stale writes after Next.js route transitions or component removal.
+//
+//  Note: `persistTimer` remains module-scoped because the Zustand store
+//  itself is a module-scoped singleton. True multi-instance support
+//  would require per-instance stores (a larger architectural change).
 // ═══════════════════════════════════════════════════════════════════
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -26,6 +34,7 @@ function schedulePersist(get: () => RendererState): void {
   if (typeof window === 'undefined') return;
   if (persistTimer !== null) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
+    persistTimer = null;                                             // ← CHANGED: clear ref after firing
     const state = get();
     if (!state.ast) return;
     writePersistedState(
@@ -35,6 +44,47 @@ function schedulePersist(get: () => RendererState): void {
       state.themeName,
     );
   }, PERSIST_DEBOUNCE_MS);
+}
+
+/**
+ * Cancel any pending debounced persistence write.
+ *
+ * **Must be called** in VerdantRenderer's `useEffect` cleanup to prevent
+ * Bug #5 (stale writes firing after component unmount in route transitions).
+ *
+ * @example
+ * ```tsx
+ * useEffect(() => {
+ *   return () => cancelPendingPersist();
+ * }, []);
+ * ```
+ */
+export function cancelPendingPersist(): void {                       // ← NEW
+  if (persistTimer !== null) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+}
+
+/**
+ * Immediately flush any pending persistence write.
+ *
+ * Useful for ensuring state is saved before an intentional navigation
+ * (e.g., "Save & Exit" button). No-op if no write is pending.
+ */
+export function flushPendingPersist(): void {                        // ← NEW
+  if (persistTimer === null) return;
+  clearTimeout(persistTimer);
+  persistTimer = null;
+
+  const state = useRendererStore.getState();
+  if (!state.ast) return;
+  writePersistedState(
+    state.ast,
+    state.positions,
+    state.selectedNodeId,
+    state.themeName,
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -93,27 +143,16 @@ export interface RendererState {
 //  Helpers — extracted from the monolithic setAst
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Resolve the effective theme name from (in priority order):
- * 1. AST config `theme` field
- * 2. Persisted theme
- * 3. Current store theme
- */
 function resolveTheme(
   astTheme: string | undefined,
   persistedTheme: string | undefined,
   currentTheme: string,
 ): { name: string; colors: ThemeColors } {
   const name = astTheme || persistedTheme || currentTheme;
-  const colors = THEME_COLORS[name] || THEME_COLORS['moss'];
+    const colors = THEME_COLORS[name] || THEME_COLORS['moss'];
   return { name, colors };
 }
 
-/**
- * Resolve selection after an AST change.
- * Preserves current selection if the node still exists,
- * falls back to persisted selection, then null.
- */
 function resolveSelection(
   currentId: string | null,
   persistedId: string | null | undefined,
@@ -124,9 +163,6 @@ function resolveSelection(
   return null;
 }
 
-/**
- * Build a lookup index from node ID → VrdNode.
- */
 function buildNodeIndex(nodes: readonly VrdNode[]): Map<string, VrdNode> {
   const index = new Map<string, VrdNode>();
   for (const node of nodes) {
@@ -135,14 +171,6 @@ function buildNodeIndex(nodes: readonly VrdNode[]): Map<string, VrdNode> {
   return index;
 }
 
-/**
- * Compute final positions for a first-load scenario
- * (no previous AST or positions in store).
- *
- * Priority:
- * 1. Persisted positions (from localStorage)
- * 2. Computed layout for remaining nodes
- */
 function computeFirstLoadPositions(
   ast: VrdAST,
   layoutType: LayoutType,
@@ -151,7 +179,6 @@ function computeFirstLoadPositions(
 ): Record<string, MutVec3> {
   const finalPositions: Record<string, MutVec3> = {};
 
-  // Restore persisted positions
   if (persistedPositions) {
     for (const node of ast.nodes) {
       const saved = persistedPositions[node.id];
@@ -161,7 +188,6 @@ function computeFirstLoadPositions(
     }
   }
 
-  // Compute layout for nodes missing persisted positions
   const missingNodes = ast.nodes.filter((n) => !finalPositions[n.id]);
   if (missingNodes.length > 0) {
     const computed = computeLayout(
@@ -182,10 +208,6 @@ function computeFirstLoadPositions(
   return finalPositions;
 }
 
-/**
- * Compute incremental position updates when the AST changes
- * (add/remove nodes while preserving existing positions).
- */
 function computeIncrementalPositions(
   ast: VrdAST,
   prevPositions: Readonly<Record<string, Vec3>>,
@@ -194,7 +216,6 @@ function computeIncrementalPositions(
 ): Record<string, MutVec3> {
   const finalPositions: Record<string, MutVec3> = {};
 
-  // Copy surviving positions
   for (const id of Object.keys(prevPositions)) {
     if (nextIds.has(id)) {
       const p = prevPositions[id];
@@ -202,7 +223,6 @@ function computeIncrementalPositions(
     }
   }
 
-  // Place new nodes
   const newNodes = ast.nodes.filter((n) => !prevIds.has(n.id));
   if (newNodes.length > 0) {
     const newPos = computePositionsForNewNodes(
@@ -216,10 +236,6 @@ function computeIncrementalPositions(
   return finalPositions;
 }
 
-/**
- * Apply user-specified positions from node props.
- * These always override computed/persisted positions.
- */
 function applyUserPositionOverrides(
   nodes: readonly VrdNode[],
   positions: Record<string, MutVec3>,
@@ -286,7 +302,7 @@ export const useRendererStore = create<RendererState>()(
       const layoutDirection = (ast.config.direction as 'TB' | 'LR') || 'TB';
       const prevLayoutType = (prevAst?.config.layout as LayoutType) || 'auto';
       const prevLayoutDir = (prevAst?.config.direction as 'TB' | 'LR') || 'TB';
-      
+
       const layoutChanged = layoutType !== prevLayoutType || layoutDirection !== prevLayoutDir;
       const isFirstLoad = !prevAst || Object.keys(prevPositions).length === 0;
 
@@ -381,7 +397,6 @@ export const useRendererStore = create<RendererState>()(
     // ────────────────────────────────────────────────────
 
     hoverNode: (id) => {
-      // Skip if unchanged — prevents unnecessary subscriber notifications
       if (get().hoveredNodeId === id) return;
       set({ hoveredNodeId: id });
     },
@@ -393,7 +408,6 @@ export const useRendererStore = create<RendererState>()(
 
     updateNodePosition: (id, position) => {
       const prev = get().positions[id];
-      // Skip if position hasn't meaningfully changed (avoids render storm during drag)
       if (
         prev &&
         Math.abs(prev[0] - position[0]) < 0.001 &&
@@ -460,7 +474,6 @@ export const useRendererStore = create<RendererState>()(
     },
 
     setFps: (fps) => {
-      // Quantize to whole numbers to avoid re-renders for 59.97 → 60.01
       const rounded = Math.round(fps);
       if (get().fps === rounded) return;
       set({ fps: rounded });

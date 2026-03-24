@@ -384,6 +384,7 @@ export const VerdantRenderer = React.forwardRef<
           gl={glConfig}
           dpr={DPR_RANGE}
           onCreated={handleCreated}
+          frameloop={backend === 'webgpu' ? 'demand' : 'always'}
         >
           <color attach="background" args={[bg]} />
           <PrimitivesProvider config={primitivesConfig}>

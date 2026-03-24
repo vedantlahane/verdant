@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { RendererBackend } from './detectWebGPU';
 import { detectBestBackend } from './detectWebGPU';
 import type { RendererConfig } from './createRenderer';
+import { createOptimalRenderer } from './createRenderer';
 
 // ═══════════════════════════════════════════════════════════════════
 //  Types
@@ -26,7 +27,7 @@ export interface UseRendererResult {
   /** Trigger Canvas remount (for context recovery) */
   readonly remount: () => void;
   /** R3F Canvas `gl` prop config */
-  readonly glConfig: Record<string, unknown>;
+  readonly glConfig: any;
   /** R3F Canvas onCreated handler */
   readonly handleCreated: (state: any) => void;
 }
@@ -73,14 +74,26 @@ export function useRenderer(
   }, [preferWebGPU]);
 
   // ── GL Config ──
-  const glConfig = useMemo(
-    () => Object.freeze({
+  const glConfig = useMemo(() => {
+    const baseConfig = {
       antialias: config?.antialias ?? true,
       alpha: config?.alpha ?? false,
       powerPreference: config?.powerPreference ?? ('default' as const),
-    }),
-    [config?.antialias, config?.alpha, config?.powerPreference],
-  );
+    };
+
+    if (backend === 'webgpu') {
+      return async (canvas: HTMLCanvasElement) => {
+        const { renderer } = await createOptimalRenderer(
+          canvas,
+          'webgpu',
+          baseConfig
+        );
+        return renderer;
+      };
+    }
+
+    return Object.freeze(baseConfig);
+  }, [backend, config?.antialias, config?.alpha, config?.powerPreference]);
 
   // ── Context Recovery ──
   const handleCreated = useCallback((state: any) => {

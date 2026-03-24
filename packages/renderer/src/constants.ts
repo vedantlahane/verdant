@@ -58,6 +58,15 @@ export const AXIS_COLOR_Y = '#81c784';
 /** Axis line color: Z → blue */
 export const AXIS_COLOR_Z = '#64b5f6';
 
+/** Negative-direction axis color: X → muted red */
+export const AXIS_COLOR_X_NEG = '#af4c4c';
+
+/** Negative-direction axis color: Y → muted green */
+export const AXIS_COLOR_Y_NEG = '#5a8f5d';
+
+/** Negative-direction axis color: Z → muted blue */
+export const AXIS_COLOR_Z_NEG = '#4580b8';
+
 /**
  * Fade segments for infinite-feeling axes.
  * Each entry defines a distance range and opacity level.
@@ -68,14 +77,15 @@ export const AXIS_FADE_SEGMENTS: readonly {
   readonly to: number;
   readonly opacity: number;
 }[] = Object.freeze([
-  { from: 0, to: 50, opacity: 0.55 },
-  { from: 50, to: 120, opacity: 0.25 },
-  { from: 120, to: 300, opacity: 0.10 },
-  { from: 300, to: 800, opacity: 0.03 },
+  { from: 0, to: 100, opacity: 0.6 },
+  { from: 100, to: 500, opacity: 0.35 },
+  { from: 500, to: 2000, opacity: 0.18 },
+  { from: 2000, to: 8000, opacity: 0.08 },
+  { from: 8000, to: 50000, opacity: 0.02 },
 ]);
 
 /** Total axis extent (half-length — axes span ±AXIS_MAX_EXTENT) */
-export const AXIS_MAX_EXTENT = 800;
+export const AXIS_MAX_EXTENT = 50000;
 
 /**
  * Padding (world units) added beyond scene bounds for axis line extent.
@@ -99,10 +109,17 @@ export const AXIS_TICK_INTERVAL = 5;
 export const AXIS_TICK_LABEL_INTERVAL = 10;
 
 /** Half-extent of each tick mark line (world units) */
-export const AXIS_TICK_SIZE = 0.1;
+export const AXIS_TICK_SIZE = 0.15;
 
-/** Maximum distance from origin for tick marks */
-export const AXIS_TICK_RANGE = 60;
+/** Maximum distance from origin for tick mark geometry */
+export const AXIS_TICK_RANGE = 500;
+
+/**
+ * Maximum distance from origin for HTML tick labels.
+ * Kept smaller than AXIS_TICK_RANGE to limit DOM elements.
+ * At interval=10, range=100 → 3 axes × 20 labels = 60 elements.
+ */
+export const AXIS_LABEL_RANGE = 100;
 
 /** Font size for axis tick labels */
 export const AXIS_LABEL_FONT_SIZE = '7px';

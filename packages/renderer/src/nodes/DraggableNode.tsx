@@ -98,7 +98,7 @@ export const DraggableNode = React.memo(
       }
     }, [controlsRef]);
 
-    const { onPointerDown, onPointerMove, onPointerUp, hasMoved } =
+    const { onPointerDown, onPointerMove, onPointerUp, hasMovedRef } =
       useDraggable({
         nodeId: node.id,
         positionRef,
@@ -108,10 +108,10 @@ export const DraggableNode = React.memo(
 
     const handleClick = useCallback(
       (e: any) => {
-        if (hasMoved) return;
+        if (hasMovedRef.current) return;
         onNodeClick(node.id, positionRef.current, e);
       },
-      [node.id, onNodeClick, hasMoved],
+      [node.id, onNodeClick, hasMovedRef],
     );
 
     const handlePointerOver = useCallback(

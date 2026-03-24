@@ -8,8 +8,8 @@ import {
   AXIS_COLOR_Y,
   AXIS_COLOR_Z,
   AXIS_GIZMO_SCREEN_SIZE,
-} from '../constants';
-import type { Vec3 } from '../types';
+} from '../../constants';
+import type { Vec3 } from '../../types';
 
 // ═══════════════════════════════════════════════════════════════════
 //  Materials (module-level singletons)

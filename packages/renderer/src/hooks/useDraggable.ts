@@ -15,8 +15,8 @@ export interface DraggableHandlers {
   readonly onPointerDown: (e: any) => void;
   readonly onPointerMove: (e: any) => void;
   readonly onPointerUp: (e: any) => void;
-  /** Whether the pointer has moved significantly since down */
-  readonly hasMoved: boolean;
+  /** Ref — read `.current` inside event handlers to avoid stale closure */
+  readonly hasMovedRef: React.RefObject<boolean>;
 }
 
 export interface UseDraggableOptions {
@@ -273,7 +273,12 @@ export function useDraggable({
     };
   }, [gl, setDraggingNode]);
 
-  const hasMoved = dragRef.current?.hasMoved ?? false;
+  const hasMovedRef = useRef(false);
 
-  return { onPointerDown, onPointerMove, onPointerUp, hasMoved };
+  // Keep the exposed ref in sync with internal drag state
+  if (dragRef.current) {
+    hasMovedRef.current = dragRef.current.hasMoved;
+  }
+
+  return { onPointerDown, onPointerMove, onPointerUp, hasMovedRef };
 }

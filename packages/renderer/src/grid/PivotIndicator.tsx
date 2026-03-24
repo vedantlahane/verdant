@@ -2,9 +2,9 @@
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { detectDarkMode } from '../utils';
+import { useRendererStore } from '../store';
 import type { Vec3 } from '../types';
 import {
   AXIS_COLOR_X,
@@ -116,18 +116,30 @@ export const PivotIndicator = React.memo(function PivotIndicator({ target: pivot
     };
   }, [pivot]);
 
-  // Update dashing for line geometries per frame
-  useFrame(() => {
-    if (refLinesGroupRef.current) {
-      refLinesGroupRef.current.traverse((obj) => {
-        if (obj instanceof THREE.Line) {
-          obj.computeLineDistances();
-        }
-      });
-    }
-  });
+  // Dispose geometries on change / unmount
+  useEffect(() => {
+    return () => {
+      localAxesGeos.x.dispose();
+      localAxesGeos.y.dispose();
+      localAxesGeos.z.dispose();
+      refLinesGeos.toX.dispose();
+      refLinesGeos.toY.dispose();
+      refLinesGeos.toZ.dispose();
+    };
+  }, [localAxesGeos, refLinesGeos]);
 
-  const isDark = detectDarkMode();
+  // Compute line distances once when geometry changes (not every frame)
+  useEffect(() => {
+    if (!refLinesGroupRef.current) return;
+    refLinesGroupRef.current.traverse((obj) => {
+      if (obj instanceof THREE.Line) {
+        obj.computeLineDistances();
+      }
+    });
+  }, [refLinesGeos]);
+
+  const themeColors = useRendererStore((s) => s.themeColors);
+  const isDark = useMemo(() => detectDarkMode(), [themeColors]);
 
   return (
     <group>

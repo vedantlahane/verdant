@@ -24,7 +24,7 @@ export type { LayoutType, LayoutDirection } from './layout';
 //  Scene Utilities
 // ═══════════════════════════════════════════════════════════════════
 
-export { zoomToFit } from './SceneContent';
+export { zoomToFit } from './utils';
 
 // ═══════════════════════════════════════════════════════════════════
 //  Node Registry
@@ -73,7 +73,11 @@ export {
   AXIS_COLOR_X,
   AXIS_COLOR_Y,
   AXIS_COLOR_Z,
+  AXIS_COLOR_X_NEG,
+  AXIS_COLOR_Y_NEG,
+  AXIS_COLOR_Z_NEG,
   AXIS_EXTENT_PADDING,
+  AXIS_LABEL_RANGE,
   MIN_AXIS_EXTENT,
   DEFAULT_CAMERA_POSITION,
   DEFAULT_CAMERA_FOV,
@@ -82,9 +86,6 @@ export {
   ORBIT_MAX_DISTANCE,
   INSTANCING_THRESHOLD,
 } from './constants';
-
-/** @deprecated Use dynamic axis extent computed from scene bounds. */
-export { GRID_SIZE, AXIS_LENGTH } from './constants';
 
 // ═══════════════════════════════════════════════════════════════════
 //  Types
@@ -110,9 +111,6 @@ export type {
 export { CONTEXT_MENU_CLOSED } from './types';
 
 export type { PersistedRendererState } from './store.persistence';
-
-/** @deprecated TickData is removed in the grid redesign. */
-export type { TickData } from './types';
 
 // ═══════════════════════════════════════════════════════════════════
 //  Renderer / WebGPU

@@ -40,21 +40,7 @@ export function sanitizeVec3(x: number, y: number, z: number): MutVec3 {
   ];
 }
 
-/**
- * @deprecated Prefer `sanitizeVec3` which returns `MutVec3`.
- * Kept temporarily for layout.ts backward compat — will be removed.
- */
-export function sanitizePosition(
-  x: number,
-  y: number,
-  z: number,
-): { x: number; y: number; z: number } {
-  return {
-    x: Number.isFinite(x) ? x : 0,
-    y: Number.isFinite(y) ? y : 0,
-    z: Number.isFinite(z) ? z : 0,
-  };
-}
+
 
 // ═══════════════════════════════════════════════════════════════════
 //  Set Equality                                                     ← NEW
@@ -294,4 +280,45 @@ export function detectDarkMode(): boolean {
   } catch {
     return true;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Zoom-to-Fit
+// ═══════════════════════════════════════════════════════════════════
+
+/** Module-scoped reusable vector to avoid allocation per call */
+const _zoomOffset = new THREE.Vector3();
+
+const DEFAULT_FOV_FALLBACK = 45;
+
+/**
+ * Unified zoomToFit used by both imperative handle and keyboard 'F'.
+ *
+ * Uses `computeSceneBounds` to avoid ad-hoc Box3 allocations.
+ * Buffer factor: 1.5 (consistent everywhere).
+ */
+export function zoomToFit(
+  positions: Readonly<Record<string, Vec3>>,
+  camera: THREE.Camera,
+  controls: { target: THREE.Vector3; update: () => void } | null,
+): void {
+  if (!controls || Object.keys(positions).length === 0) return;
+
+  const bounds = computeSceneBounds(positions);
+  const { center, maxExtent } = bounds;
+
+  const fov = (camera as THREE.PerspectiveCamera).fov ?? DEFAULT_FOV_FALLBACK;
+  const minDim = Math.max(maxExtent, 20);
+  let distance = minDim / (2 * Math.tan((Math.PI * fov) / 360));
+  distance = Math.max(distance * 1.5, 30);
+
+  _zoomOffset.set(0, 0.5, 1).normalize().multiplyScalar(distance);
+
+  camera.position.set(
+    center[0] + _zoomOffset.x,
+    center[1] + _zoomOffset.y,
+    center[2] + _zoomOffset.z,
+  );
+  controls.target.set(center[0], center[1], center[2]);
+  controls.update();
 }

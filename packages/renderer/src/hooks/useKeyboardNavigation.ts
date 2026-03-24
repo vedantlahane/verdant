@@ -4,7 +4,7 @@ import { useEffect, useCallback, useRef } from 'react';              // ← CHAN
 import { useThree } from '@react-three/fiber';
 import { usePrimitives } from '@verdant/primitives';
 import { useRendererStore } from '../store';
-import { zoomToFit } from '../SceneContent';                          // ← CHANGED: unified zoomToFit (Bug #2)
+import { zoomToFit } from '../utils';
 
 function isEditorFocused(e: KeyboardEvent): boolean {
   const target = e.target as HTMLElement | null;

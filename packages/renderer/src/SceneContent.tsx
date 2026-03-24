@@ -1,6 +1,6 @@
 // SceneContent.tsx
 
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
@@ -12,12 +12,11 @@ import {
 } from '@verdant/primitives';
 import type { VrdAST } from '@verdant/parser';
 import { useRendererStore } from './store';
-import { projectToScreen, safeGroupWalk, computeSceneBounds, VEC3_ORIGIN } from './utils';
+import { projectToScreen, safeGroupWalk, computeSceneBounds, VEC3_ORIGIN, zoomToFit } from './utils';
 import type { SceneBounds } from './types';
 
 // ── New grid system (Phase 1) ──                                   ← CHANGED
-import { RaycastFloor } from './grid/RaycastFloor';
-import { AxisLines } from './grid/AxisLines';
+import { InfiniteAxes } from './grid/InfiniteAxes';
 import { PivotIndicator } from './grid/PivotIndicator';
 import { NodeReferenceBox } from './grid/NodeReferenceBox';
 
@@ -58,44 +57,6 @@ interface OrbitControlsImpl {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Shared zoomToFit (Bug #2 — single implementation)
-// ═══════════════════════════════════════════════════════════════════
-
-/** Module-scoped reusable vector to avoid allocation per call (Bug #22) */
-const _offset = new THREE.Vector3();                                  // ← NEW
-
-/**
- * Unified zoomToFit used by both imperative handle and keyboard 'F'.
- *
- * Uses `computeSceneBounds` from utils to avoid ad-hoc Box3 allocations.
- * Buffer factor: 1.5 (consistent everywhere now — Bug #2).
- */
-export function zoomToFit(                                            // ← NEW (exported for useKeyboardNavigation)
-  positions: Readonly<Record<string, Vec3>>,
-  camera: THREE.Camera,
-  controls: OrbitControlsImpl | null,
-): void {
-  if (!controls || Object.keys(positions).length === 0) return;
-
-  const bounds = computeSceneBounds(positions);
-  const { center, maxExtent } = bounds;
-
-  const fov = (camera as THREE.PerspectiveCamera).fov ?? DEFAULT_CAMERA_FOV;
-  const minDim = Math.max(maxExtent, 20);
-  let distance = minDim / (2 * Math.tan((Math.PI * fov) / 360));
-  distance = Math.max(distance * 1.5, 30);
-
-  _offset.set(0, 0.5, 1).normalize().multiplyScalar(distance);
-
-  camera.position.set(
-    center[0] + _offset.x,
-    center[1] + _offset.y,
-    center[2] + _offset.z,
-  );
-  controls.target.set(center[0], center[1], center[2]);
-  controls.update();
-}
-
 // ═══════════════════════════════════════════════════════════════════
 //  Measurement Lines Hook
 // ═══════════════════════════════════════════════════════════════════
@@ -325,7 +286,7 @@ const NodesLayer = React.memo(function NodesLayer({
 }: NodesLayerProps) {
   const ast = useRendererStore((s) => s.ast);
   const positions = useRendererStore((s) => s.positions);
-  const selectedNodeId = useRendererStore((s) => s.selectedNodeId);
+  const selectionSet = useRendererStore((s) => s.selectionSet);
   const hoveredNodeId = useRendererStore((s) => s.hoveredNodeId);
   const getNodeColor = useRendererStore((s) => s.getNodeColor);
 
@@ -340,7 +301,7 @@ const NodesLayer = React.memo(function NodesLayer({
             key={node.id}
             node={node}
             position={position}
-            isSelected={selectedNodeId === node.id}
+            isSelected={selectionSet.has(node.id)}
             isHovered={hoveredNodeId === node.id}
             color={getNodeColor(
               node.type,
@@ -379,10 +340,15 @@ const SceneLighting = React.memo(function SceneLighting() {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-//  Reusable Vector3 for handleDoubleClick (Bug #23)
+//  Double-click pivot — pooled objects (zero alloc)
 // ═══════════════════════════════════════════════════════════════════
 
-const _dblClickOffset = new THREE.Vector3();                          // ← NEW
+const _dblClickRaycaster = new THREE.Raycaster();
+const _dblClickNDC = new THREE.Vector2();
+const _dblClickNormal = new THREE.Vector3();
+const _dblClickPlane = new THREE.Plane();
+const _dblClickHit = new THREE.Vector3();
+const _dblClickOffset = new THREE.Vector3();
 
 // ═══════════════════════════════════════════════════════════════════
 //  Main Component
@@ -412,12 +378,12 @@ export const SceneContent = React.forwardRef<
     const selectedNodeId = useRendererStore((s) => s.selectedNodeId);
     const positions = useRendererStore((s) => s.positions);
 
-    const { camera, size } = useThree();
+    const { camera, gl, size } = useThree();
 
     const controlsRef = useRef<OrbitControlsImpl | null>(null);       // ← CHANGED: typed ref
 
-    // Track orbit target for PivotIndicator                          ← NEW
-    const orbitTargetRef = useRef<Vec3>(initialTarget);
+    // Track orbit target for PivotIndicator (useState so mutations trigger re-render)
+    const [orbitTarget, setOrbitTarget] = React.useState<Vec3>(initialTarget);
 
     const activeNodeId = externalSelectedId ?? selectedNodeId;
 
@@ -445,7 +411,7 @@ export const SceneContent = React.forwardRef<
         DEFAULT_CAMERA_TARGET[2],
       );
       controlsRef.current.update();
-      orbitTargetRef.current = DEFAULT_CAMERA_TARGET;
+      setOrbitTarget(DEFAULT_CAMERA_TARGET);
     }, [camera]);
 
     React.useImperativeHandle(
@@ -486,7 +452,7 @@ export const SceneContent = React.forwardRef<
         initialTarget[2],
       );
       controlsRef.current.update();
-      orbitTargetRef.current = initialTarget;
+      setOrbitTarget(initialTarget);
     }, [initialTarget]);
 
     // ── Interaction callbacks ──
@@ -526,55 +492,96 @@ export const SceneContent = React.forwardRef<
     );
 
     // Bug #12 fix: detect whether we're clicking a node or empty canvas
-    const handleContextMenu = useCallback(                            // ← CHANGED
+    const handleContextMenu = useCallback(
       (e: any) => {
         e.stopPropagation();
         const nativeEvent = e.nativeEvent as MouseEvent | undefined;
 
-        // If the event has an object intersection, it's on a node;
-        // otherwise it's on empty canvas
-        const isOnNode = selectedNodeId != null;                      // ← CHANGED
+        // Check whether the event actually intersected a scene object
+        // (not just whether something happens to be selected)
+        const hitNodeId =
+          e.intersections?.length > 0 && e.object?.userData?.nodeId
+            ? (e.object.userData.nodeId as string)
+            : undefined;
+
         setContextMenu({
           visible: true,
           x: nativeEvent?.clientX ?? 0,
           y: nativeEvent?.clientY ?? 0,
-          targetId: isOnNode ? selectedNodeId : undefined,
-          targetType: isOnNode ? 'node' : 'canvas',                   // ← CHANGED (Bug #12)
+          targetId: hitNodeId,
+          targetType: hitNodeId ? 'node' : 'canvas',
         });
       },
-      [selectedNodeId, setContextMenu],
+      [setContextMenu],
     );
 
-    // Bug #23 fix: reuse module-scoped Vector3
-    const handleDoubleClick = useCallback((e: any) => {               // ← CHANGED
-      e.stopPropagation();
+    // ── Initial camera target ──
+
+    useEffect(() => {
       if (!controlsRef.current) return;
+      controlsRef.current.target.set(
+        initialTarget[0],
+        initialTarget[1],
+        initialTarget[2],
+      );
+      controlsRef.current.update();
+      setOrbitTarget(initialTarget);
+    }, [initialTarget]);
 
-      const newTarget = e.point as THREE.Vector3;
-      const controls = controlsRef.current;
+    // ── Double-click-to-pivot via native handler ──
+    // Uses camera-perpendicular plane at orbit target depth, so it works
+    // at ANY click position — no dependency on RaycastFloor geometry.
+    useEffect(() => {
+      const canvas = gl.domElement;
 
-      _dblClickOffset.subVectors(newTarget, controls.target);        // ← CHANGED: no allocation
-      camera.position.add(_dblClickOffset);
+      const onDblClick = (event: MouseEvent) => {
+        if (!controlsRef.current) return;
 
-      controls.target.copy(newTarget);
-      controls.update();
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
 
-      orbitTargetRef.current = [newTarget.x, newTarget.y, newTarget.z]; // ← NEW: track for gizmo
-    }, [camera]);
+        _dblClickNDC.set(
+          ((event.clientX - rect.left) / rect.width) * 2 - 1,
+          -((event.clientY - rect.top) / rect.height) * 2 + 1,
+        );
+
+        // Project onto plane perpendicular to camera at current orbit target depth
+        camera.getWorldDirection(_dblClickNormal);
+        _dblClickPlane.setFromNormalAndCoplanarPoint(
+          _dblClickNormal,
+          controlsRef.current.target,
+        );
+
+        _dblClickRaycaster.setFromCamera(_dblClickNDC, camera);
+        const hit = _dblClickRaycaster.ray.intersectPlane(
+          _dblClickPlane,
+          _dblClickHit,
+        );
+        if (!hit) return;
+
+        // Shift camera + orbit target together so view direction is preserved
+        _dblClickOffset.subVectors(_dblClickHit, controlsRef.current.target);
+        camera.position.add(_dblClickOffset);
+        controlsRef.current.target.copy(_dblClickHit);
+        controlsRef.current.update();
+
+        setOrbitTarget([_dblClickHit.x, _dblClickHit.y, _dblClickHit.z]);
+      };
+
+      canvas.addEventListener('dblclick', onDblClick);
+      return () => canvas.removeEventListener('dblclick', onDblClick);
+    }, [camera, gl, setOrbitTarget]);
 
     if (!ast) return null;
 
     return (
-      <group onDoubleClick={handleDoubleClick}>
+      <group>
         <SceneLighting />
 
-        {/* Raycast floor always present (needed for double-click pivot) */}
-        <RaycastFloor />                                              {/* ← CHANGED */}
-
-        {showCoordinateSystem && (                                    /* ← CHANGED: new grid system */
+        {showCoordinateSystem && (
           <>
-            <AxisLines />
-            <PivotIndicator target={orbitTargetRef.current} />
+            <InfiniteAxes />
+            <PivotIndicator target={orbitTarget} />
             <NodeReferenceBox mode="selected" />
           </>
         )}
@@ -615,3 +622,5 @@ export const SceneContent = React.forwardRef<
     );
   },
 );
+
+SceneContent.displayName = 'SceneContent';

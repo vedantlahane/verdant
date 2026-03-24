@@ -7,10 +7,14 @@ import {
   AXIS_COLOR_X,
   AXIS_COLOR_Y,
   AXIS_COLOR_Z,
+  AXIS_COLOR_X_NEG,
+  AXIS_COLOR_Y_NEG,
+  AXIS_COLOR_Z_NEG,
   AXIS_FADE_SEGMENTS,
   AXIS_TICK_INTERVAL,
   AXIS_TICK_LABEL_INTERVAL,
   AXIS_TICK_RANGE,
+  AXIS_LABEL_RANGE,
   AXIS_TICK_SIZE,
   AXIS_TICK_OPACITY,
   AXIS_LABEL_OPACITY,
@@ -50,6 +54,12 @@ const AXIS_COLORS: Record<AxisId, string> = {
   z: AXIS_COLOR_Z,
 };
 
+const AXIS_COLORS_NEG: Record<AxisId, string> = {
+  x: AXIS_COLOR_X_NEG,
+  y: AXIS_COLOR_Y_NEG,
+  z: AXIS_COLOR_Z_NEG,
+};
+
 // ═══════════════════════════════════════════════════════════════════
 //  Fade Line Builder
 //
@@ -80,7 +90,8 @@ function createFadeLines(axis: AxisId): FadeLineData[] {
 
     lines.push({ geometry: posGeo, material: posMat });
 
-    // Negative direction
+    // Negative direction — distinct muted color for visual differentiation
+    const negColor = AXIS_COLORS_NEG[axis];
     const negGeo = new THREE.BufferGeometry();
     negGeo.setAttribute('position', new THREE.Float32BufferAttribute([
       -dir[0] * seg.from, -dir[1] * seg.from, -dir[2] * seg.from,
@@ -88,8 +99,8 @@ function createFadeLines(axis: AxisId): FadeLineData[] {
     ], 3));
 
     const negMat = new THREE.LineBasicMaterial({
-      color,
-      opacity: seg.opacity * 0.8,  // slightly dimmer in negative
+      color: negColor,
+      opacity: seg.opacity,
       transparent: true,
       depthWrite: false,
     });
@@ -241,7 +252,7 @@ export const InfiniteAxes = React.memo(function InfiniteAxes() {
   // ── Tick labels ──
   const labels = useMemo(() => {
     const result: Array<{ axis: AxisId; value: number }> = [];
-    const range = AXIS_TICK_RANGE;
+    const range = AXIS_LABEL_RANGE;
     const interval = AXIS_TICK_LABEL_INTERVAL;
 
     for (const axis of ['x', 'y', 'z'] as AxisId[]) {
@@ -300,7 +311,7 @@ export const InfiniteAxes = React.memo(function InfiniteAxes() {
           key={`${axis}-label-${value}`}
           axis={axis}
           value={value}
-          color={AXIS_COLORS[axis]}
+          color={value < 0 ? AXIS_COLORS_NEG[axis] : AXIS_COLORS[axis]}
           isDark={isDark}
         />
       ))}

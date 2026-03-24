@@ -658,7 +658,6 @@ export function computePositionsForNewNodes(
   }
 
   // Enforce minimum distances among ALL nodes
-  const allNodes: VrdNode[] = [];
   const allNodeIds: string[] = [];
 
   // We need a buffer covering both existing + new for enforcement

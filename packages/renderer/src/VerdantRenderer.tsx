@@ -359,7 +359,9 @@ export const VerdantRenderer = React.forwardRef<
 
     // ── Background color ──
 
-    const bg = theme === 'light' ? '#ffffff' : '#000000';
+    const themeColors = useRendererStore((s) => s.themeColors);
+    // TODO: Add sceneBg to ThemeColors type in @verdant/themes if background customization is needed
+    const bg = (themeColors as any).sceneBg ?? (theme === 'light' ? '#ffffff' : '#000000');
 
     // ── Container style ──
 
@@ -409,3 +411,5 @@ export const VerdantRenderer = React.forwardRef<
     );
   },
 );
+
+VerdantRenderer.displayName = 'VerdantRenderer';

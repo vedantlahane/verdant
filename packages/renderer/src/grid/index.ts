@@ -5,7 +5,10 @@
 
 export { RaycastFloor } from './RaycastFloor';
 export { AxisLines } from './AxisLines';
-export { NodeReferenceLines } from './NodeReferenceLines';
-export type { NodeReferenceLinesProps } from './NodeReferenceLines';
-export { AxisGizmo } from './AxisGizmo';
-export type { AxisGizmoProps } from './AxisGizmo';
+export { InfiniteAxes } from './InfiniteAxes';
+export { PivotIndicator } from './PivotIndicator';
+export type { PivotIndicatorProps } from './PivotIndicator';
+export { NodeReferenceBox } from './NodeReferenceBox';
+export type { NodeReferenceBoxProps } from './NodeReferenceBox';
+// export { AxisGizmo } from './AxisGizmo';
+// export type { AxisGizmoProps } from './AxisGizmo';

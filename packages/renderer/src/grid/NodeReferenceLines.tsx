@@ -1,32 +1,95 @@
-// grid/NodeReferenceLines.tsx
+// grid/NodeReferenceBox.tsx
 
 import React, { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { Html } from '@react-three/drei';
 import { useRendererStore } from '../store';
+import { detectDarkMode } from '../utils';
 import type { Vec3 } from '../types';
 import {
   AXIS_COLOR_X,
   AXIS_COLOR_Y,
   AXIS_COLOR_Z,
-  REFERENCE_LINE_OPACITY,
-  REFERENCE_LINE_OPACITY_FAINT,
-  REFERENCE_LINE_DASH_SIZE,
-  REFERENCE_LINE_GAP_SIZE,
+  REFERENCE_BOX_OPACITY,
+  REFERENCE_BOX_OPACITY_FAINT,
+  REFERENCE_BOX_DASH_SIZE,
+  REFERENCE_BOX_GAP_SIZE,
+  REFERENCE_BOX_MIN_DIM,
+  REFERENCE_LABEL_FONT_SIZE,
 } from '../constants';
 
 // ═══════════════════════════════════════════════════════════════════
 //  Types
 // ═══════════════════════════════════════════════════════════════════
 
-interface RefLineData {
-  readonly nodeId: string;
-  readonly position: Vec3;
-  readonly opacity: number;
+interface BoxEdges {
+  readonly xEdges: THREE.BufferGeometry;   // Edges parallel to X (red)
+  readonly yEdges: THREE.BufferGeometry;   // Edges parallel to Y (green)
+  readonly zEdges: THREE.BufferGeometry;   // Edges parallel to Z (blue)
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Materials (created once per opacity level)
+//  Wireframe Box Builder
+//
+//  Given a node position (x, y, z), creates a wireframe cuboid
+//  from (0,0,0) to (x,y,z) with 12 edges colored by their axis.
+//
+//  Edge layout:
+//    X-parallel (red):  4 edges connecting x=0 to x=X
+//    Y-parallel (green): 4 edges connecting y=0 to y=Y
+//    Z-parallel (blue):  4 edges connecting z=0 to z=Z
 // ═══════════════════════════════════════════════════════════════════
+
+function createBoxEdges(x: number, y: number, z: number): BoxEdges {
+  // X-parallel edges (4 edges from x=0 to x=X at each YZ corner)
+  const xVerts = new Float32Array([
+    0, 0, 0,   x, 0, 0,    // bottom-near
+    0, y, 0,   x, y, 0,    // top-near
+    0, 0, z,   x, 0, z,    // bottom-far
+    0, y, z,   x, y, z,    // top-far
+  ]);
+
+  // Y-parallel edges (4 edges from y=0 to y=Y at each XZ corner)
+  const yVerts = new Float32Array([
+    0, 0, 0,   0, y, 0,    // origin
+    x, 0, 0,   x, y, 0,    // right-near
+    0, 0, z,   0, y, z,    // left-far
+    x, 0, z,   x, y, z,    // right-far
+  ]);
+
+  // Z-parallel edges (4 edges from z=0 to z=Z at each XY corner)
+  const zVerts = new Float32Array([
+    0, 0, 0,   0, 0, z,    // origin
+    x, 0, 0,   x, 0, z,    // right-bottom
+    0, y, 0,   0, y, z,    // left-top
+    x, y, 0,   x, y, z,    // right-top
+  ]);
+
+  const makeGeo = (verts: Float32Array): THREE.BufferGeometry => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+
+    // Compute line distances for dashed material
+    const distances = new Float32Array(verts.length / 3);
+    for (let i = 0; i < verts.length / 3; i += 2) {
+      const dx = verts[i * 3 + 3] - verts[i * 3];
+      const dy = verts[i * 3 + 4] - verts[i * 3 + 1];
+      const dz = verts[i * 3 + 5] - verts[i * 3 + 2];
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      distances[i] = 0;
+      distances[i + 1] = d;
+    }
+    geo.setAttribute('lineDistance', new THREE.BufferAttribute(distances, 1));
+
+    return geo;
+  };
+
+  return {
+    xEdges: makeGeo(xVerts),
+    yEdges: makeGeo(yVerts),
+    zEdges: makeGeo(zVerts),
+  };
+}
 
 function createDashedMaterial(color: string, opacity: number): THREE.LineDashedMaterial {
   return new THREE.LineDashedMaterial({
@@ -34,77 +97,138 @@ function createDashedMaterial(color: string, opacity: number): THREE.LineDashedM
     opacity,
     transparent: true,
     depthWrite: false,
-    dashSize: REFERENCE_LINE_DASH_SIZE,
-    gapSize: REFERENCE_LINE_GAP_SIZE,
+    dashSize: REFERENCE_BOX_DASH_SIZE,
+    gapSize: REFERENCE_BOX_GAP_SIZE,
   });
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Single Node Reference Lines
+//  Coordinate Label
 // ═══════════════════════════════════════════════════════════════════
 
-interface SingleNodeLinesProps {
-  readonly position: Vec3;
-  readonly opacity: number;
+interface CoordLabelProps {
+  readonly position: [number, number, number];
+  readonly text: string;
+  readonly color: string;
+  readonly isDark: boolean;
 }
 
-const SingleNodeLines = React.memo(function SingleNodeLines({
+const COORD_LABEL_CONTAINER: React.CSSProperties = {
+  pointerEvents: 'none',
+  userSelect: 'none',
+};
+
+const CoordLabel = React.memo(function CoordLabel({
+  position,
+  text,
+  color,
+  isDark,
+}: CoordLabelProps) {
+  const style = useMemo<React.CSSProperties>(() => ({
+    fontFamily: 'monospace',
+    fontSize: REFERENCE_LABEL_FONT_SIZE,
+    color,
+    padding: '1px 4px',
+    borderRadius: '2px',
+    background: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)',
+    whiteSpace: 'nowrap',
+    letterSpacing: '0.04em',
+    border: `1px solid ${color}33`,
+  }), [color, isDark]);
+
+  return (
+    <Html position={position} center distanceFactor={16} style={COORD_LABEL_CONTAINER}>
+      <div style={style}>{text}</div>
+    </Html>
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  Single Node Box
+// ═══════════════════════════════════════════════════════════════════
+
+interface SingleNodeBoxProps {
+  readonly position: Vec3;
+  readonly opacity: number;
+  readonly showLabels: boolean;
+  readonly isDark: boolean;
+}
+
+const SingleNodeBox = React.memo(function SingleNodeBox({
   position,
   opacity,
-}: SingleNodeLinesProps) {
+  showLabels,
+  isDark,
+}: SingleNodeBoxProps) {
   const [x, y, z] = position;
 
-  const { geometries, materials } = useMemo(() => {
-    // Vertical drop: node → XZ plane (Y=0)
-    const dropGeo = new THREE.BufferGeometry();
-    dropGeo.setAttribute('position', new THREE.Float32BufferAttribute([x, y, z, x, 0, z], 3));
-
-    // Ground to X-axis: (x, 0, z) → (x, 0, 0)
-    const toXGeo = new THREE.BufferGeometry();
-    toXGeo.setAttribute('position', new THREE.Float32BufferAttribute([x, 0, z, x, 0, 0], 3));
-
-    // Ground to Z-axis: (x, 0, z) → (0, 0, z)
-    const toZGeo = new THREE.BufferGeometry();
-    toZGeo.setAttribute('position', new THREE.Float32BufferAttribute([x, 0, z, 0, 0, z], 3));
-
-    const geos = [dropGeo, toXGeo, toZGeo];
-
-    // Compute line distances for dashing
-    for (const g of geos) {
-      const pos = g.getAttribute('position');
-      const d = Math.sqrt(
-        (pos.getX(1) - pos.getX(0)) ** 2 +
-        (pos.getY(1) - pos.getY(0)) ** 2 +
-        (pos.getZ(1) - pos.getZ(0)) ** 2,
-      );
-      g.setAttribute('lineDistance', new THREE.Float32BufferAttribute([0, d], 1));
-    }
-
-    const mats = {
-      drop: createDashedMaterial(AXIS_COLOR_Y, opacity),
-      toX: createDashedMaterial(AXIS_COLOR_Z, opacity),
-      toZ: createDashedMaterial(AXIS_COLOR_X, opacity),
+  const { edges, materials } = useMemo(() => {
+    const e = createBoxEdges(x, y, z);
+    const m = {
+      x: createDashedMaterial(AXIS_COLOR_X, opacity),
+      y: createDashedMaterial(AXIS_COLOR_Y, opacity),
+      z: createDashedMaterial(AXIS_COLOR_Z, opacity),
     };
-
-    return { geometries: { drop: dropGeo, toX: toXGeo, toZ: toZGeo }, materials: mats };
+    return { edges: e, materials: m };
   }, [x, y, z, opacity]);
 
   useEffect(() => {
     return () => {
-      geometries.drop.dispose();
-      geometries.toX.dispose();
-      geometries.toZ.dispose();
-      materials.drop.dispose();
-      materials.toX.dispose();
-      materials.toZ.dispose();
+      edges.xEdges.dispose();
+      edges.yEdges.dispose();
+      edges.zEdges.dispose();
+      materials.x.dispose();
+      materials.y.dispose();
+      materials.z.dispose();
     };
-  }, [geometries, materials]);
+  }, [edges, materials]);
+
+  // Coordinate labels at midpoints of the origin-adjacent edges
+  const showX = Math.abs(x) > REFERENCE_BOX_MIN_DIM;
+  const showY = Math.abs(y) > REFERENCE_BOX_MIN_DIM;
+  const showZ = Math.abs(z) > REFERENCE_BOX_MIN_DIM;
 
   return (
     <group>
-      <lineSegments geometry={geometries.drop} material={materials.drop} renderOrder={0} />
-      <lineSegments geometry={geometries.toX} material={materials.toX} renderOrder={0} />
-      <lineSegments geometry={geometries.toZ} material={materials.toZ} renderOrder={0} />
+      {showX && <lineSegments geometry={edges.xEdges} material={materials.x} renderOrder={0} />}
+      {showY && <lineSegments geometry={edges.yEdges} material={materials.y} renderOrder={0} />}
+      {showZ && <lineSegments geometry={edges.zEdges} material={materials.z} renderOrder={0} />}
+
+      {showLabels && (
+        <>
+          {showX && (
+            <CoordLabel
+              position={[x / 2, -0.3, 0]}
+              text={`X: ${x.toFixed(1)}`}
+              color={AXIS_COLOR_X}
+              isDark={isDark}
+            />
+          )}
+          {showY && (
+            <CoordLabel
+              position={[-0.3, y / 2, 0]}
+              text={`Y: ${y.toFixed(1)}`}
+              color={AXIS_COLOR_Y}
+              isDark={isDark}
+            />
+          )}
+          {showZ && (
+            <CoordLabel
+              position={[0, -0.3, z / 2]}
+              text={`Z: ${z.toFixed(1)}`}
+              color={AXIS_COLOR_Z}
+              isDark={isDark}
+            />
+          )}
+          {/* Combined coordinate label near the node */}
+          <CoordLabel
+            position={[x, y + 0.8, z]}
+            text={`(${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`}
+            color={'#ffffff'}
+            isDark={isDark}
+          />
+        </>
+      )}
     </group>
   );
 });
@@ -113,66 +237,74 @@ const SingleNodeLines = React.memo(function SingleNodeLines({
 //  Main Component
 // ═══════════════════════════════════════════════════════════════════
 
-export interface NodeReferenceLinesProps {
+export interface NodeReferenceBoxProps {
   /** 'selected' = only selected/hovered, 'all' = every node (faint) */
   readonly mode?: 'selected' | 'all';
 }
 
 /**
- * Per-node coordinate reference lines projecting from each node
- * to the axis planes.
+ * Per-node wireframe cuboid from origin to node position.
  *
- * For each node renders:
- * - Vertical drop-line from node to Y=0 (green, shows height)
- * - Line from ground point to X-axis (blue, shows Z coordinate)
- * - Line from ground point to Z-axis (red, shows X coordinate)
+ * The cuboid's 12 edges are colored by the axis they're parallel to:
+ * - X edges → red
+ * - Y edges → green
+ * - Z edges → blue
  *
- * In 'selected' mode (default), only selected/hovered nodes get lines.
- * In 'all' mode, every node gets very faint lines.
+ * Coordinate labels show the exact X, Y, Z values.
+ * In 'selected' mode, only selected/hovered nodes get the full box + labels.
  */
-export const NodeReferenceLines = React.memo(function NodeReferenceLines({
+export const NodeReferenceBox = React.memo(function NodeReferenceBox({
   mode = 'selected',
-}: NodeReferenceLinesProps) {
+}: NodeReferenceBoxProps) {
   const positions = useRendererStore((s) => s.positions);
   const selectionSet = useRendererStore((s) => s.selectionSet);
   const hoveredNodeId = useRendererStore((s) => s.hoveredNodeId);
+  const themeColors = useRendererStore((s) => s.themeColors);
+  const isDark = useMemo(() => detectDarkMode(), [themeColors]);
 
-  const lines: RefLineData[] = useMemo(() => {
-    const result: RefLineData[] = [];
+  const nodes = useMemo(() => {
+    const result: Array<{
+      id: string;
+      position: Vec3;
+      opacity: number;
+      showLabels: boolean;
+    }> = [];
 
     if (mode === 'all') {
       for (const [id, pos] of Object.entries(positions)) {
         const isActive = selectionSet.has(id) || hoveredNodeId === id;
         result.push({
-          nodeId: id,
+          id,
           position: pos,
-          opacity: isActive ? REFERENCE_LINE_OPACITY : REFERENCE_LINE_OPACITY_FAINT,
+          opacity: isActive ? REFERENCE_BOX_OPACITY : REFERENCE_BOX_OPACITY_FAINT,
+          showLabels: isActive,
         });
       }
     } else {
-      // Selected + hovered only
       for (const id of selectionSet) {
         const pos = positions[id];
-        if (pos) result.push({ nodeId: id, position: pos, opacity: REFERENCE_LINE_OPACITY });
+        if (pos) result.push({ id, position: pos, opacity: REFERENCE_BOX_OPACITY, showLabels: true });
       }
       if (hoveredNodeId && !selectionSet.has(hoveredNodeId)) {
         const pos = positions[hoveredNodeId];
-        if (pos) result.push({ nodeId: hoveredNodeId, position: pos, opacity: REFERENCE_LINE_OPACITY });
+        if (pos) result.push({ id: hoveredNodeId, position: pos, opacity: REFERENCE_BOX_OPACITY, showLabels: true });
       }
     }
 
     return result;
   }, [positions, selectionSet, hoveredNodeId, mode]);
 
-  if (lines.length === 0) return null;
+  if (nodes.length === 0) return null;
 
   return (
     <group>
-      {lines.map((line) => (
-        <SingleNodeLines
-          key={line.nodeId}
-          position={line.position}
-          opacity={line.opacity}
+      {nodes.map((node) => (
+        <SingleNodeBox
+          key={node.id}
+          position={node.position}
+          opacity={node.opacity}
+          showLabels={node.showLabels}
+          isDark={isDark}
         />
       ))}
     </group>

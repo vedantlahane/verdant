@@ -46,22 +46,36 @@ export const FORCE_GROUP_COHESION_DIVISOR = 0.5;
 export const FORCE_OVERLAP_PENALTY = 5;
 
 // ═══════════════════════════════════════════════════════════════════
-//  Axis & Reference System (NEW)                                    ← NEW section
-//
-//  Replaces the legacy coordinate grid with:
-//  1. Three colored axis lines (dynamic extent based on scene bounds)
-//  2. Per-node reference lines projecting to axis planes
-//  3. A camera-zoom-compensated axis gizmo at interaction point
+//  Infinite Axes
 // ═══════════════════════════════════════════════════════════════════
 
 /** Axis line color: X → red */
-export const AXIS_COLOR_X = '#e57373';                               // ← NEW
+export const AXIS_COLOR_X = '#e57373';
 
 /** Axis line color: Y → green */
-export const AXIS_COLOR_Y = '#81c784';                               // ← NEW
+export const AXIS_COLOR_Y = '#81c784';
 
 /** Axis line color: Z → blue */
-export const AXIS_COLOR_Z = '#64b5f6';                               // ← NEW
+export const AXIS_COLOR_Z = '#64b5f6';
+
+/**
+ * Fade segments for infinite-feeling axes.
+ * Each entry defines a distance range and opacity level.
+ * Lines are drawn in both positive and negative directions.
+ */
+export const AXIS_FADE_SEGMENTS: readonly {
+  readonly from: number;
+  readonly to: number;
+  readonly opacity: number;
+}[] = Object.freeze([
+  { from: 0, to: 50, opacity: 0.55 },
+  { from: 50, to: 120, opacity: 0.25 },
+  { from: 120, to: 300, opacity: 0.10 },
+  { from: 300, to: 800, opacity: 0.03 },
+]);
+
+/** Total axis extent (half-length — axes span ±AXIS_MAX_EXTENT) */
+export const AXIS_MAX_EXTENT = 800;
 
 /**
  * Padding (world units) added beyond scene bounds for axis line extent.
@@ -69,32 +83,90 @@ export const AXIS_COLOR_Z = '#64b5f6';                               // ← NEW
  * `sceneBounds.max[axis] + padding`, with a minimum total extent of
  * `MIN_AXIS_EXTENT`.
  */
-export const AXIS_EXTENT_PADDING = 5;                                // ← NEW
+export const AXIS_EXTENT_PADDING = 5;
 
 /** Minimum axis half-extent when scene has few/co-located nodes */
-export const MIN_AXIS_EXTENT = 10;                                   // ← NEW
+export const MIN_AXIS_EXTENT = 10;
 
-/** Opacity for reference lines on selected/hovered nodes */
-export const REFERENCE_LINE_OPACITY = 0.3;                           // ← NEW
+// ═══════════════════════════════════════════════════════════════════
+//  Axis Tick Marks & Labels
+// ═══════════════════════════════════════════════════════════════════
 
-/** Opacity for reference lines in 'all' visibility mode */
-export const REFERENCE_LINE_OPACITY_FAINT = 0.08;                    // ← NEW
+/** Distance between minor tick marks (world units) */
+export const AXIS_TICK_INTERVAL = 5;
 
-/** Dash length for reference lines (world units) */
-export const REFERENCE_LINE_DASH_SIZE = 0.2;                         // ← NEW
+/** Distance between labeled (major) tick marks (world units) */
+export const AXIS_TICK_LABEL_INTERVAL = 10;
 
-/** Gap length for reference lines (world units) */
-export const REFERENCE_LINE_GAP_SIZE = 0.15;                         // ← NEW
+/** Half-extent of each tick mark line (world units) */
+export const AXIS_TICK_SIZE = 0.1;
+
+/** Maximum distance from origin for tick marks */
+export const AXIS_TICK_RANGE = 60;
+
+/** Font size for axis tick labels */
+export const AXIS_LABEL_FONT_SIZE = '7px';
+
+/** Opacity for tick marks */
+export const AXIS_TICK_OPACITY = 0.35;
+
+/** Opacity for tick labels */
+export const AXIS_LABEL_OPACITY = 0.6;
+
+// ═══════════════════════════════════════════════════════════════════
+//  Node Reference Box
+// ═══════════════════════════════════════════════════════════════════
+
+/** Opacity for reference box edges on selected/hovered nodes */
+export const REFERENCE_BOX_OPACITY = 0.2;
+
+/** Opacity for reference box in 'all' mode */
+export const REFERENCE_BOX_OPACITY_FAINT = 0.04;
+
+/** Dash size for reference box lines */
+export const REFERENCE_BOX_DASH_SIZE = 0.25;
+
+/** Gap size for reference box lines */
+export const REFERENCE_BOX_GAP_SIZE = 0.15;
+
+/** Font size for coordinate labels */
+export const REFERENCE_LABEL_FONT_SIZE = '8px';
+
+/** Minimum dimension to show a box edge (below this, edge is skipped) */
+export const REFERENCE_BOX_MIN_DIM = 0.1;
+
+// ═══════════════════════════════════════════════════════════════════
+//  Pivot Indicator (orbit target)
+// ═══════════════════════════════════════════════════════════════════
+
+/** Length of local axis lines at orbit target */
+export const PIVOT_AXIS_LENGTH = 2.5;
+
+/** Opacity for local axis lines at pivot */
+export const PIVOT_AXIS_OPACITY = 0.45;
+
+/** Opacity for reference lines from pivot to main axes */
+export const PIVOT_REFERENCE_OPACITY = 0.12;
+
+/** Dash size for pivot reference lines */
+export const PIVOT_DASH_SIZE = 0.3;
+
+/** Gap size for pivot reference lines */
+export const PIVOT_GAP_SIZE = 0.2;
+
+// ═══════════════════════════════════════════════════════════════════
+//  Axis Gizmo (screen-space interaction point indicator)
+// ═══════════════════════════════════════════════════════════════════
 
 /**
  * Axis gizmo screen-space size in pixels.
  * The gizmo scales inversely with camera distance to maintain
  * consistent apparent size regardless of zoom level.
  */
-export const AXIS_GIZMO_SCREEN_SIZE = 40;                            // ← NEW
+export const AXIS_GIZMO_SCREEN_SIZE = 40;
 
 /** Axis gizmo line width (pixels, where supported) */
-export const AXIS_GIZMO_LINE_WIDTH = 2;                              // ← NEW
+export const AXIS_GIZMO_LINE_WIDTH = 2;
 
 // ═══════════════════════════════════════════════════════════════════
 //  Legacy Coordinate Grid

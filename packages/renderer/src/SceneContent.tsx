@@ -18,8 +18,8 @@ import type { SceneBounds } from './types';
 // ── New grid system (Phase 1) ──                                   ← CHANGED
 import { RaycastFloor } from './grid/RaycastFloor';
 import { AxisLines } from './grid/AxisLines';
-import { NodeReferenceLines } from './grid/NodeReferenceLines';
-import { AxisGizmo } from './grid/AxisGizmo';
+import { PivotIndicator } from './grid/PivotIndicator';
+import { NodeReferenceBox } from './grid/NodeReferenceBox';
 
 import { DraggableNode } from './nodes/DraggableNode';
 import { MeasurementLinesGroup } from './measurement/MeasurementLinesGroup';
@@ -416,7 +416,7 @@ export const SceneContent = React.forwardRef<
 
     const controlsRef = useRef<OrbitControlsImpl | null>(null);       // ← CHANGED: typed ref
 
-    // Track orbit target for AxisGizmo                               ← NEW
+    // Track orbit target for PivotIndicator                          ← NEW
     const orbitTargetRef = useRef<Vec3>(initialTarget);
 
     const activeNodeId = externalSelectedId ?? selectedNodeId;
@@ -574,8 +574,8 @@ export const SceneContent = React.forwardRef<
         {showCoordinateSystem && (                                    /* ← CHANGED: new grid system */
           <>
             <AxisLines />
-            <NodeReferenceLines mode="selected" />
-            <AxisGizmo target={orbitTargetRef.current} />
+            <PivotIndicator target={orbitTargetRef.current} />
+            <NodeReferenceBox mode="selected" />
           </>
         )}
 

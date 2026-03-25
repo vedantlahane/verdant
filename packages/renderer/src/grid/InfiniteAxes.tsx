@@ -60,6 +60,19 @@ const AXIS_COLORS_NEG: Record<AxisId, string> = {
   z: AXIS_COLOR_Z_NEG,
 };
 
+// STATIC SINGLETONS — prebuilt, shared across renders (zero alloc/dispose)
+const STATIC_FADE_LINES = {
+  x: createFadeLines('x').map(({ geometry: g, material: m }) => ({ geometry: g, material: m })),
+  y: createFadeLines('y').map(({ geometry: g, material: m }) => ({ geometry: g, material: m })),
+  z: createFadeLines('z').map(({ geometry: g, material: m }) => ({ geometry: g, material: m })),
+} as const;
+
+const STATIC_TICKS = {
+  x: createTickGeometry('x'),
+  y: createTickGeometry('y'),
+  z: createTickGeometry('z'),
+} as const;
+
 // ═══════════════════════════════════════════════════════════════════
 //  Fade Line Builder
 //
@@ -233,22 +246,6 @@ export const InfiniteAxes = React.memo(function InfiniteAxes() {
   const themeColors = useRendererStore((s) => s.themeColors);
   const isDark = useMemo(() => detectDarkMode(), [themeColors]);
 
-  // ── Fade lines (axis segments with decreasing opacity) ──
-  const fadeLines = useMemo(() => {
-    return {
-      x: createFadeLines('x'),
-      y: createFadeLines('y'),
-      z: createFadeLines('z'),
-    };
-  }, []);
-
-  // ── Tick marks ──
-  const ticks = useMemo(() => ({
-    x: createTickGeometry('x'),
-    y: createTickGeometry('y'),
-    z: createTickGeometry('z'),
-  }), []);
-
   // ── Tick labels ──
   const labels = useMemo(() => {
     const result: Array<{ axis: AxisId; value: number }> = [];
@@ -264,19 +261,8 @@ export const InfiniteAxes = React.memo(function InfiniteAxes() {
     return result;
   }, []);
 
-  // ── Cleanup ──
-  useEffect(() => {
-    return () => {
-      for (const axis of ['x', 'y', 'z'] as AxisId[]) {
-        for (const line of fadeLines[axis]) {
-          line.geometry.dispose();
-          line.material.dispose();
-        }
-        ticks[axis].geometry.dispose();
-        ticks[axis].material.dispose();
-      }
-    };
-  }, [fadeLines, ticks]);
+  // ── Cleanup: not required, using shared static geometries/materials from module scope
+
 
   return (
     <group>
@@ -285,7 +271,7 @@ export const InfiniteAxes = React.memo(function InfiniteAxes() {
 
       {/* Fade segments for each axis */}
       {(['x', 'y', 'z'] as AxisId[]).map((axis) =>
-        fadeLines[axis].map((line, i) => (
+        STATIC_FADE_LINES[axis].map((line, i) => (
           <lineSegments
             key={`${axis}-fade-${i}`}
             geometry={line.geometry}
@@ -299,8 +285,8 @@ export const InfiniteAxes = React.memo(function InfiniteAxes() {
       {(['x', 'y', 'z'] as AxisId[]).map((axis) => (
         <lineSegments
           key={`${axis}-ticks`}
-          geometry={ticks[axis].geometry}
-          material={ticks[axis].material}
+          geometry={STATIC_TICKS[axis].geometry}
+          material={STATIC_TICKS[axis].material}
           renderOrder={1}
         />
       ))}

@@ -515,19 +515,6 @@ export const SceneContent = React.forwardRef<
       [setContextMenu],
     );
 
-    // ── Initial camera target ──
-
-    useEffect(() => {
-      if (!controlsRef.current) return;
-      controlsRef.current.target.set(
-        initialTarget[0],
-        initialTarget[1],
-        initialTarget[2],
-      );
-      controlsRef.current.update();
-      setOrbitTarget(initialTarget);
-    }, [initialTarget]);
-
     // ── Double-click-to-pivot via native handler ──
     // Uses camera-perpendicular plane at orbit target depth, so it works
     // at ANY click position — no dependency on RaycastFloor geometry.

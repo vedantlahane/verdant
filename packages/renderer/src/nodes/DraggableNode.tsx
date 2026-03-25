@@ -6,6 +6,8 @@ import { useDraggable } from '../hooks/useDraggable';
 import { getNodeComponent } from './nodeMap';
 import type { Vec3, MutVec3 } from '../types';
 
+const vec3Eq = (a: Vec3, b: Vec3) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+
 // ═══════════════════════════════════════════════════════════════════
 //  Types
 // ═══════════════════════════════════════════════════════════════════
@@ -154,9 +156,7 @@ export const DraggableNode = React.memo(
     if (prev.color !== next.color) return false;
 
     // Position (value equality)
-    const pp = prev.position;
-    const np = next.position;
-    if (pp[0] !== np[0] || pp[1] !== np[1] || pp[2] !== np[2]) return false;
+    if (!vec3Eq(prev.position, next.position)) return false;
 
     // Node props that affect rendering
     if (prev.node.props.label !== next.node.props.label) return false;

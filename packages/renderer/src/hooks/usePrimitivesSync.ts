@@ -78,7 +78,7 @@ export function usePrimitivesSync(): void {
     if (posMap.size > 0) {
       transitionEngine.playLayoutTransition(posMap, 500);
     }
-  }, [transitionEngine, positions, ast, draggingNodeId]);              // ← CHANGED: added draggingNodeId
+  }, [transitionEngine, ast, draggingNodeId]);              // ✅ Stable deps
 
   // ── Instancing detection ──
   useEffect(() => {

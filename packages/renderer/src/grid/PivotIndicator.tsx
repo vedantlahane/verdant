@@ -64,13 +64,11 @@ function createReferenceLines(px: number, py: number, pz: number) {
   const makeGeo = (verts: number[]) => {
     const geo = new BufferGeometry();
     geo.setAttribute('position', new Float32BufferAttribute(verts, 3));
-    // Line distances for dashing
-    const dists = new Float32Array(2);
-    const dx = verts[3] - verts[0];
-    const dy = verts[4] - verts[1];
-    const dz = verts[5] - verts[2];
-    dists[1] = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    geo.setAttribute('lineDistance', new BufferAttribute(dists, 1));
+
+    // Compute line distances here (once per geometry)
+    const tmpLine = new Line(geo);
+    tmpLine.computeLineDistances();
+
     return geo;
   };
 
@@ -102,9 +100,6 @@ export interface PivotIndicatorProps {
 }
     
 export const PivotIndicator = React.memo(function PivotIndicator({ target: pivot }: PivotIndicatorProps) {
-  const refLinesGroupRef = useRef<Group>(null);
-  const localAxesGroupRef = useRef<Group>(null);
-
   // Compute geometries when pivot changes
   const { localAxesGeos, refLinesGeos } = useMemo(() => {
     const px = pivot[0];
@@ -128,23 +123,13 @@ export const PivotIndicator = React.memo(function PivotIndicator({ target: pivot
     };
   }, [localAxesGeos, refLinesGeos]);
 
-  // Compute line distances once when geometry changes (not every frame)
-  useEffect(() => {
-    if (!refLinesGroupRef.current) return;
-    refLinesGroupRef.current.traverse((obj) => {
-      if (obj instanceof Line) {
-        obj.computeLineDistances();
-      }
-    });
-  }, [refLinesGeos]);
-
   const themeColors = useRendererStore((s) => s.themeColors);
   const isDark = useMemo(() => detectDarkMode(), [themeColors]);
 
   return (
     <group>
       {/* Local axes at pivot (XYZ in local colors) */}
-      <group ref={localAxesGroupRef}>
+      <group>
         <lineSegments geometry={localAxesGeos.x} material={LOCAL_MAT_X} />
         <lineSegments geometry={localAxesGeos.y} material={LOCAL_MAT_Y} />
         <lineSegments geometry={localAxesGeos.z} material={LOCAL_MAT_Z} />
@@ -154,7 +139,7 @@ export const PivotIndicator = React.memo(function PivotIndicator({ target: pivot
       <mesh position={pivot} geometry={CENTER_GEO} material={CENTER_MAT} />
 
       {/* Reference lines from pivot to world axes */}
-      <group ref={refLinesGroupRef}>
+      <group>
         <lineSegments geometry={refLinesGeos.toX} material={REF_MAT_X} />
         <lineSegments geometry={refLinesGeos.toY} material={REF_MAT_Y} />
         <lineSegments geometry={refLinesGeos.toZ} material={REF_MAT_Z} />

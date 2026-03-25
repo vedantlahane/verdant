@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Html } from '@react-three/drei';
-import * as THREE from 'three';
+import { BoxGeometry, DoubleSide, EdgesGeometry } from 'three';
 
 export interface GroupContainerProps {
   /** Group display name. */
@@ -36,12 +36,12 @@ export function GroupContainer({
 
   // ── Pre-create geometries (recreate only when size changes) ──
   const boxGeometry = useMemo(
-    () => new THREE.BoxGeometry(w, h, d),
+    () => new BoxGeometry(w, h, d),
     [w, h, d],
   );
 
   const edgesGeometry = useMemo(
-    () => new THREE.EdgesGeometry(boxGeometry),
+    () => new EdgesGeometry(boxGeometry),
     [boxGeometry],
   );
 
@@ -57,7 +57,7 @@ export function GroupContainer({
           transparent
           opacity={collapsed ? opacity * 0.5 : opacity}
           depthWrite={false}
-          side={THREE.DoubleSide}
+          side={DoubleSide}
         />
       </mesh>
 

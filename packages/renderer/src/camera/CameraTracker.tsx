@@ -1,7 +1,7 @@
 // camera/CameraTracker.tsx
 
 import { useRef, useMemo } from 'react';
-import * as THREE from 'three';
+import { MathUtils, PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { CameraData, Vec3 } from '../types';
 import { CAMERA_EMIT_FRAME_INTERVAL } from '../constants';
@@ -19,11 +19,11 @@ function round2(v: number): number {
 }
 
 function computeAxisProjection(
-  axis: THREE.Vector3,
+  axis: Vector3,
   x: number,
   y: number,
   z: number,
-  invQ: THREE.Quaternion,
+  invQ: Quaternion,
 ): Vec3 {
   axis.set(x, y, z).applyQuaternion(invQ);
   return [round2(axis.x), round2(axis.y), round2(axis.z)];
@@ -35,16 +35,16 @@ export function CameraTracker({ onCameraChange }: CameraTrackerProps) {
   const lastEmitKey = useRef('');
   const baselineDistance = useRef<number | null>(null);
 
-  const inverseQuaternion = useMemo(() => new THREE.Quaternion(), []);
-  const workVec = useMemo(() => new THREE.Vector3(), []);
-  const targetVec = useMemo(() => new THREE.Vector3(), []);
+  const inverseQuaternion = useMemo(() => new Quaternion(), []);
+  const workVec = useMemo(() => new Vector3(), []);
+  const targetVec = useMemo(() => new Vector3(), []);
 
   useFrame((state) => {
     frameCount.current++;
     if (frameCount.current % CAMERA_EMIT_FRAME_INTERVAL !== 0) return;
 
     // ── Bug #7 fix: guard PerspectiveCamera ──                     ← CHANGED
-    const isPerspective = camera instanceof THREE.PerspectiveCamera;
+    const isPerspective = camera instanceof PerspectiveCamera;
     const fov = isPerspective ? Math.round(camera.fov) : 45;         // ← CHANGED
 
     const px = round1(camera.position.x);
@@ -66,9 +66,9 @@ export function CameraTracker({ onCameraChange }: CameraTrackerProps) {
       const baseDist = baselineDistance.current || distance;
 
       if (isPerspective && baseDist > 0) {                            // ← CHANGED: guard
-        const halfFovRad = THREE.MathUtils.degToRad(fov) * 0.5;
+        const halfFovRad = MathUtils.degToRad(fov) * 0.5;
         const effRad = 2 * Math.atan(Math.tan(halfFovRad) * (distance / baseDist));
-        effectiveFov = round1(THREE.MathUtils.radToDeg(effRad));
+        effectiveFov = round1(MathUtils.radToDeg(effRad));
       }
     }
 

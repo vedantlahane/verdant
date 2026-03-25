@@ -1,7 +1,7 @@
 // primitives/src/provider/PrimitivesProvider.tsx
 
 import React, { useEffect, useMemo, useRef } from 'react';
-import * as THREE from 'three';
+import { Vector3 } from 'three';
 import { SharedGeometryPool } from '../geometry/SharedGeometryPool';
 import { MaterialCache } from '../materials/MaterialCache';
 import { createStatusMaterials } from '../materials/StatusMaterials';
@@ -60,7 +60,7 @@ export function PrimitivesProvider({
   const transitionEngine = useMemo(() => new TransitionEngine(), []);
 
   // Shared node position map — DragManager reads/writes, renderer syncs
-  const nodePositionsRef = useRef(new Map<string, THREE.Vector3>());
+  const nodePositionsRef = useRef(new Map<string, Vector3>());
 
   const dragManager = useMemo(
     () => new DragManager(selectionManager, commandHistory, nodePositionsRef.current),

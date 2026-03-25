@@ -1,9 +1,9 @@
 // primitives/src/edges/EdgePorts.ts
 
-import * as THREE from 'three';
+import { Vector3 } from 'three';
 import type { NodePort } from '../shapes/ShapeDefinition';
 
-const _tempVec = new THREE.Vector3();
+const _tempVec = new Vector3();
 
 /**
  * Resolves a named port on a node to its world-space position.
@@ -13,11 +13,11 @@ const _tempVec = new THREE.Vector3();
 export function resolvePort(
   nodeId: string,
   portName: string,
-  nodeWorldPosition: THREE.Vector3,
+  nodeWorldPosition: Vector3,
   nodePorts: NodePort[],
-  out?: THREE.Vector3,
-): THREE.Vector3 {
-  const result = out ?? new THREE.Vector3();
+  out?: Vector3,
+): Vector3 {
+  const result = out ?? new Vector3();
 
   const port = nodePorts.find((p) => p.name === portName);
   if (!port) {
@@ -48,9 +48,9 @@ export function resolveEdgeEndpoints(
   fromPort: string | undefined,
   toNodeId: string,
   toPort: string | undefined,
-  nodePositions: Map<string, THREE.Vector3>,
+  nodePositions: Map<string, Vector3>,
   nodePortsMap: Map<string, NodePort[]>,
-): { from: THREE.Vector3; to: THREE.Vector3 } {
+): { from: Vector3; to: Vector3 } {
   // Resolve node positions
   let fromPos = nodePositions.get(fromNodeId);
   if (!fromPos) {
@@ -73,12 +73,12 @@ export function resolveEdgeEndpoints(
   const toPorts = nodePortsMap.get(toNodeId) ?? [];
 
   const fromResult = fromPort
-    ? resolvePort(fromNodeId, fromPort, fromPos, fromPorts, new THREE.Vector3())
-    : new THREE.Vector3().copy(fromPos);
+    ? resolvePort(fromNodeId, fromPort, fromPos, fromPorts, new Vector3())
+    : new Vector3().copy(fromPos);
 
   const toResult = toPort
-    ? resolvePort(toNodeId, toPort, toPos, toPorts, new THREE.Vector3())
-    : new THREE.Vector3().copy(toPos);
+    ? resolvePort(toNodeId, toPort, toPos, toPorts, new Vector3())
+    : new Vector3().copy(toPos);
 
   return { from: fromResult, to: toResult };
 }

@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import { BoxGeometry, CapsuleGeometry, ConeGeometry, CylinderGeometry, IcosahedronGeometry, OctahedronGeometry, PlaneGeometry, SphereGeometry, TorusGeometry, Vector3 } from 'three';
 import type { ShapeDefinition, NodePort } from './ShapeDefinition';
 
 export { CubeShape } from './CubeShape';
@@ -25,8 +25,8 @@ export type { ShapeDefinition, NodePort } from './ShapeDefinition';
 function port(name: string, x: number, y: number, z: number, fx: number, fy: number, fz: number): NodePort {
   return {
     name,
-    localPosition: new THREE.Vector3(x, y, z),
-    facingDirection: new THREE.Vector3(fx, fy, fz).normalize(),
+    localPosition: new Vector3(x, y, z),
+    facingDirection: new Vector3(fx, fy, fz).normalize(),
   };
 }
 
@@ -50,7 +50,7 @@ export const cubeDefinition: ShapeDefinition = {
     const w = params?.width ?? 1;
     const h = params?.height ?? 1;
     const d = params?.depth ?? 1;
-    return new THREE.BoxGeometry(w, h, d);
+    return new BoxGeometry(w, h, d);
   },
   defaultPorts: cardinalPorts(0.5, 0.5),
   defaultMaterialConfig: { color: '#4287f5', metalness: 0.2, roughness: 0.6 },
@@ -62,7 +62,7 @@ export const sphereDefinition: ShapeDefinition = {
     const r = params?.radius ?? 0.7;
     const ws = params?.widthSegments ?? 32;
     const hs = params?.heightSegments ?? 32;
-    return new THREE.SphereGeometry(r, ws, hs);
+    return new SphereGeometry(r, ws, hs);
   },
   defaultPorts: cardinalPorts(0.7, 0.7),
   defaultMaterialConfig: { color: '#8b5cf6', metalness: 0.2, roughness: 0.5 },
@@ -75,7 +75,7 @@ export const cylinderDefinition: ShapeDefinition = {
     const rb = params?.radiusBottom ?? 0.5;
     const h  = params?.height ?? 1;
     const seg = params?.radialSegments ?? 24;
-    return new THREE.CylinderGeometry(rt, rb, h, seg);
+    return new CylinderGeometry(rt, rb, h, seg);
   },
   defaultPorts: cardinalPorts(0.5, 0.5),
   defaultMaterialConfig: { color: '#42f554', metalness: 0.2, roughness: 0.7 },
@@ -86,7 +86,7 @@ export const diamondDefinition: ShapeDefinition = {
   geometryFactory: (params) => {
     const r = params?.radius ?? 0.7;
     const detail = params?.detail ?? 0;
-    return new THREE.OctahedronGeometry(r, detail);
+    return new OctahedronGeometry(r, detail);
   },
   defaultPorts: cardinalPorts(0.7, 0.7),
   defaultMaterialConfig: { color: '#f59e0b', metalness: 0.2, roughness: 0.6 },
@@ -97,7 +97,7 @@ export const hexagonDefinition: ShapeDefinition = {
   geometryFactory: (params) => {
     const r = params?.radius ?? 0.7;
     const h = params?.height ?? 0.6;
-    return new THREE.CylinderGeometry(r, r, h, 6);
+    return new CylinderGeometry(r, r, h, 6);
   },
   defaultPorts: cardinalPorts(0.3, 0.7),
   defaultMaterialConfig: { color: '#ef4444', metalness: 0.2, roughness: 0.6 },
@@ -110,7 +110,7 @@ export const torusDefinition: ShapeDefinition = {
     const t  = params?.tube ?? 0.2;
     const rs = params?.radialSegments ?? 16;
     const ts = params?.tubularSegments ?? 100;
-    return new THREE.TorusGeometry(r, t, rs, ts);
+    return new TorusGeometry(r, t, rs, ts);
   },
   defaultPorts: cardinalPorts(0.7, 0.7),
   defaultMaterialConfig: { color: '#06b6d4', metalness: 0.2, roughness: 0.6 },
@@ -125,7 +125,7 @@ export const pentagonDefinition: ShapeDefinition = {
   geometryFactory: (params) => {
     const r = params?.radius ?? 0.7;
     const h = params?.height ?? 0.1;
-    return new THREE.CylinderGeometry(r, r, h, 5);
+    return new CylinderGeometry(r, r, h, 5);
   },
   defaultPorts: cardinalPorts(0.05, 0.7),
   defaultMaterialConfig: { color: '#10b981', metalness: 0.2, roughness: 0.6 },
@@ -136,7 +136,7 @@ export const octagonDefinition: ShapeDefinition = {
   geometryFactory: (params) => {
     const r = params?.radius ?? 0.7;
     const h = params?.height ?? 0.1;
-    return new THREE.CylinderGeometry(r, r, h, 8);
+    return new CylinderGeometry(r, r, h, 8);
   },
   defaultPorts: cardinalPorts(0.05, 0.7),
   defaultMaterialConfig: { color: '#f97316', metalness: 0.2, roughness: 0.6 },
@@ -149,7 +149,7 @@ export const ringDefinition: ShapeDefinition = {
     const t  = params?.tube ?? 0.08;
     const rs = params?.radialSegments ?? 16;
     const ts = params?.tubularSegments ?? 100;
-    return new THREE.TorusGeometry(r, t, rs, ts);
+    return new TorusGeometry(r, t, rs, ts);
   },
   defaultPorts: cardinalPorts(0.58, 0.58),
   defaultMaterialConfig: { color: '#a78bfa', metalness: 0.3, roughness: 0.5 },
@@ -161,7 +161,7 @@ export const boxDefinition: ShapeDefinition = {
     const w = params?.width ?? 1;
     const h = params?.height ?? 1;
     const d = params?.depth ?? 1;
-    return new THREE.BoxGeometry(w, h, d);
+    return new BoxGeometry(w, h, d);
   },
   defaultPorts: cardinalPorts(0.5, 0.5),
   defaultMaterialConfig: { color: '#64748b', metalness: 0.2, roughness: 0.6 },
@@ -173,7 +173,7 @@ export const coneDefinition: ShapeDefinition = {
     const r  = params?.radius ?? 0.5;
     const h  = params?.height ?? 1;
     const seg = params?.radialSegments ?? 32;
-    return new THREE.ConeGeometry(r, h, seg);
+    return new ConeGeometry(r, h, seg);
   },
   defaultPorts: [
     port('top',    0,  0.5, 0,  0,  1, 0),
@@ -191,7 +191,7 @@ export const capsuleDefinition: ShapeDefinition = {
     const l  = params?.length ?? 0.8;
     const cs = params?.capSegments ?? 4;
     const rs = params?.radialSegments ?? 8;
-    return new THREE.CapsuleGeometry(r, l, cs, rs);
+    return new CapsuleGeometry(r, l, cs, rs);
   },
   defaultPorts: cardinalPorts(0.7, 0.3),
   defaultMaterialConfig: { color: '#14b8a6', metalness: 0.2, roughness: 0.5 },
@@ -202,7 +202,7 @@ export const icosahedronDefinition: ShapeDefinition = {
   geometryFactory: (params) => {
     const r = params?.radius ?? 0.7;
     const detail = params?.detail ?? 0;
-    return new THREE.IcosahedronGeometry(r, detail);
+    return new IcosahedronGeometry(r, detail);
   },
   defaultPorts: cardinalPorts(0.7, 0.7),
   defaultMaterialConfig: { color: '#6366f1', metalness: 0.3, roughness: 0.4 },
@@ -213,7 +213,7 @@ export const planeDefinition: ShapeDefinition = {
   geometryFactory: (params) => {
     const w = params?.width ?? 1;
     const h = params?.height ?? 1;
-    return new THREE.PlaneGeometry(w, h);
+    return new PlaneGeometry(w, h);
   },
   defaultPorts: [
     port('top',    0,  0.5, 0,  0,  1, 0),

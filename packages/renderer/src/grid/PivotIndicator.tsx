@@ -1,7 +1,7 @@
 // grid/PivotIndicator.tsx
 
 import React, { useEffect, useMemo, useRef } from 'react';
-import * as THREE from 'three';
+import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, Line, LineBasicMaterial, LineDashedMaterial, MeshBasicMaterial, SphereGeometry } from 'three';
 import { Html } from '@react-three/drei';
 import { detectDarkMode } from '../utils';
 import { useRendererStore } from '../store';
@@ -23,15 +23,15 @@ import {
 //  Materials (module-level singletons)
 // ═══════════════════════════════════════════════════════════════════
 
-const LOCAL_MAT_X = new THREE.LineBasicMaterial({ color: AXIS_COLOR_X, opacity: PIVOT_AXIS_OPACITY, transparent: true, depthWrite: false });
-const LOCAL_MAT_Y = new THREE.LineBasicMaterial({ color: AXIS_COLOR_Y, opacity: PIVOT_AXIS_OPACITY, transparent: true, depthWrite: false });
-const LOCAL_MAT_Z = new THREE.LineBasicMaterial({ color: AXIS_COLOR_Z, opacity: PIVOT_AXIS_OPACITY, transparent: true, depthWrite: false });
+const LOCAL_MAT_X = new LineBasicMaterial({ color: AXIS_COLOR_X, opacity: PIVOT_AXIS_OPACITY, transparent: true, depthWrite: false });
+const LOCAL_MAT_Y = new LineBasicMaterial({ color: AXIS_COLOR_Y, opacity: PIVOT_AXIS_OPACITY, transparent: true, depthWrite: false });
+const LOCAL_MAT_Z = new LineBasicMaterial({ color: AXIS_COLOR_Z, opacity: PIVOT_AXIS_OPACITY, transparent: true, depthWrite: false });
 
-const CENTER_GEO = new THREE.SphereGeometry(0.05, 8, 8);
-const CENTER_MAT = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.6 });
+const CENTER_GEO = new SphereGeometry(0.05, 8, 8);
+const CENTER_MAT = new MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.6 });
 
-function createRefMaterial(color: string): THREE.LineDashedMaterial {
-  return new THREE.LineDashedMaterial({
+function createRefMaterial(color: string): LineDashedMaterial {
+  return new LineDashedMaterial({
     color,
     opacity: PIVOT_REFERENCE_OPACITY,
     transparent: true,
@@ -48,8 +48,8 @@ function createRefMaterial(color: string): THREE.LineDashedMaterial {
 function createLocalAxes(px: number, py: number, pz: number, len: number) {
   const half = len;
   const makeGeo = (verts: number[]) => {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    const geo = new BufferGeometry();
+    geo.setAttribute('position', new Float32BufferAttribute(verts, 3));
     return geo;
   };
 
@@ -62,15 +62,15 @@ function createLocalAxes(px: number, py: number, pz: number, len: number) {
 
 function createReferenceLines(px: number, py: number, pz: number) {
   const makeGeo = (verts: number[]) => {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    const geo = new BufferGeometry();
+    geo.setAttribute('position', new Float32BufferAttribute(verts, 3));
     // Line distances for dashing
     const dists = new Float32Array(2);
     const dx = verts[3] - verts[0];
     const dy = verts[4] - verts[1];
     const dz = verts[5] - verts[2];
     dists[1] = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    geo.setAttribute('lineDistance', new THREE.BufferAttribute(dists, 1));
+    geo.setAttribute('lineDistance', new BufferAttribute(dists, 1));
     return geo;
   };
 
@@ -102,8 +102,8 @@ export interface PivotIndicatorProps {
 }
     
 export const PivotIndicator = React.memo(function PivotIndicator({ target: pivot }: PivotIndicatorProps) {
-  const refLinesGroupRef = useRef<THREE.Group>(null);
-  const localAxesGroupRef = useRef<THREE.Group>(null);
+  const refLinesGroupRef = useRef<Group>(null);
+  const localAxesGroupRef = useRef<Group>(null);
 
   // Compute geometries when pivot changes
   const { localAxesGeos, refLinesGeos } = useMemo(() => {
@@ -132,7 +132,7 @@ export const PivotIndicator = React.memo(function PivotIndicator({ target: pivot
   useEffect(() => {
     if (!refLinesGroupRef.current) return;
     refLinesGroupRef.current.traverse((obj) => {
-      if (obj instanceof THREE.Line) {
+      if (obj instanceof Line) {
         obj.computeLineDistances();
       }
     });

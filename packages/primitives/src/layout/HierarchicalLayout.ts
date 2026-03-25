@@ -1,6 +1,6 @@
 // primitives/src/layout/HierarchicalLayout.ts
 
-import * as THREE from 'three';
+import { Vector3 } from 'three';
 import type { TransitionEngine } from '../animation/TransitionEngine';
 
 // ── Public Types ────────────────────────────────────────────
@@ -18,7 +18,7 @@ export interface LayoutEdge {
 }
 
 export interface LayoutResult {
-  positions: Map<string, THREE.Vector3>;
+  positions: Map<string, Vector3>;
   layers: Map<string, number>;
 }
 
@@ -324,8 +324,8 @@ export class HierarchicalLayout {
 
   // ── Step 5: Position Assignment ─────────────────────────
 
-  private _assignPositions(layerGroups: string[][]): Map<string, THREE.Vector3> {
-    const positions = new Map<string, THREE.Vector3>();
+  private _assignPositions(layerGroups: string[][]): Map<string, Vector3> {
+    const positions = new Map<string, Vector3>();
 
     for (let l = 0; l < layerGroups.length; l++) {
       const group = layerGroups[l];
@@ -357,26 +357,26 @@ export class HierarchicalLayout {
   private _directionToPosition(
     withinLayer: number,
     layerOffset: number,
-  ): THREE.Vector3 {
+  ): Vector3 {
     const baseY = this._baseY;
 
     switch (this._direction) {
       case 'top-down':
         // X = within layer, Y = base, Z = -layer (away from camera)
-        return new THREE.Vector3(withinLayer, baseY, -layerOffset);
+        return new Vector3(withinLayer, baseY, -layerOffset);
 
       case 'bottom-up':
-        return new THREE.Vector3(withinLayer, baseY, layerOffset);
+        return new Vector3(withinLayer, baseY, layerOffset);
 
       case 'left-right':
         // X = layer, Y = base, Z = within layer
-        return new THREE.Vector3(layerOffset, baseY, withinLayer);
+        return new Vector3(layerOffset, baseY, withinLayer);
 
       case 'right-left':
-        return new THREE.Vector3(-layerOffset, baseY, withinLayer);
+        return new Vector3(-layerOffset, baseY, withinLayer);
 
       default:
-        return new THREE.Vector3(withinLayer, baseY, -layerOffset);
+        return new Vector3(withinLayer, baseY, -layerOffset);
     }
   }
 }

@@ -1,7 +1,7 @@
 // grid/AxisLines.tsx
 
 import React, { useEffect, useMemo } from 'react';
-import * as THREE from 'three';
+import { BufferAttribute, BufferGeometry, LineBasicMaterial, MeshBasicMaterial, SphereGeometry } from 'three';
 import { useRendererStore } from '../store';
 import { computeSceneBounds } from '../utils';
 import type { SceneBounds } from '../types';
@@ -30,10 +30,10 @@ function axisRange(
 function createLineGeometry(
   x1: number, y1: number, z1: number,
   x2: number, y2: number, z2: number,
-): THREE.BufferGeometry {
-  const geo = new THREE.BufferGeometry();
+): BufferGeometry {
+  const geo = new BufferGeometry();
   const verts = new Float32Array([x1, y1, z1, x2, y2, z2]);
-  geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  geo.setAttribute('position', new BufferAttribute(verts, 3));
   return geo;
 }
 
@@ -41,12 +41,12 @@ function createLineGeometry(
 //  Materials (module-level singletons — never change)
 // ═══════════════════════════════════════════════════════════════════
 
-const MAT_X = new THREE.LineBasicMaterial({ color: AXIS_COLOR_X, transparent: true, opacity: 0.6, depthWrite: false });
-const MAT_Y = new THREE.LineBasicMaterial({ color: AXIS_COLOR_Y, transparent: true, opacity: 0.6, depthWrite: false });
-const MAT_Z = new THREE.LineBasicMaterial({ color: AXIS_COLOR_Z, transparent: true, opacity: 0.6, depthWrite: false });
+const MAT_X = new LineBasicMaterial({ color: AXIS_COLOR_X, transparent: true, opacity: 0.6, depthWrite: false });
+const MAT_Y = new LineBasicMaterial({ color: AXIS_COLOR_Y, transparent: true, opacity: 0.6, depthWrite: false });
+const MAT_Z = new LineBasicMaterial({ color: AXIS_COLOR_Z, transparent: true, opacity: 0.6, depthWrite: false });
 
-const ORIGIN_MAT = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.5 });
-const ORIGIN_GEO = new THREE.SphereGeometry(0.06, 12, 12);
+const ORIGIN_MAT = new MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.5 });
+const ORIGIN_GEO = new SphereGeometry(0.06, 12, 12);
 
 // ═══════════════════════════════════════════════════════════════════
 //  Component

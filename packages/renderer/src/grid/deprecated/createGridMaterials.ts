@@ -1,6 +1,6 @@
 // grid/createGridMaterials.ts
 
-import * as THREE from 'three';
+import { Color, DoubleSide, FrontSide, LineBasicMaterial, MeshBasicMaterial, ShaderMaterial, Side } from 'three';
 import { FADE_START, FADE_END } from '../../constants';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -9,41 +9,41 @@ import { FADE_START, FADE_END } from '../../constants';
 
 export interface GridMaterials {
   // XZ plane grid (uses fade shader)
-  readonly xzMinor: THREE.ShaderMaterial;
-  readonly xzMajor: THREE.ShaderMaterial;
+  readonly xzMinor: ShaderMaterial;
+  readonly xzMajor: ShaderMaterial;
 
   // YZ / XY plane grids
-  readonly yzMinor: THREE.ShaderMaterial;
-  readonly yzMajor: THREE.ShaderMaterial;
-  readonly xyMinor: THREE.ShaderMaterial;
-  readonly xyMajor: THREE.ShaderMaterial;
+  readonly yzMinor: ShaderMaterial;
+  readonly yzMajor: ShaderMaterial;
+  readonly xyMinor: ShaderMaterial;
+  readonly xyMajor: ShaderMaterial;
 
   // Translucent panels
-  readonly xzPanel: THREE.MeshBasicMaterial;
-  readonly yzPanel: THREE.MeshBasicMaterial;
-  readonly xyPanel: THREE.MeshBasicMaterial;
+  readonly xzPanel: MeshBasicMaterial;
+  readonly yzPanel: MeshBasicMaterial;
+  readonly xyPanel: MeshBasicMaterial;
 
   // Axes
-  readonly xAxis: THREE.LineBasicMaterial;
-  readonly yAxis: THREE.LineBasicMaterial;
-  readonly zAxis: THREE.LineBasicMaterial;
-  readonly zAxisNeg: THREE.LineBasicMaterial;
+  readonly xAxis: LineBasicMaterial;
+  readonly yAxis: LineBasicMaterial;
+  readonly zAxis: LineBasicMaterial;
+  readonly zAxisNeg: LineBasicMaterial;
 
   // Origin markers
-  readonly crosshair: THREE.LineBasicMaterial;
-  readonly ring: THREE.MeshBasicMaterial;
-  readonly sphere: THREE.MeshBasicMaterial;
+  readonly crosshair: LineBasicMaterial;
+  readonly ring: MeshBasicMaterial;
+  readonly sphere: MeshBasicMaterial;
 
   // Tick marks
-  readonly tickX: THREE.MeshBasicMaterial;
-  readonly tickY: THREE.MeshBasicMaterial;
-  readonly tickZ: THREE.MeshBasicMaterial;
+  readonly tickX: MeshBasicMaterial;
+  readonly tickY: MeshBasicMaterial;
+  readonly tickZ: MeshBasicMaterial;
 
   // Axis arrows
-  readonly arrowX: THREE.MeshBasicMaterial;
-  readonly arrowY: THREE.MeshBasicMaterial;
-  readonly arrowZ: THREE.MeshBasicMaterial;
-  readonly arrowZFar: THREE.MeshBasicMaterial;
+  readonly arrowX: MeshBasicMaterial;
+  readonly arrowY: MeshBasicMaterial;
+  readonly arrowZ: MeshBasicMaterial;
+  readonly arrowZFar: MeshBasicMaterial;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -260,7 +260,7 @@ function parseColor(color: string): NormalizedColor {
     const b = Number(rgbaMatch[3]);
     const a = rgbaMatch[4] !== undefined ? clamp01(Number(rgbaMatch[4])) : 1.0;
 
-    const threeColor = new THREE.Color(`rgb(${r},${g},${b})`);
+    const threeColor = new Color(`rgb(${r},${g},${b})`);
     return { hex: `#${threeColor.getHexString()}`, alpha: a };
   }
 
@@ -296,14 +296,14 @@ function createFadeMaterial(
   fadeStart: number,
   fadeEnd: number,
   color: string,
-): THREE.ShaderMaterial {
+): ShaderMaterial {
   const parsed = parseColor(color);
   const finalOpacity = clamp01(baseOpacity * parsed.alpha);
 
-  return new THREE.ShaderMaterial({
+  return new ShaderMaterial({
     ...TRANSPARENT_OPTS,
     uniforms: {
-      uColor: { value: new THREE.Color(parsed.hex) },
+      uColor: { value: new Color(parsed.hex) },
       uBaseOpacity: { value: finalOpacity },
       uFadeStart: { value: fadeStart },
       uFadeEnd: { value: fadeEnd },
@@ -334,8 +334,8 @@ function createFadeMaterial(
 function createLineMaterial(
   color: string,
   opacity: number,
-): THREE.LineBasicMaterial {
-  return new THREE.LineBasicMaterial({
+): LineBasicMaterial {
+  return new LineBasicMaterial({
     color,
     opacity,
     ...TRANSPARENT_OPTS,
@@ -345,9 +345,9 @@ function createLineMaterial(
 function createMeshMaterial(
   color: string,
   opacity: number,
-  side: THREE.Side = THREE.DoubleSide,
-): THREE.MeshBasicMaterial {
-  return new THREE.MeshBasicMaterial({
+  side: Side = DoubleSide,
+): MeshBasicMaterial {
+  return new MeshBasicMaterial({
     color,
     opacity,
     side,
@@ -395,7 +395,7 @@ export function createGridMaterials(isDark: boolean): GridMaterials {
     // Origin
     crosshair: createLineMaterial(p.originColor, p.crosshairOpacity),
     ring: createMeshMaterial(p.originColor, p.ringOpacity),
-    sphere: createMeshMaterial(p.originColor, p.sphereOpacity, THREE.FrontSide),
+    sphere: createMeshMaterial(p.originColor, p.sphereOpacity, FrontSide),
 
     // Ticks
     tickX: createMeshMaterial(p.tickXColor, p.tickOpacityXY),

@@ -1,10 +1,10 @@
 // primitives/src/performance/LODController.ts
 
-import * as THREE from 'three';
+import { MathUtils, PerspectiveCamera, Vector2, Vector3, Vector4 } from 'three';
 
 // ── Pre-allocated ──
-const _screenSize = new THREE.Vector2();
-const _ndcPos = new THREE.Vector4();
+const _screenSize = new Vector2();
+const _ndcPos = new Vector4();
 
 export type LODLevel = 'full' | 'medium' | 'low' | 'billboard' | 'hidden';
 
@@ -69,9 +69,9 @@ export class LODController {
    * @param canvasHeight - Canvas height in CSS pixels.
    */
   getLevel(
-    position: THREE.Vector3,
+    position: Vector3,
     radius: number,
-    camera: THREE.PerspectiveCamera,
+    camera: PerspectiveCamera,
     canvasHeight: number,
   ): LODLevel {
     if (!this._enabled) return 'full';
@@ -89,9 +89,9 @@ export class LODController {
    * Batch-compute LOD levels for all nodes.
    */
   computeAll(
-    nodePositions: Map<string, THREE.Vector3>,
+    nodePositions: Map<string, Vector3>,
     nodeRadii: Map<string, number> | number,
-    camera: THREE.PerspectiveCamera,
+    camera: PerspectiveCamera,
     canvasHeight: number,
   ): Map<string, LODLevel> {
     const result = new Map<string, LODLevel>();
@@ -113,9 +113,9 @@ export class LODController {
    * Estimate the screen-space diameter (in pixels) of a sphere.
    */
   private _getScreenSize(
-    position: THREE.Vector3,
+    position: Vector3,
     radius: number,
-    camera: THREE.PerspectiveCamera,
+    camera: PerspectiveCamera,
     canvasHeight: number,
   ): number {
     // Project center to NDC
@@ -133,7 +133,7 @@ export class LODController {
     const distance = camera.position.distanceTo(position);
     if (distance < 0.001) return canvasHeight; // On top of camera
 
-    const fovRad = THREE.MathUtils.degToRad(camera.fov);
+    const fovRad = MathUtils.degToRad(camera.fov);
     const screenHeight = canvasHeight;
     const projectedSize = (radius * 2 * screenHeight) / (2 * distance * Math.tan(fovRad / 2));
 

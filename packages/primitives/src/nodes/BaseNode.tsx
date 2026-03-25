@@ -3,7 +3,7 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import * as THREE from 'three';
+import { BackSide, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Vector3 } from 'three';
 import { NodeProps, SIZE_SCALE } from '../types';
 import { NodePorts } from './NodePorts';
 import { NodeBadge } from './NodeBadge';
@@ -15,7 +15,7 @@ interface BaseNodeProps extends NodeProps {
 }
 
 // ── Pre-allocated objects (shared across all BaseNode instances) ──
-const _targetScale = new THREE.Vector3();
+const _targetScale = new Vector3();
 
 // ── Status fallback colors (when no PrimitivesProvider) ──
 const STATUS_FALLBACK_COLORS: Record<string, string> = {
@@ -56,8 +56,8 @@ export function BaseNode({
   visible = true,
   subtitle,
 }: BaseNodeProps) {
-  const groupRef = useRef<THREE.Group>(null!);
-  const glowRef = useRef<THREE.Mesh>(null!);
+  const groupRef = useRef<Group>(null!);
+  const glowRef = useRef<Mesh>(null!);
   const lastOpacity = useRef<number | null>(null);
   const scale = resolveSizeScale(size);
 
@@ -180,7 +180,7 @@ export function BaseNode({
 
     // ── 4. Glow opacity ──
     if (glowRef.current) {
-      const mat = glowRef.current.material as THREE.MeshBasicMaterial;
+      const mat = glowRef.current.material as MeshBasicMaterial;
       const target = selected ? 0.25 : isHovered ? 0.15 : glow ? 0.08 : 0;
       mat.opacity += (target - mat.opacity) * 0.1;
     }
@@ -189,8 +189,8 @@ export function BaseNode({
     if (animOpacity !== null && animOpacity !== lastOpacity.current) {
       lastOpacity.current = animOpacity;
       groupRef.current.traverse((obj) => {
-        if ((obj as THREE.Mesh).isMesh) {
-          const mat = (obj as THREE.Mesh).material as THREE.MeshStandardMaterial;
+        if ((obj as Mesh).isMesh) {
+          const mat = (obj as Mesh).material as MeshStandardMaterial;
           if (mat && 'opacity' in mat) {
             mat.transparent = true;
             mat.opacity = animOpacity!;
@@ -201,8 +201,8 @@ export function BaseNode({
       // Reset opacity when animation ends
       lastOpacity.current = null;
       groupRef.current.traverse((obj) => {
-        if ((obj as THREE.Mesh).isMesh) {
-          const mat = (obj as THREE.Mesh).material as THREE.MeshStandardMaterial;
+        if ((obj as Mesh).isMesh) {
+          const mat = (obj as Mesh).material as MeshStandardMaterial;
           if (mat && 'opacity' in mat) {
             mat.opacity = 1;
             mat.transparent = false;
@@ -235,7 +235,7 @@ export function BaseNode({
           transparent
           opacity={0}
           depthWrite={false}
-          side={THREE.BackSide}
+          side={BackSide}
         />
       </mesh>
 
@@ -247,7 +247,7 @@ export function BaseNode({
             color={resolvedColor}
             transparent
             opacity={0.4}
-            side={THREE.DoubleSide}
+            side={DoubleSide}
           />
         </mesh>
       )}
@@ -260,7 +260,7 @@ export function BaseNode({
             color="#60a5fa"
             transparent
             opacity={0.6}
-            side={THREE.DoubleSide}
+            side={DoubleSide}
           />
         </mesh>
       )}

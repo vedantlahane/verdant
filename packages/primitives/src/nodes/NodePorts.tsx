@@ -3,7 +3,7 @@
 import React, { useRef, useMemo, useState, useCallback } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import * as THREE from 'three';
+import { Group, MeshStandardMaterial, SphereGeometry } from 'three';
 import type { NodePort } from '../shapes/ShapeDefinition';
 
 interface NodePortsProps {
@@ -13,7 +13,7 @@ interface NodePortsProps {
 }
 
 // ── Shared geometry for all ports (module-level singleton) ──
-const _portGeometry = new THREE.SphereGeometry(0.075, 8, 8);
+const _portGeometry = new SphereGeometry(0.075, 8, 8);
 
 // ── Direction-based colors ──
 const PORT_COLORS: Record<string, string> = {
@@ -35,7 +35,7 @@ const DEFAULT_PORT_COLOR = '#d4d4d8'; // zinc-300
  * Shows port name tooltip on individual port hover.
  */
 export function NodePorts({ ports, hovered, scale }: NodePortsProps) {
-  const groupRef = useRef<THREE.Group>(null!);
+  const groupRef = useRef<Group>(null!);
   const opacityRef = useRef(0);
   const [hoveredPort, setHoveredPort] = useState<string | null>(null);
 
@@ -56,9 +56,9 @@ export function NodePorts({ ports, hovered, scale }: NodePortsProps) {
 
   // ── Pre-create materials per direction (shared across ports) ──
   const materials = useMemo(() => {
-    const result: Record<string, THREE.MeshStandardMaterial> = {};
+    const result: Record<string, MeshStandardMaterial> = {};
     for (const [dir, color] of Object.entries(PORT_COLORS)) {
-      result[dir] = new THREE.MeshStandardMaterial({
+      result[dir] = new MeshStandardMaterial({
         color,
         emissive: color,
         emissiveIntensity: 0.5,
@@ -66,7 +66,7 @@ export function NodePorts({ ports, hovered, scale }: NodePortsProps) {
         opacity: 0,
       });
     }
-    result.default = new THREE.MeshStandardMaterial({
+    result.default = new MeshStandardMaterial({
       color: DEFAULT_PORT_COLOR,
       emissive: DEFAULT_PORT_COLOR,
       emissiveIntensity: 0.3,

@@ -1,7 +1,7 @@
 // hooks/useDraggable.ts
 
 import { useRef, useCallback, useEffect } from 'react';
-import * as THREE from 'three';
+import { Camera, Plane, Raycaster, Vector2, Vector3 } from 'three';
 import { useThree } from '@react-three/fiber';
 import { useRendererStore } from '../store';
 import type { Vec3, MutVec3 } from '../types';
@@ -54,21 +54,21 @@ interface DragState {
   /** Whether significant movement has occurred (drag vs tap) */
   hasMoved: boolean;
   /** World position at start of drag */
-  startPos: THREE.Vector3;
+  startPos: Vector3;
   /** Plane onto which pointer is projected (perpendicular to camera) */
-  plane: THREE.Plane;
+  plane: Plane;
   /** Offset from pointer hit to node center at drag start */
-  offset: THREE.Vector3;
+  offset: Vector3;
   /** Reusable raycaster for pointer projection */
-  raycaster: THREE.Raycaster;
+  raycaster: Raycaster;
   /** Reusable intersection point vector */
-  intersection: THREE.Vector3;
+  intersection: Vector3;
   /** Reusable NDC vector for pointer conversion */
-  ndc: THREE.Vector2;
+  ndc: Vector2;
   /** Reusable camera direction vector */
-  camDir: THREE.Vector3;
+  camDir: Vector3;
   /** Reusable world position vector */
-  worldPos: THREE.Vector3;
+  worldPos: Vector3;
 }
 
 function createDragState(): DragState {
@@ -76,14 +76,14 @@ function createDragState(): DragState {
     active: false,
     pointerId: -1,
     hasMoved: false,
-    startPos: new THREE.Vector3(),
-    plane: new THREE.Plane(),
-    offset: new THREE.Vector3(),
-    raycaster: new THREE.Raycaster(),
-    intersection: new THREE.Vector3(),
-    ndc: new THREE.Vector2(),
-    camDir: new THREE.Vector3(),
-    worldPos: new THREE.Vector3(),
+    startPos: new Vector3(),
+    plane: new Plane(),
+    offset: new Vector3(),
+    raycaster: new Raycaster(),
+    intersection: new Vector3(),
+    ndc: new Vector2(),
+    camDir: new Vector3(),
+    worldPos: new Vector3(),
   };
 }
 
@@ -99,8 +99,8 @@ function pointerToNDC(
   clientX: number,
   clientY: number,
   rect: DOMRect,
-  out: THREE.Vector2,
-): THREE.Vector2 {
+  out: Vector2,
+): Vector2 {
   out.x = ((clientX - rect.left) / rect.width) * 2 - 1;
   out.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   return out;
@@ -111,11 +111,11 @@ function pointerToNDC(
  * Returns false if the ray is parallel to the plane (no intersection).
  */
 function raycastToPlane(
-  ndc: THREE.Vector2,
-  camera: THREE.Camera,
-  plane: THREE.Plane,
-  raycaster: THREE.Raycaster,
-  out: THREE.Vector3,
+  ndc: Vector2,
+  camera: Camera,
+  plane: Plane,
+  raycaster: Raycaster,
+  out: Vector3,
 ): boolean {
   raycaster.setFromCamera(ndc, camera);
   return raycaster.ray.intersectPlane(plane, out) !== null;

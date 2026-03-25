@@ -1,7 +1,7 @@
 // hooks/useViewPersistence.ts
 
 import { useCallback, useRef } from 'react';
-import * as THREE from 'three';
+import { PerspectiveCamera, Vector3 } from 'three';
 import type { PersistedViewState } from '../types';
 import { VIEW_PERSIST_THROTTLE_MS } from '../constants';
 
@@ -25,8 +25,8 @@ export function useViewPersistence(
     if (now - lastPersistTime.current < VIEW_PERSIST_THROTTLE_MS) return;
     lastPersistTime.current = now;
 
-    const cam = controlsRef.current.object as THREE.PerspectiveCamera;
-    const target = controlsRef.current.target as THREE.Vector3;
+    const cam = controlsRef.current.object as PerspectiveCamera;
+    const target = controlsRef.current.target as Vector3;
 
     onViewChange({
       position: [cam.position.x, cam.position.y, cam.position.z],

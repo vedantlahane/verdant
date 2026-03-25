@@ -1,7 +1,7 @@
 // grid/AxisGizmo.tsx
 
 import React, { useMemo } from 'react';
-import * as THREE from 'three';
+import { ConeGeometry, CylinderGeometry, Group, MeshBasicMaterial } from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   AXIS_COLOR_X,
@@ -15,12 +15,12 @@ import type { Vec3 } from '../../types';
 //  Materials (module-level singletons)
 // ═══════════════════════════════════════════════════════════════════
 
-const MAT_X = new THREE.MeshBasicMaterial({ color: AXIS_COLOR_X });
-const MAT_Y = new THREE.MeshBasicMaterial({ color: AXIS_COLOR_Y });
-const MAT_Z = new THREE.MeshBasicMaterial({ color: AXIS_COLOR_Z });
+const MAT_X = new MeshBasicMaterial({ color: AXIS_COLOR_X });
+const MAT_Y = new MeshBasicMaterial({ color: AXIS_COLOR_Y });
+const MAT_Z = new MeshBasicMaterial({ color: AXIS_COLOR_Z });
 
-const SHAFT_GEO = new THREE.CylinderGeometry(0.02, 0.02, 1, 6);
-const TIP_GEO = new THREE.ConeGeometry(0.06, 0.15, 6);
+const SHAFT_GEO = new CylinderGeometry(0.02, 0.02, 1, 6);
+const TIP_GEO = new ConeGeometry(0.06, 0.15, 6);
 
 // Rotations to orient shafts along each axis
 const ROT_X: [number, number, number] = [0, 0, -Math.PI / 2];
@@ -52,7 +52,7 @@ export interface AxisGizmoProps {
 export const AxisGizmo = React.memo(function AxisGizmo({
   target,
 }: AxisGizmoProps) {
-  const groupRef = React.useRef<THREE.Group>(null);
+  const groupRef = React.useRef<Group>(null);
   const { camera } = useThree();
 
   const position = useMemo<[number, number, number]>(

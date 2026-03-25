@@ -1,6 +1,6 @@
 // grid/createGridGeometries.ts
 
-import * as THREE from 'three';
+import { BoxGeometry, BufferGeometry, ConeGeometry, Float32BufferAttribute, PlaneGeometry, RingGeometry, SphereGeometry } from 'three';
 import type { TickData, Vec3 } from '../types';
 import {
   GRID_SIZE,
@@ -18,34 +18,34 @@ import {
 
 export interface GridGeometries {
   // Axes
-  readonly xAxis: THREE.BufferGeometry;
-  readonly yAxis: THREE.BufferGeometry;
-  readonly zAxisPos: THREE.BufferGeometry;
-  readonly zAxisNeg: THREE.BufferGeometry;
+  readonly xAxis: BufferGeometry;
+  readonly yAxis: BufferGeometry;
+  readonly zAxisPos: BufferGeometry;
+  readonly zAxisNeg: BufferGeometry;
 
   // Grid lines
-  readonly xzMinor: THREE.BufferGeometry;
-  readonly xzMajor: THREE.BufferGeometry;
-  readonly yzMinor: THREE.BufferGeometry;
-  readonly yzMajor: THREE.BufferGeometry;
-  readonly xyMinor: THREE.BufferGeometry;
-  readonly xyMajor: THREE.BufferGeometry;
+  readonly xzMinor: BufferGeometry;
+  readonly xzMajor: BufferGeometry;
+  readonly yzMinor: BufferGeometry;
+  readonly yzMajor: BufferGeometry;
+  readonly xyMinor: BufferGeometry;
+  readonly xyMajor: BufferGeometry;
 
   // Translucent panels behind grid lines
-  readonly xzPanel: THREE.PlaneGeometry;
-  readonly yzPanel: THREE.PlaneGeometry;
-  readonly xyPanel: THREE.PlaneGeometry;
+  readonly xzPanel: PlaneGeometry;
+  readonly yzPanel: PlaneGeometry;
+  readonly xyPanel: PlaneGeometry;
 
   // Origin markers
-  readonly crosshair: THREE.BufferGeometry;
-  readonly ring: THREE.RingGeometry;
-  readonly sphere: THREE.SphereGeometry;
+  readonly crosshair: BufferGeometry;
+  readonly ring: RingGeometry;
+  readonly sphere: SphereGeometry;
 
   // Tick marks
-  readonly tickBox: THREE.BoxGeometry;
+  readonly tickBox: BoxGeometry;
 
   // Axis arrow tips
-  readonly arrow: THREE.ConeGeometry;
+  readonly arrow: ConeGeometry;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -63,11 +63,11 @@ type GridPlane = 'xz' | 'yz' | 'xy';
  * Used for line segments where each consecutive pair of Vec3
  * defines one line.
  */
-function createLineGeometry(vertices: number[]): THREE.BufferGeometry {
-  const geo = new THREE.BufferGeometry();
+function createLineGeometry(vertices: number[]): BufferGeometry {
+  const geo = new BufferGeometry();
   geo.setAttribute(
     'position',
-    new THREE.Float32BufferAttribute(vertices, 3),
+    new Float32BufferAttribute(vertices, 3),
   );
   return geo;
 }
@@ -122,7 +122,7 @@ function buildGridLines(
   plane: GridPlane,
   step: number,
   excludeMultiplesOf?: number,
-): THREE.BufferGeometry {
+): BufferGeometry {
   const vertices: number[] = [];
   const emit = LINE_EMITTERS[plane];
 
@@ -187,8 +187,8 @@ function buildOriginGeometries() {
       0, CROSSHAIR_Y, -CROSSHAIR_HALF,
       0, CROSSHAIR_Y,  CROSSHAIR_HALF,
     ]),
-    ring: new THREE.RingGeometry(RING_INNER, RING_OUTER, RING_SEGMENTS),
-    sphere: new THREE.SphereGeometry(SPHERE_RADIUS, SPHERE_SEGMENTS, SPHERE_SEGMENTS),
+    ring: new RingGeometry(RING_INNER, RING_OUTER, RING_SEGMENTS),
+    sphere: new SphereGeometry(SPHERE_RADIUS, SPHERE_SEGMENTS, SPHERE_SEGMENTS),
   };
 }
 
@@ -202,8 +202,8 @@ const ARROW_SEGMENTS = 8;
 
 function buildSmallGeometries() {
   return {
-    tickBox: new THREE.BoxGeometry(TICK_SIZE, TICK_SIZE, TICK_SIZE),
-    arrow: new THREE.ConeGeometry(ARROW_RADIUS, ARROW_HEIGHT, ARROW_SEGMENTS),
+    tickBox: new BoxGeometry(TICK_SIZE, TICK_SIZE, TICK_SIZE),
+    arrow: new ConeGeometry(ARROW_RADIUS, ARROW_HEIGHT, ARROW_SEGMENTS),
   };
 }
 
@@ -237,9 +237,9 @@ export function createGridGeometries(): GridGeometries {
     xyMajor: buildGridLines('xy', MAJOR_STEP),
 
     // Panels
-    xzPanel: new THREE.PlaneGeometry(panelSize, panelSize),
-    yzPanel: new THREE.PlaneGeometry(panelSize, panelSize),
-    xyPanel: new THREE.PlaneGeometry(panelSize, panelSize),
+    xzPanel: new PlaneGeometry(panelSize, panelSize),
+    yzPanel: new PlaneGeometry(panelSize, panelSize),
+    xyPanel: new PlaneGeometry(panelSize, panelSize),
 
     // Origin
     ...buildOriginGeometries(),

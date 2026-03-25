@@ -1,7 +1,7 @@
 // SceneContent.tsx
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import * as THREE from 'three';
+import { PerspectiveCamera, Plane, Raycaster, Vector2, Vector3 } from 'three';
 import { useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import {
@@ -49,7 +49,7 @@ import {
 
 /** Structural type for drei OrbitControls ref */
 interface OrbitControlsImpl {
-  target: THREE.Vector3;
+  target: Vector3;
   update: () => void;
   autoRotate: boolean;
   autoRotateSpeed: number;
@@ -343,12 +343,12 @@ const SceneLighting = React.memo(function SceneLighting() {
 //  Double-click pivot — pooled objects (zero alloc)
 // ═══════════════════════════════════════════════════════════════════
 
-const _dblClickRaycaster = new THREE.Raycaster();
-const _dblClickNDC = new THREE.Vector2();
-const _dblClickNormal = new THREE.Vector3();
-const _dblClickPlane = new THREE.Plane();
-const _dblClickHit = new THREE.Vector3();
-const _dblClickOffset = new THREE.Vector3();
+const _dblClickRaycaster = new Raycaster();
+const _dblClickNDC = new Vector2();
+const _dblClickNormal = new Vector3();
+const _dblClickPlane = new Plane();
+const _dblClickHit = new Vector3();
+const _dblClickOffset = new Vector3();
 
 // ═══════════════════════════════════════════════════════════════════
 //  Main Component
@@ -402,7 +402,7 @@ export const SceneContent = React.forwardRef<
         DEFAULT_CAMERA_POSITION[1],
         DEFAULT_CAMERA_POSITION[2],
       );
-      (camera as THREE.PerspectiveCamera).fov = DEFAULT_CAMERA_FOV;
+      (camera as PerspectiveCamera).fov = DEFAULT_CAMERA_FOV;
       camera.updateProjectionMatrix();
 
       controlsRef.current.target.set(

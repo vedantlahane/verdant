@@ -1,12 +1,12 @@
 // primitives/src/performance/FrustumCulling.ts
 
-import * as THREE from 'three';
+import { Box3, Camera, Frustum, Matrix4, Sphere, Vector3 } from 'three';
 
 // ── Pre-allocated ──
-const _frustum = new THREE.Frustum();
-const _projScreenMatrix = new THREE.Matrix4();
-const _sphere = new THREE.Sphere();
-const _center = new THREE.Vector3();
+const _frustum = new Frustum();
+const _projScreenMatrix = new Matrix4();
+const _sphere = new Sphere();
+const _center = new Vector3();
 
 /**
  * Determines which nodes are inside the camera frustum.
@@ -42,7 +42,7 @@ export class FrustumCulling {
    * Update the frustum from the current camera.
    * Call once per frame before any visibility checks.
    */
-  update(camera: THREE.Camera): void {
+  update(camera: Camera): void {
     if (!this._enabled) return;
     _projScreenMatrix.multiplyMatrices(
       camera.projectionMatrix,
@@ -58,7 +58,7 @@ export class FrustumCulling {
    * @param radius - Bounding sphere radius. @default 1.0
    * @returns `true` if the node is potentially visible.
    */
-  isVisible(position: THREE.Vector3, radius = 1.0): boolean {
+  isVisible(position: Vector3, radius = 1.0): boolean {
     if (!this._enabled) return true;
     _sphere.set(position, radius);
     return _frustum.intersectsSphere(_sphere);
@@ -67,7 +67,7 @@ export class FrustumCulling {
   /**
    * Check if a bounding box is inside the frustum.
    */
-  isBoxVisible(box: THREE.Box3): boolean {
+  isBoxVisible(box: Box3): boolean {
     if (!this._enabled) return true;
     return _frustum.intersectsBox(box);
   }
@@ -80,7 +80,7 @@ export class FrustumCulling {
    * @returns Set of visible node IDs.
    */
   getVisibleNodes(
-    nodePositions: Map<string, THREE.Vector3>,
+    nodePositions: Map<string, Vector3>,
     radius = 1.0,
   ): Set<string> {
     if (!this._enabled) return new Set(nodePositions.keys());

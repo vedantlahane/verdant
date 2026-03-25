@@ -1,7 +1,7 @@
 // measurement/DimensionLine.tsx
 
 import React, { useEffect, useMemo, useRef } from 'react';
-import * as THREE from 'three';
+import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Line, LineBasicMaterial, LineDashedMaterial, Vector3 } from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import type { MeasurementLine, Vec3 } from '../types';
@@ -32,17 +32,17 @@ const LABEL_CONTAINER_STYLE: React.CSSProperties = {
 // ═══════════════════════════════════════════════════════════════════
 
 interface LineResources {
-  readonly geometry: THREE.BufferGeometry;
-  readonly material: THREE.LineDashedMaterial;
+  readonly geometry: BufferGeometry;
+  readonly material: LineDashedMaterial;
 }
 
 interface WingResources {
-  readonly geometry: THREE.BufferGeometry;
-  readonly material: THREE.LineBasicMaterial;
+  readonly geometry: BufferGeometry;
+  readonly material: LineBasicMaterial;
 }
 
 /**
- * Bug #8 fix: The old code created a temporary `THREE.Line(geometry)`
+ * Bug #8 fix: The old code created a temporary `Line(geometry)`
  * and called `computeLineDistances()`, but then used `tmpLine.geometry`
  * which is the *same reference* as `geometry` — the tmpLine itself was
  * never disposed and leaked.
@@ -56,24 +56,24 @@ function createLineResources(
   to: Vec3,
   color: string,
 ): LineResources {
-  const geometry = new THREE.BufferGeometry();
+  const geometry = new BufferGeometry();
   geometry.setAttribute(
     'position',
-    new THREE.Float32BufferAttribute(
+    new Float32BufferAttribute(
       [from[0], from[1], from[2], to[0], to[1], to[2]],
       3,
     ),
   );
 
   // computeLineDistances requires a Line object — create temporarily
-  const tmpLine = new THREE.Line(geometry);
+  const tmpLine = new Line(geometry);
   tmpLine.computeLineDistances();
   // Detach geometry so disposing tmpLine doesn't take it with it       ← CHANGED
-  tmpLine.geometry = new THREE.BufferGeometry();                       // ← CHANGED: orphan with empty geo
+  tmpLine.geometry = new BufferGeometry();                       // ← CHANGED: orphan with empty geo
   tmpLine.geometry.dispose();                                          // ← CHANGED: dispose the empty one
   // tmpLine itself will be GC'd — no scene reference holds it
 
-  const material = new THREE.LineDashedMaterial({
+  const material = new LineDashedMaterial({
     color,
     dashSize: DASH_SIZE,
     gapSize: GAP_SIZE,
@@ -86,10 +86,10 @@ function createLineResources(
 }
 
 /** Reusable vectors for wing computation (zero alloc in hot path) */    // ← NEW
-const _wingDir = new THREE.Vector3();
-const _wingPerp = new THREE.Vector3();
-const _wingUp = new THREE.Vector3(0, 1, 0);
-const _wingRight = new THREE.Vector3(1, 0, 0);
+const _wingDir = new Vector3();
+const _wingPerp = new Vector3();
+const _wingUp = new Vector3(0, 1, 0);
+const _wingRight = new Vector3(1, 0, 0);
 
 function createWingResources(
   from: Vec3,
@@ -121,10 +121,10 @@ function createWingResources(
     to[0] - px, to[1] - py, to[2] - pz,
   ]);
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(vertices, 3));
 
-  const material = new THREE.LineBasicMaterial({
+  const material = new LineBasicMaterial({
     color,
     transparent: true,
     opacity: 0,

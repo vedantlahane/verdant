@@ -1,6 +1,6 @@
 // primitives/src/performance/ObjectPool.ts
 
-import * as THREE from 'three';
+import { Box3, Matrix4, Quaternion, Sphere, Vector3 } from 'three';
 
 /**
  * Pre-allocated reusable object pools for hot-path Three.js operations.
@@ -22,11 +22,11 @@ import * as THREE from 'three';
  * ```
  */
 export class ObjectPool {
-  private _vectors: THREE.Vector3[] = [];
-  private _matrices: THREE.Matrix4[] = [];
-  private _quaternions: THREE.Quaternion[] = [];
-  private _boxes: THREE.Box3[] = [];
-  private _spheres: THREE.Sphere[] = [];
+  private _vectors: Vector3[] = [];
+  private _matrices: Matrix4[] = [];
+  private _quaternions: Quaternion[] = [];
+  private _boxes: Box3[] = [];
+  private _spheres: Sphere[] = [];
 
   private _vectorIdx = 0;
   private _matrixIdx = 0;
@@ -36,28 +36,28 @@ export class ObjectPool {
 
   constructor(initialSize = 32) {
     for (let i = 0; i < initialSize; i++) {
-      this._vectors.push(new THREE.Vector3());
-      this._matrices.push(new THREE.Matrix4());
-      this._quaternions.push(new THREE.Quaternion());
-      this._boxes.push(new THREE.Box3());
-      this._spheres.push(new THREE.Sphere());
+      this._vectors.push(new Vector3());
+      this._matrices.push(new Matrix4());
+      this._quaternions.push(new Quaternion());
+      this._boxes.push(new Box3());
+      this._spheres.push(new Sphere());
     }
   }
 
   // ── Vector3 ─────────────────────────────────────────────
 
-  getVector3(): THREE.Vector3 {
+  getVector3(): Vector3 {
     if (this._vectorIdx >= this._vectors.length) {
-      this._vectors.push(new THREE.Vector3());
+      this._vectors.push(new Vector3());
     }
     return this._vectors[this._vectorIdx++].set(0, 0, 0);
   }
 
-  returnVector3(_v: THREE.Vector3): void {
+  returnVector3(_v: Vector3): void {
     // Returning is implicit via resetFrame — kept for API clarity
   }
 
-  withVector3<T>(fn: (v: THREE.Vector3) => T): T {
+  withVector3<T>(fn: (v: Vector3) => T): T {
     const v = this.getVector3();
     const result = fn(v);
     return result;
@@ -65,36 +65,36 @@ export class ObjectPool {
 
   // ── Matrix4 ─────────────────────────────────────────────
 
-  getMatrix4(): THREE.Matrix4 {
+  getMatrix4(): Matrix4 {
     if (this._matrixIdx >= this._matrices.length) {
-      this._matrices.push(new THREE.Matrix4());
+      this._matrices.push(new Matrix4());
     }
     return this._matrices[this._matrixIdx++].identity();
   }
 
   // ── Quaternion ──────────────────────────────────────────
 
-  getQuaternion(): THREE.Quaternion {
+  getQuaternion(): Quaternion {
     if (this._quaternionIdx >= this._quaternions.length) {
-      this._quaternions.push(new THREE.Quaternion());
+      this._quaternions.push(new Quaternion());
     }
     return this._quaternions[this._quaternionIdx++].identity();
   }
 
   // ── Box3 ────────────────────────────────────────────────
 
-  getBox3(): THREE.Box3 {
+  getBox3(): Box3 {
     if (this._boxIdx >= this._boxes.length) {
-      this._boxes.push(new THREE.Box3());
+      this._boxes.push(new Box3());
     }
     return this._boxes[this._boxIdx++].makeEmpty();
   }
 
   // ── Sphere ──────────────────────────────────────────────
 
-  getSphere(): THREE.Sphere {
+  getSphere(): Sphere {
     if (this._sphereIdx >= this._spheres.length) {
-      this._spheres.push(new THREE.Sphere());
+      this._spheres.push(new Sphere());
     }
     const s = this._spheres[this._sphereIdx++];
     s.center.set(0, 0, 0);

@@ -1,7 +1,7 @@
 // hooks/usePrimitivesSync.ts
 
 import { useEffect, useRef } from 'react';                            // ← CHANGED: added useRef
-import * as THREE from 'three';
+import { Vector3 } from 'three';
 import { usePrimitives } from '@verdant/primitives';
 import { useRendererStore } from '../store';
 import { INSTANCING_THRESHOLD } from '../constants';
@@ -71,9 +71,9 @@ export function usePrimitivesSync(): void {
     if (positions === prevPositionsRef.current) return;
     prevPositionsRef.current = positions;
 
-    const posMap = new Map<string, THREE.Vector3>();
+    const posMap = new Map<string, Vector3>();
     for (const [id, pos] of Object.entries(positions)) {
-      posMap.set(id, new THREE.Vector3(pos[0], pos[1], pos[2]));
+      posMap.set(id, new Vector3(pos[0], pos[1], pos[2]));
     }
     if (posMap.size > 0) {
       transitionEngine.playLayoutTransition(posMap, 500);

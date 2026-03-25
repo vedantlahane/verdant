@@ -3,24 +3,24 @@
 import React, { useRef, useMemo, useState, useCallback } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { Html, Line } from '@react-three/drei';
-import * as THREE from 'three';
+import { ConeGeometry, QuadraticBezierCurve3, Quaternion, Vector3 } from 'three';
 import type { EdgeLineProps, EdgeStyle } from '../types';
 import { EdgeRouter } from './EdgeRouter';
 import { FlowParticles } from './FlowParticles';
 import { usePrimitivesOptional } from '../provider/PrimitivesContext';
 
 // ── Pre-allocated objects (module-level, reused across all edges) ──
-const _dirVec = new THREE.Vector3();
-const _defaultUp = new THREE.Vector3(0, 1, 0);
+const _dirVec = new Vector3();
+const _defaultUp = new Vector3(0, 1, 0);
 
 // ── Shared cone geometry for all arrowheads ──
-const _arrowGeometry = new THREE.ConeGeometry(0.06, 0.15, 6);
+const _arrowGeometry = new ConeGeometry(0.06, 0.15, 6);
 
 /**
  * Computes the position at parameter `t ∈ [0, 1]` along a polyline path.
  * Writes result into `out` to avoid allocation.
  */
-function getPointOnPath(path: THREE.Vector3[], t: number, out: THREE.Vector3): THREE.Vector3 {
+function getPointOnPath(path: Vector3[], t: number, out: Vector3): Vector3 {
   if (path.length === 0) return out.set(0, 0, 0);
   if (path.length === 1) return out.copy(path[0]);
 
@@ -71,8 +71,8 @@ export function BaseEdge({
 
   // ── Compute path points ──
   const points = useMemo(() => {
-    const fromVec = new THREE.Vector3(...from);
-    const toVec = new THREE.Vector3(...to);
+    const fromVec = new Vector3(...from);
+    const toVec = new Vector3(...to);
 
     if (routing) {
       return EdgeRouter.computePath(fromVec, toVec, routing);
@@ -81,12 +81,12 @@ export function BaseEdge({
     // Default curved bezier
     const dist = fromVec.distanceTo(toVec);
     const arcHeight = Math.min(0.6, dist * 0.15);
-    const mid = new THREE.Vector3(
+    const mid = new Vector3(
       (from[0] + to[0]) / 2,
       (from[1] + to[1]) / 2 + arcHeight,
       (from[2] + to[2]) / 2,
     );
-    const curve = new THREE.QuadraticBezierCurve3(fromVec, mid, toVec);
+    const curve = new QuadraticBezierCurve3(fromVec, mid, toVec);
     return curve.getPoints(32);
   }, [from, to, routing]);
 
@@ -95,7 +95,7 @@ export function BaseEdge({
     if (points.length < 2) {
       return {
         arrowPosition: [0, 0, 0] as [number, number, number],
-        arrowQuaternion: new THREE.Quaternion(),
+        arrowQuaternion: new Quaternion(),
       };
     }
 
@@ -106,10 +106,10 @@ export function BaseEdge({
     _dirVec.subVectors(tip, prev).normalize();
 
     // Cone geometry default axis is +Y → rotate to tangent direction
-    const quat = new THREE.Quaternion().setFromUnitVectors(_defaultUp, _dirVec);
+    const quat = new Quaternion().setFromUnitVectors(_defaultUp, _dirVec);
 
     // Position slightly before tip so cone point meets the endpoint
-    const pos = new THREE.Vector3().lerpVectors(prev, tip, 0.92);
+    const pos = new Vector3().lerpVectors(prev, tip, 0.92);
 
     return {
       arrowPosition: pos.toArray() as [number, number, number],
@@ -119,7 +119,7 @@ export function BaseEdge({
 
   // ── Compute label position at actual curve midpoint ──
   const labelPosition = useMemo<[number, number, number]>(() => {
-    const mid = new THREE.Vector3();
+    const mid = new Vector3();
     getPointOnPath(points, 0.5, mid);
     // Offset slightly above the path for readability
     return [mid.x, mid.y + 0.3, mid.z];

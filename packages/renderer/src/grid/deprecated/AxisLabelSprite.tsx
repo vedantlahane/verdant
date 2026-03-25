@@ -1,7 +1,7 @@
 // grid/AxisLabelSprite.tsx
 
 import React, { useEffect, useMemo, useRef } from 'react';
-import * as THREE from 'three';
+import { CanvasTexture, LinearFilter } from 'three';
 import type { TickData, Vec3 } from '../types';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -65,7 +65,7 @@ function computeLabelPosition(tick: TickData): Vec3 {
 function createLabelTexture(
   axis: string,
   val: number,
-): THREE.CanvasTexture | null {
+): CanvasTexture | null {
   if (typeof document === 'undefined') return null;
 
   const color = AXIS_COLORS[axis] ?? '#ffffff';
@@ -85,8 +85,8 @@ function createLabelTexture(
   ctx.textBaseline = 'middle';
   ctx.fillText(label, TEXT_CENTER_X, TEXT_CENTER_Y);
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
+  const texture = new CanvasTexture(canvas);
+  texture.minFilter = LinearFilter;
   texture.generateMipmaps = false;
 
   return texture;
@@ -112,7 +112,7 @@ interface AxisLabelSpriteProps {
  */
 export const AxisLabelSprite = React.memo(
   function AxisLabelSprite({ tick }: AxisLabelSpriteProps) {
-    const textureRef = useRef<THREE.CanvasTexture | null>(null);
+    const textureRef = useRef<CanvasTexture | null>(null);
 
     // Create texture when axis/val changes, dispose on cleanup
     const texture = useMemo(() => {

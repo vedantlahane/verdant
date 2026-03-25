@@ -1,15 +1,15 @@
 // primitives/src/interaction/CameraControls.ts
 
-import * as THREE from 'three';
+import { Box3, MathUtils, PerspectiveCamera, Sphere, Vector3 } from 'three';
 
 // ── Pre-allocated vectors ──
-const _from = new THREE.Vector3();
-const _to = new THREE.Vector3();
-const _current = new THREE.Vector3();
-const _center = new THREE.Vector3();
-const _size = new THREE.Vector3();
-const _sphere = new THREE.Sphere();
-const _union = new THREE.Box3();
+const _from = new Vector3();
+const _to = new Vector3();
+const _current = new Vector3();
+const _center = new Vector3();
+const _size = new Vector3();
+const _sphere = new Sphere();
+const _union = new Box3();
 
 /** Smooth ease-in-out cubic. */
 function easeInOutCubic(t: number): number {
@@ -32,18 +32,18 @@ export interface CameraControlsOptions {
  * both camera position AND controls target are animated together.
  */
 export class CameraControls {
-  private _camera: THREE.PerspectiveCamera;
+  private _camera: PerspectiveCamera;
   private _orbitControls: any | null = null; // OrbitControls duck type
   private _rafId: number | null = null;
-  private _defaultPosition: THREE.Vector3;
+  private _defaultPosition: Vector3;
   private _fitPadding: number;
 
   constructor(
-    camera: THREE.PerspectiveCamera,
+    camera: PerspectiveCamera,
     options: CameraControlsOptions = {},
   ) {
     this._camera = camera;
-    this._defaultPosition = new THREE.Vector3(
+    this._defaultPosition = new Vector3(
       ...(options.defaultPosition ?? [0, 6, 12]),
     );
     this._fitPadding = options.fitPadding ?? 0.1;
@@ -55,8 +55,8 @@ export class CameraControls {
   }
 
   /** Current OrbitControls target, or origin if not set. */
-  private get _target(): THREE.Vector3 {
-    return this._orbitControls?.target ?? new THREE.Vector3(0, 0, 0);
+  private get _target(): Vector3 {
+    return this._orbitControls?.target ?? new Vector3(0, 0, 0);
   }
 
   // ── Public Methods ────────────────────────────────────────
@@ -69,7 +69,7 @@ export class CameraControls {
    * @param duration - Animation duration in ms. @default 600
    */
   zoomToFit(
-    nodeBounds: Map<string, THREE.Box3>,
+    nodeBounds: Map<string, Box3>,
     duration = 600,
   ): Promise<void> {
     if (nodeBounds.size === 0) {
@@ -77,7 +77,7 @@ export class CameraControls {
         this._camera.position,
         this._defaultPosition,
         this._target,
-        new THREE.Vector3(0, 0, 0),
+        new Vector3(0, 0, 0),
         duration,
       );
     }
@@ -93,13 +93,13 @@ export class CameraControls {
     const radius = _sphere.radius;
 
     // Compute camera distance for the sphere to fill viewport with padding
-    const fov = THREE.MathUtils.degToRad(this._camera.fov);
+    const fov = MathUtils.degToRad(this._camera.fov);
     const aspect = this._camera.aspect;
     const effectiveFov = Math.min(fov, 2 * Math.atan(Math.tan(fov / 2) * aspect));
     const distance = (radius * (1 + this._fitPadding)) / Math.sin(effectiveFov / 2);
 
     // Place camera along current viewing direction (or default forward)
-    const direction = new THREE.Vector3()
+    const direction = new Vector3()
       .subVectors(this._camera.position, this._target)
       .normalize();
 
@@ -107,7 +107,7 @@ export class CameraControls {
       direction.set(0, 0.5, 1).normalize();
     }
 
-    const targetPosition = new THREE.Vector3()
+    const targetPosition = new Vector3()
       .copy(center)
       .addScaledVector(direction, distance);
 
@@ -129,18 +129,18 @@ export class CameraControls {
    */
   focusNode(
     _nodeId: string,
-    nodeBox: THREE.Box3,
+    nodeBox: Box3,
     duration = 400,
   ): Promise<void> {
     nodeBox.getCenter(_center);
     nodeBox.getSize(_size);
 
     const nodeRadius = Math.max(_size.x, _size.y, _size.z) * 0.5;
-    const fov = THREE.MathUtils.degToRad(this._camera.fov);
+    const fov = MathUtils.degToRad(this._camera.fov);
     const distance = Math.max(3, (nodeRadius * 3) / Math.sin(fov / 2));
 
     // Maintain current viewing direction
-    const direction = new THREE.Vector3()
+    const direction = new Vector3()
       .subVectors(this._camera.position, this._target)
       .normalize();
 
@@ -148,7 +148,7 @@ export class CameraControls {
       direction.set(0, 0.5, 1).normalize();
     }
 
-    const targetPosition = new THREE.Vector3()
+    const targetPosition = new Vector3()
       .copy(_center)
       .addScaledVector(direction, distance);
 
@@ -171,12 +171,12 @@ export class CameraControls {
     worldPos: [number, number],
     duration = 300,
   ): Promise<void> {
-    const newTarget = new THREE.Vector3(worldPos[0], 0, worldPos[1]);
-    const offset = new THREE.Vector3().subVectors(
+    const newTarget = new Vector3(worldPos[0], 0, worldPos[1]);
+    const offset = new Vector3().subVectors(
       this._camera.position,
       this._target,
     );
-    const newCamPos = new THREE.Vector3().copy(newTarget).add(offset);
+    const newCamPos = new Vector3().copy(newTarget).add(offset);
 
     return this._animateCamera(
       this._camera.position,
@@ -204,10 +204,10 @@ export class CameraControls {
   // ── Private ─────────────────────────────────────────────
 
   private _animateCamera(
-    fromPos: THREE.Vector3,
-    toPos: THREE.Vector3,
-    fromTarget: THREE.Vector3,
-    toTarget: THREE.Vector3,
+    fromPos: Vector3,
+    toPos: Vector3,
+    fromTarget: Vector3,
+    toTarget: Vector3,
     duration: number,
   ): Promise<void> {
     this.cancel();

@@ -1,7 +1,7 @@
 // grid/RaycastFloor.tsx
 
 import React, { useMemo } from 'react';
-import * as THREE from 'three';
+import { PlaneGeometry } from 'three';
 
 /**
  * Invisible infinite-ish ground plane for raycasting.
@@ -17,7 +17,7 @@ const FLOOR_SIZE = 10_000;
 const FLOOR_Y = -0.004;
 const FLOOR_ROTATION: readonly [number, number, number] = [-Math.PI / 2, 0, 0];
 
-const _geometry = new THREE.PlaneGeometry(FLOOR_SIZE, FLOOR_SIZE);
+const _geometry = new PlaneGeometry(FLOOR_SIZE, FLOOR_SIZE);
 
 export const RaycastFloor = React.memo(function RaycastFloor() {
   return (

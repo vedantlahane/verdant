@@ -1,6 +1,6 @@
 // primitives/src/materials/MaterialCache.ts
 
-import * as THREE from 'three';
+import { Color, Material, MeshBasicMaterial, MeshStandardMaterial, MeshStandardMaterialParameters } from 'three';
 
 export interface MaterialConfig {
   color: string;
@@ -20,7 +20,7 @@ export interface MaterialCacheStats {
 }
 
 interface CacheEntry {
-  material: THREE.Material;
+  material: Material;
   refCount: number;
 }
 
@@ -52,7 +52,7 @@ export class MaterialCache {
    * - If an identical config exists: increments `refCount`, returns cached.
    * - Otherwise: creates a new material, caches with `refCount = 1`.
    */
-  acquire(config: MaterialConfig): THREE.Material {
+  acquire(config: MaterialConfig): Material {
     const key = materialKey(config);
     const entry = this._store.get(key);
     if (entry) {
@@ -126,18 +126,18 @@ export class MaterialCache {
 
   // ── Private ─────────────────────────────────────────────
 
-  private _createMaterial(config: MaterialConfig): THREE.Material {
+  private _createMaterial(config: MaterialConfig): Material {
     const isBasic = config.type === 'MeshBasicMaterial';
 
     if (isBasic) {
-      return new THREE.MeshBasicMaterial({
+      return new MeshBasicMaterial({
         color: config.color,
         opacity: config.opacity,
         transparent: config.transparent ?? (config.opacity !== undefined && config.opacity < 1),
       });
     }
 
-    const params: THREE.MeshStandardMaterialParameters = {
+    const params: MeshStandardMaterialParameters = {
       color: config.color,
     };
 
@@ -146,7 +146,7 @@ export class MaterialCache {
       params.transparent = config.transparent ?? config.opacity < 1;
     }
     if (config.emissive !== undefined) {
-      params.emissive = new THREE.Color(config.emissive);
+      params.emissive = new Color(config.emissive);
     }
     if (config.emissiveIntensity !== undefined) {
       params.emissiveIntensity = config.emissiveIntensity;
@@ -158,6 +158,6 @@ export class MaterialCache {
       params.roughness = config.roughness;
     }
 
-    return new THREE.MeshStandardMaterial(params);
+    return new MeshStandardMaterial(params);
   }
 }

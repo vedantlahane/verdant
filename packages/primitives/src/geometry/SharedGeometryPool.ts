@@ -1,6 +1,6 @@
 // primitives/src/geometry/SharedGeometryPool.ts
 
-import * as THREE from 'three';
+import { BoxGeometry, BufferGeometry } from 'three';
 
 export interface GeometryPoolStats {
   /** Number of unique geometry keys currently cached. */
@@ -10,7 +10,7 @@ export interface GeometryPoolStats {
 }
 
 interface PoolEntry {
-  geometry: THREE.BufferGeometry;
+  geometry: BufferGeometry;
   refCount: number;
 }
 
@@ -23,7 +23,7 @@ interface PoolEntry {
  * @example
  * ```ts
  * const pool = new SharedGeometryPool();
- * const geo = pool.acquire('box:1,1,1', () => new THREE.BoxGeometry(1, 1, 1));
+ * const geo = pool.acquire('box:1,1,1', () => new BoxGeometry(1, 1, 1));
  * // ... use geo ...
  * pool.release('box:1,1,1'); // decrements refCount; disposes at 0
  * ```
@@ -37,7 +37,7 @@ export class SharedGeometryPool {
    * - If the key exists: increments `refCount`, returns the cached geometry.
    * - If the key is new: calls `factory()`, caches with `refCount = 1`.
    */
-  acquire(key: string, factory: () => THREE.BufferGeometry): THREE.BufferGeometry {
+  acquire(key: string, factory: () => BufferGeometry): BufferGeometry {
     const entry = this._store.get(key);
     if (entry) {
       entry.refCount++;

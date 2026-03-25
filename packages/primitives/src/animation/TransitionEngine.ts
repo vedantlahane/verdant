@@ -1,6 +1,6 @@
 // primitives/src/animation/TransitionEngine.ts
 
-import * as THREE from 'three';
+import { Vector3 } from 'three';
 import type { AnimationType } from '../types';
 
 export type { AnimationType };
@@ -37,8 +37,8 @@ interface AnimationRecord {
 }
 
 interface LayoutRecord {
-  startPositions: Map<string, THREE.Vector3>;
-  targetPositions: Map<string, THREE.Vector3>;
+  startPositions: Map<string, Vector3>;
+  targetPositions: Map<string, Vector3>;
   startTime: number;
   duration: number;
   resolve: () => void;
@@ -57,7 +57,7 @@ export interface AnimationState {
 
 // ── Pre-allocated temp vector ───────────────────────────────
 
-const _lerpVec = new THREE.Vector3();
+const _lerpVec = new Vector3();
 
 /**
  * Manages enter/exit node animations and layout transitions.
@@ -70,7 +70,7 @@ const _lerpVec = new THREE.Vector3();
 export class TransitionEngine {
   private _animations = new Map<string, AnimationRecord>();
   private _layoutTransition: LayoutRecord | null = null;
-  private _currentPositions = new Map<string, THREE.Vector3>();
+  private _currentPositions = new Map<string, Vector3>();
   private _lastTickTime = 0;
 
   // ── Enter / Exit ────────────────────────────────────────
@@ -158,7 +158,7 @@ export class TransitionEngine {
    * Snapshots current positions as start, lerps to targets over `duration` ms.
    */
   playLayoutTransition(
-    targetPositions: Map<string, THREE.Vector3>,
+    targetPositions: Map<string, Vector3>,
     duration?: number,
   ): Promise<void> {
     // Resolve any in-flight layout transition
@@ -170,7 +170,7 @@ export class TransitionEngine {
     const d = duration ?? DEFAULT_LAYOUT_DURATION;
 
     // Snapshot current positions as start
-    const startPositions = new Map<string, THREE.Vector3>();
+    const startPositions = new Map<string, Vector3>();
     for (const [id, target] of targetPositions) {
       const current = this._currentPositions.get(id);
       startPositions.set(id, current ? current.clone() : target.clone());
@@ -191,7 +191,7 @@ export class TransitionEngine {
    * Get the interpolated position for a node during a layout transition.
    * Returns `null` if no layout transition is active or the node isn't part of it.
    */
-  getLayoutPosition(nodeId: string): THREE.Vector3 | null {
+  getLayoutPosition(nodeId: string): Vector3 | null {
     return this._currentPositions.get(nodeId) ?? null;
   }
 
@@ -229,7 +229,7 @@ export class TransitionEngine {
 
         let current = this._currentPositions.get(id);
         if (!current) {
-          current = new THREE.Vector3();
+          current = new Vector3();
           this._currentPositions.set(id, current);
         }
         // Use pre-allocated vector then copy to avoid allocation in hot loop

@@ -1,7 +1,7 @@
 // hooks/useCursorTracking.ts
 
 import { useEffect, useMemo, useRef } from 'react';
-import * as THREE from 'three';
+import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
 import type { CursorData } from '../types';
 
@@ -11,17 +11,17 @@ export function useCursorTracking(
 ): void {
   const { camera, gl } = useThree();
 
-  const raycaster = useMemo(() => new THREE.Raycaster(), []);
-  const plane = useRef(new THREE.Plane());
-  const normal = useRef(new THREE.Vector3());
-  const hitPoint = useMemo(() => new THREE.Vector3(), []);
-  const ndc = useMemo(() => new THREE.Vector2(), []);                 // ← NEW: pooled (Bug #11)
+  const raycaster = useMemo(() => new Raycaster(), []);
+  const plane = useRef(new Plane());
+  const normal = useRef(new Vector3());
+  const hitPoint = useMemo(() => new Vector3(), []);
+  const ndc = useMemo(() => new Vector2(), []);                 // ← NEW: pooled (Bug #11)
 
   useFrame(() => {
     if (!controlsRef.current || !onCursorMove) return;
 
     camera.getWorldDirection(normal.current);
-    const target = controlsRef.current.target as THREE.Vector3;
+    const target = controlsRef.current.target as Vector3;
     plane.current.setFromNormalAndCoplanarPoint(normal.current, target);
   });
 

@@ -1,6 +1,6 @@
 // primitives/src/edges/EdgeRouter.ts
 
-import * as THREE from 'three';
+import { Box3, QuadraticBezierCurve3, Vector3 } from 'three';
 import type { RoutingAlgorithm } from '../types';
 
 export type { RoutingAlgorithm };
@@ -13,9 +13,9 @@ const ORTHOGONAL_MAX_ITERATIONS = 10;
  * Uses parametric ray-box intersection, works in full 3D.
  */
 function segmentIntersectsBox(
-  a: THREE.Vector3,
-  b: THREE.Vector3,
-  box: THREE.Box3,
+  a: Vector3,
+  b: Vector3,
+  box: Box3,
 ): boolean {
   const eps = 1e-6;
   const dir = [b.x - a.x, b.y - a.y, b.z - a.z];
@@ -48,8 +48,8 @@ function segmentIntersectsBox(
  * Returns true if any segment in the path intersects any obstacle box.
  */
 function pathIntersectsObstacles(
-  path: THREE.Vector3[],
-  obstacles: THREE.Box3[],
+  path: Vector3[],
+  obstacles: Box3[],
 ): boolean {
   if (obstacles.length === 0) return false;
   for (let i = 0; i < path.length - 1; i++) {
@@ -63,24 +63,24 @@ function pathIntersectsObstacles(
 /**
  * L-shape: move along X first, then Y. Z interpolated to midpoint.
  */
-function lShapeXY(from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3[] {
+function lShapeXY(from: Vector3, to: Vector3): Vector3[] {
   const midZ = (from.z + to.z) / 2;
   return [
     from.clone(),
-    new THREE.Vector3(to.x, from.y, midZ),
-    new THREE.Vector3(to.x, to.y, to.z),
+    new Vector3(to.x, from.y, midZ),
+    new Vector3(to.x, to.y, to.z),
   ];
 }
 
 /**
  * L-shape: move along Y first, then X. Z interpolated to midpoint.
  */
-function lShapeYX(from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3[] {
+function lShapeYX(from: Vector3, to: Vector3): Vector3[] {
   const midZ = (from.z + to.z) / 2;
   return [
     from.clone(),
-    new THREE.Vector3(from.x, to.y, midZ),
-    new THREE.Vector3(to.x, to.y, to.z),
+    new Vector3(from.x, to.y, midZ),
+    new Vector3(to.x, to.y, to.z),
   ];
 }
 
@@ -103,11 +103,11 @@ export class EdgeRouter {
    *   if no collision-free path found after max iterations
    */
   static computePath(
-    from: THREE.Vector3,
-    to: THREE.Vector3,
+    from: Vector3,
+    to: Vector3,
     algorithm: RoutingAlgorithm,
-    obstacles?: THREE.Box3[],
-  ): THREE.Vector3[] {
+    obstacles?: Box3[],
+  ): Vector3[] {
     switch (algorithm) {
       case 'straight':
         return [from.clone(), to.clone()];
@@ -115,12 +115,12 @@ export class EdgeRouter {
       case 'curved': {
         const dist = from.distanceTo(to);
         const arcHeight = Math.min(0.8, Math.max(0.2, dist * 0.2));
-        const mid = new THREE.Vector3(
+        const mid = new Vector3(
           (from.x + to.x) / 2,
           (from.y + to.y) / 2 + arcHeight,
           (from.z + to.z) / 2,
         );
-        const curve = new THREE.QuadraticBezierCurve3(
+        const curve = new QuadraticBezierCurve3(
           from.clone(),
           mid,
           to.clone(),
@@ -146,20 +146,20 @@ export class EdgeRouter {
           // Z-path via intermediate X
           const midX = from.x + (to.x - from.x) * t;
           const midZ = (from.z + to.z) / 2;
-          const pathZ1: THREE.Vector3[] = [
+          const pathZ1: Vector3[] = [
             from.clone(),
-            new THREE.Vector3(midX, from.y, midZ),
-            new THREE.Vector3(midX, to.y, midZ),
+            new Vector3(midX, from.y, midZ),
+            new Vector3(midX, to.y, midZ),
             to.clone(),
           ];
           if (!pathIntersectsObstacles(pathZ1, obs)) return pathZ1;
 
           // Z-path via intermediate Y
           const midY = from.y + (to.y - from.y) * t;
-          const pathZ2: THREE.Vector3[] = [
+          const pathZ2: Vector3[] = [
             from.clone(),
-            new THREE.Vector3(from.x, midY, midZ),
-            new THREE.Vector3(to.x, midY, midZ),
+            new Vector3(from.x, midY, midZ),
+            new Vector3(to.x, midY, midZ),
             to.clone(),
           ];
           if (!pathIntersectsObstacles(pathZ2, obs)) return pathZ2;

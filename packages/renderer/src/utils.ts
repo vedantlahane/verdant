@@ -1,6 +1,6 @@
 // utils.ts
 
-import * as THREE from 'three';
+import { Camera, PerspectiveCamera, Vector3 } from 'three';
 import type { VrdGroup } from '@verdant/parser';
 import type { Vec3, MutVec3, ScreenPoint, SceneBounds } from './types';
 import { MAX_GROUP_DEPTH } from './constants';
@@ -132,11 +132,11 @@ export function computeSceneBounds(
  * synchronous so no interleaving is possible, even under React
  * concurrent mode (which only interrupts between synchronous chunks).
  */
-const _projVec = new THREE.Vector3();
+const _projVec = new Vector3();
 
 export function projectToScreen(
   worldPos: Vec3,
-  camera: THREE.Camera,
+  camera: Camera,
   size: { readonly width: number; readonly height: number },
 ): ScreenPoint {
   _projVec.set(worldPos[0], worldPos[1], worldPos[2]).project(camera);
@@ -287,7 +287,7 @@ export function detectDarkMode(): boolean {
 // ═══════════════════════════════════════════════════════════════════
 
 /** Module-scoped reusable vector to avoid allocation per call */
-const _zoomOffset = new THREE.Vector3();
+const _zoomOffset = new Vector3();
 
 const DEFAULT_FOV_FALLBACK = 45;
 
@@ -299,15 +299,15 @@ const DEFAULT_FOV_FALLBACK = 45;
  */
 export function zoomToFit(
   positions: Readonly<Record<string, Vec3>>,
-  camera: THREE.Camera,
-  controls: { target: THREE.Vector3; update: () => void } | null,
+  camera: Camera,
+  controls: { target: Vector3; update: () => void } | null,
 ): void {
   if (!controls || Object.keys(positions).length === 0) return;
 
   const bounds = computeSceneBounds(positions);
   const { center, maxExtent } = bounds;
 
-  const fov = (camera as THREE.PerspectiveCamera).fov ?? DEFAULT_FOV_FALLBACK;
+  const fov = (camera as PerspectiveCamera).fov ?? DEFAULT_FOV_FALLBACK;
   const minDim = Math.max(maxExtent, 20);
   let distance = minDim / (2 * Math.tan((Math.PI * fov) / 360));
   distance = Math.max(distance * 1.5, 30);

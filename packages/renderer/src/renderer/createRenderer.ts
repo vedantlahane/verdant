@@ -1,6 +1,6 @@
 // renderer/createRenderer.ts
 
-import * as THREE from 'three';
+import { WebGLRenderer } from 'three';
 import type { RendererBackend } from './detectWebGPU';
 import { __DEV__ } from '../shared';
 
@@ -17,7 +17,7 @@ export interface RendererConfig {
 
 export interface RendererResult {
   /** The Three.js renderer instance (WebGPU or WebGL) */
-  readonly renderer: THREE.WebGLRenderer;  // WebGPURenderer extends WebGLRenderer's interface
+  readonly renderer: WebGLRenderer;  // WebGPURenderer extends WebGLRenderer's interface
   /** Which backend is actually in use */
   readonly backend: RendererBackend;
   /** Clean up GPU resources */
@@ -38,7 +38,7 @@ export function createWebGLRenderer(
   canvas: HTMLCanvasElement,
   config: RendererConfig = DEFAULT_CONFIG,
 ): RendererResult {
-  const renderer = new THREE.WebGLRenderer({
+  const renderer = new WebGLRenderer({
     canvas,
     antialias: config.antialias ?? true,
     alpha: config.alpha ?? false,
@@ -97,7 +97,7 @@ export async function createWebGPURenderer(
   }
 
   return {
-    renderer: renderer as unknown as THREE.WebGLRenderer,  // R3F expects WebGLRenderer type
+    renderer: renderer as unknown as WebGLRenderer,  // R3F expects WebGLRenderer type
     backend: 'webgpu',
     dispose: () => {
       renderer.dispose();

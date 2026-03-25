@@ -1,6 +1,6 @@
 // primitives/src/materials/StatusMaterials.ts
 
-import * as THREE from 'three';
+import { Color, MeshStandardMaterial } from 'three';
 import type { NodeStatus } from '../types';
 
 export type { NodeStatus };
@@ -30,11 +30,11 @@ const DEFAULT_COLORS: Required<StatusColorConfig> = {
  * | unknown   | grey   | none     | 0         | Muted, inactive                |
  *
  * @param config - Optional color overrides per status.
- * @returns A `Record<NodeStatus, THREE.MeshStandardMaterial>`.
+ * @returns A `Record<NodeStatus, MeshStandardMaterial>`.
  */
 export function createStatusMaterials(
   config?: StatusColorConfig,
-): Record<NodeStatus, THREE.MeshStandardMaterial> {
+): Record<NodeStatus, MeshStandardMaterial> {
   const c = { ...DEFAULT_COLORS, ...config };
 
   const base = {
@@ -43,25 +43,25 @@ export function createStatusMaterials(
   };
 
   return {
-    healthy: new THREE.MeshStandardMaterial({
+    healthy: new MeshStandardMaterial({
       ...base,
-      color: new THREE.Color(c.healthy),
+      color: new Color(c.healthy),
     }),
-    warning: new THREE.MeshStandardMaterial({
+    warning: new MeshStandardMaterial({
       ...base,
-      color: new THREE.Color(c.warning),
-      emissive: new THREE.Color(c.warning),
+      color: new Color(c.warning),
+      emissive: new Color(c.warning),
       emissiveIntensity: 0.4,
     }),
-    error: new THREE.MeshStandardMaterial({
+    error: new MeshStandardMaterial({
       ...base,
-      color: new THREE.Color(c.error),
-      emissive: new THREE.Color(c.error),
+      color: new Color(c.error),
+      emissive: new Color(c.error),
       emissiveIntensity: 0.8,
     }),
-    unknown: new THREE.MeshStandardMaterial({
+    unknown: new MeshStandardMaterial({
       ...base,
-      color: new THREE.Color(c.unknown),
+      color: new Color(c.unknown),
     }),
   };
 }
@@ -71,7 +71,7 @@ export function createStatusMaterials(
  * Safe to call multiple times.
  */
 export function disposeStatusMaterials(
-  materials: Record<NodeStatus, THREE.MeshStandardMaterial>,
+  materials: Record<NodeStatus, MeshStandardMaterial>,
 ): void {
   for (const mat of Object.values(materials)) {
     if (mat && typeof mat.dispose === 'function') {

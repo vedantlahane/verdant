@@ -1,6 +1,6 @@
 // primitives/src/interaction/SelectionManager.ts
 
-import * as THREE from 'three';
+import { Box3 } from 'three';
 
 // ── Listener type ───────────────────────────────────────────
 
@@ -100,8 +100,8 @@ export class SelectionManager {
    * @param additive - If `true`, add to existing selection.
    */
   selectBox(
-    bounds: THREE.Box3,
-    nodeBounds: Map<string, THREE.Box3>,
+    bounds: Box3,
+    nodeBounds: Map<string, Box3>,
     additive = false,
   ): void {
     if (!additive) {

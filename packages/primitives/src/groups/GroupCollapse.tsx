@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Html } from '@react-three/drei';
-import * as THREE from 'three';
+import { BoxGeometry } from 'three';
 import { usePrimitivesOptional } from '../provider/PrimitivesContext';
 
 export interface GroupCollapseProps {
@@ -22,7 +22,7 @@ export interface GroupCollapseProps {
 }
 
 // ── Shared geometry for proxy node ──
-const _proxyGeometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+const _proxyGeometry = new BoxGeometry(1.5, 1.5, 1.5);
 
 export function GroupCollapse({
   collapsed,

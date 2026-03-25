@@ -2,14 +2,14 @@
 
 import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { BufferGeometry, Color, InstancedMesh, Material, Matrix4, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
 
 // ── Pre-allocated ──
-const _matrix = new THREE.Matrix4();
-const _position = new THREE.Vector3();
-const _quaternion = new THREE.Quaternion();
-const _scale = new THREE.Vector3(1, 1, 1);
-const _color = new THREE.Color();
+const _matrix = new Matrix4();
+const _position = new Vector3();
+const _quaternion = new Quaternion();
+const _scale = new Vector3(1, 1, 1);
+const _color = new Color();
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -23,9 +23,9 @@ export interface InstanceData {
 
 export interface InstancedRendererProps {
   /** Shared geometry for all instances. */
-  geometry: THREE.BufferGeometry;
+  geometry: BufferGeometry;
   /** Base material (color is overridden per instance). */
-  material?: THREE.Material;
+  material?: Material;
   /** Instance data array. */
   instances: InstanceData[];
   /** Default color for instances without a color property. @default "#4287f5" */
@@ -60,14 +60,14 @@ export function InstancedRenderer({
   defaultColor = '#4287f5',
   animated = false,
 }: InstancedRendererProps) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const meshRef = useRef<InstancedMesh>(null);
   const count = instances.length;
 
   // ── Default material ──
   const defaultMaterial = useMemo(
     () =>
       material ??
-      new THREE.MeshStandardMaterial({
+      new MeshStandardMaterial({
         metalness: 0.2,
         roughness: 0.6,
       }),

@@ -1,6 +1,6 @@
 // primitives/src/geometry/GeometryFactory.ts
 
-import * as THREE from 'three';
+import { BoxGeometry, BufferGeometry, Group, Mesh, Object3D } from 'three';
 import type { ShapeRegistry } from '../registry/ShapeRegistry';
 import type { SharedGeometryPool } from './SharedGeometryPool';
 
@@ -42,7 +42,7 @@ export function createGeometry(
   pool: SharedGeometryPool,
   registry: ShapeRegistry,
   params?: Record<string, number>,
-): THREE.BufferGeometry {
+): BufferGeometry {
   const definition = registry.get(shapeName);
   if (!definition) {
     throw new ShapeNotFoundError(shapeName, registry.list());
@@ -69,13 +69,13 @@ export function releaseGeometry(
 
 /**
  * Duck-typed structural interface for a GLTF loader.
- * Matches the signature of `THREE.GLTFLoader` without importing it,
+ * Matches the signature of `GLTFLoader` without importing it,
  * so it can be injected in tests.
  */
 export interface GLTFLoaderInterface {
   load(
     url: string,
-    onLoad: (gltf: { scene: THREE.Group }) => void,
+    onLoad: (gltf: { scene: Group }) => void,
     onProgress?: (event: ProgressEvent) => void,
     onError?: (error: unknown) => void,
   ): void;
@@ -84,9 +84,9 @@ export interface GLTFLoaderInterface {
 /**
  * Recursively finds the first Mesh in a Three.js object graph.
  */
-function findFirstMesh(object: THREE.Object3D): THREE.Mesh | null {
-  if ((object as THREE.Mesh).isMesh) {
-    return object as THREE.Mesh;
+function findFirstMesh(object: Object3D): Mesh | null {
+  if ((object as Mesh).isMesh) {
+    return object as Mesh;
   }
   for (const child of object.children) {
     const found = findFirstMesh(child);
@@ -111,21 +111,21 @@ export async function loadCustomShape(
   pool: SharedGeometryPool,
   registry: ShapeRegistry,
   loader: GLTFLoaderInterface,
-): Promise<THREE.BufferGeometry> {
+): Promise<BufferGeometry> {
   // Already registered? Return from pool.
   const existing = registry.get(gltfUrl);
   if (existing) {
     return pool.acquire(poolKey(gltfUrl), () => existing.geometryFactory());
   }
 
-  return new Promise<THREE.BufferGeometry>((resolve) => {
+  return new Promise<BufferGeometry>((resolve) => {
     loader.load(
       gltfUrl,
       (gltf) => {
         try {
           const mesh = findFirstMesh(gltf.scene);
 
-          if (!mesh || !(mesh.geometry instanceof THREE.BufferGeometry)) {
+          if (!mesh || !(mesh.geometry instanceof BufferGeometry)) {
             console.error(
               `[GeometryFactory] No mesh found in GLTF at "${gltfUrl}". Falling back to box.`,
             );
@@ -169,12 +169,12 @@ function fallbackBox(
   sourceKey: string,
   pool: SharedGeometryPool,
   registry: ShapeRegistry,
-): THREE.BufferGeometry {
+): BufferGeometry {
   const boxDef = registry.get('box');
   if (boxDef) {
     return pool.acquire(poolKey('box'), () => boxDef.geometryFactory());
   }
-  return pool.acquire(`${sourceKey}:fallback-box`, () => new THREE.BoxGeometry(1, 1, 1));
+  return pool.acquire(`${sourceKey}:fallback-box`, () => new BoxGeometry(1, 1, 1));
 }
 
 export const GeometryFactory = {

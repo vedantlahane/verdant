@@ -1,6 +1,6 @@
 // primitives/src/export/PNGExport.ts
 
-import * as THREE from 'three';
+import { Camera, Color, Scene, Vector2, WebGLRenderer } from 'three';
 
 export class ExportError extends Error {
   constructor(message: string, cause?: unknown) {
@@ -57,9 +57,9 @@ export interface PNGExportOptions {
  * @throws {ExportError} on failure.
  */
 export async function exportPNG(
-  renderer: THREE.WebGLRenderer,
-  scene: THREE.Scene,
-  camera: THREE.Camera,
+  renderer: WebGLRenderer,
+  scene: Scene,
+  camera: Camera,
   options: PNGExportOptions = {},
 ): Promise<Blob> {
   const scale = Math.max(1, Math.min(4, options.scale ?? 2));
@@ -68,9 +68,9 @@ export async function exportPNG(
 
   try {
     // ── Snapshot current state ──
-    const originalSize = renderer.getSize(new THREE.Vector2());
+    const originalSize = renderer.getSize(new Vector2());
     const originalPixelRatio = renderer.getPixelRatio();
-    const originalClearColor = renderer.getClearColor(new THREE.Color());
+    const originalClearColor = renderer.getClearColor(new Color());
     const originalClearAlpha = renderer.getClearAlpha();
     const originalAutoClear = renderer.autoClear;
 
@@ -82,9 +82,9 @@ export async function exportPNG(
     renderer.setPixelRatio(1); // We handle scaling via setSize
 
     if (options.backgroundColor) {
-      renderer.setClearColor(new THREE.Color(options.backgroundColor), 1);
+      renderer.setClearColor(new Color(options.backgroundColor), 1);
     } else {
-      renderer.setClearColor(new THREE.Color(0x000000), 0); // Transparent
+      renderer.setClearColor(new Color(0x000000), 0); // Transparent
     }
 
     renderer.autoClear = true;
@@ -129,9 +129,9 @@ export async function exportPNG(
  * Convenience wrapper: exports and triggers a browser download.
  */
 export async function downloadPNG(
-  renderer: THREE.WebGLRenderer,
-  scene: THREE.Scene,
-  camera: THREE.Camera,
+  renderer: WebGLRenderer,
+  scene: Scene,
+  camera: Camera,
   filename = 'verdant-export.png',
   options?: PNGExportOptions,
 ): Promise<void> {

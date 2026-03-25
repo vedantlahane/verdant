@@ -1,7 +1,7 @@
 // grid/InfiniteAxes.tsx
 
 import React, { useEffect, useMemo } from 'react';
-import * as THREE from 'three';
+import { BufferGeometry, Float32BufferAttribute, LineBasicMaterial, MeshBasicMaterial, SphereGeometry } from 'three';
 import { Html } from '@react-three/drei';
 import {
   AXIS_COLOR_X,
@@ -29,13 +29,13 @@ import { useRendererStore } from '../store';
 // ═══════════════════════════════════════════════════════════════════
 
 interface FadeLineData {
-  readonly geometry: THREE.BufferGeometry;
-  readonly material: THREE.LineBasicMaterial;
+  readonly geometry: BufferGeometry;
+  readonly material: LineBasicMaterial;
 }
 
 interface TickGeometries {
-  readonly geometry: THREE.BufferGeometry;
-  readonly material: THREE.LineBasicMaterial;
+  readonly geometry: BufferGeometry;
+  readonly material: LineBasicMaterial;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -75,13 +75,13 @@ function createFadeLines(axis: AxisId): FadeLineData[] {
 
   for (const seg of AXIS_FADE_SEGMENTS) {
     // Positive direction
-    const posGeo = new THREE.BufferGeometry();
-    posGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+    const posGeo = new BufferGeometry();
+    posGeo.setAttribute('position', new Float32BufferAttribute([
       dir[0] * seg.from, dir[1] * seg.from, dir[2] * seg.from,
       dir[0] * seg.to,   dir[1] * seg.to,   dir[2] * seg.to,
     ], 3));
 
-    const posMat = new THREE.LineBasicMaterial({
+    const posMat = new LineBasicMaterial({
       color,
       opacity: seg.opacity,
       transparent: true,
@@ -92,13 +92,13 @@ function createFadeLines(axis: AxisId): FadeLineData[] {
 
     // Negative direction — distinct muted color for visual differentiation
     const negColor = AXIS_COLORS_NEG[axis];
-    const negGeo = new THREE.BufferGeometry();
-    negGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+    const negGeo = new BufferGeometry();
+    negGeo.setAttribute('position', new Float32BufferAttribute([
       -dir[0] * seg.from, -dir[1] * seg.from, -dir[2] * seg.from,
       -dir[0] * seg.to,   -dir[1] * seg.to,   -dir[2] * seg.to,
     ], 3));
 
-    const negMat = new THREE.LineBasicMaterial({
+    const negMat = new LineBasicMaterial({
       color: negColor,
       opacity: seg.opacity,
       transparent: true,
@@ -144,10 +144,10 @@ function createTickGeometry(axis: AxisId): TickGeometries {
     }
   }
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(verts, 3));
 
-  const material = new THREE.LineBasicMaterial({
+  const material = new LineBasicMaterial({
     color,
     opacity: AXIS_TICK_OPACITY,
     transparent: true,
@@ -211,8 +211,8 @@ const TickLabel = React.memo(function TickLabel({
 //  Origin Marker
 // ═══════════════════════════════════════════════════════════════════
 
-const ORIGIN_GEO = new THREE.SphereGeometry(0.08, 12, 12);
-const ORIGIN_MAT = new THREE.MeshBasicMaterial({
+const ORIGIN_GEO = new SphereGeometry(0.08, 12, 12);
+const ORIGIN_MAT = new MeshBasicMaterial({
   color: '#ffffff',
   transparent: true,
   opacity: 0.5,

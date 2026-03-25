@@ -1,7 +1,7 @@
 // grid/NodeReferenceBox.tsx
 
 import React, { useEffect, useMemo } from 'react';
-import * as THREE from 'three';
+import { BufferAttribute, BufferGeometry, LineDashedMaterial } from 'three';
 import { Html } from '@react-three/drei';
 import { useRendererStore } from '../store';
 import { detectDarkMode } from '../utils';
@@ -23,9 +23,9 @@ import {
 // ═══════════════════════════════════════════════════════════════════
 
 interface BoxEdges {
-  readonly xEdges: THREE.BufferGeometry;   // Edges parallel to X (red)
-  readonly yEdges: THREE.BufferGeometry;   // Edges parallel to Y (green)
-  readonly zEdges: THREE.BufferGeometry;   // Edges parallel to Z (blue)
+  readonly xEdges: BufferGeometry;   // Edges parallel to X (red)
+  readonly yEdges: BufferGeometry;   // Edges parallel to Y (green)
+  readonly zEdges: BufferGeometry;   // Edges parallel to Z (blue)
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -65,9 +65,9 @@ function createBoxEdges(x: number, y: number, z: number): BoxEdges {
     x, y, 0,   x, y, z,    // right-top
   ]);
 
-  const makeGeo = (verts: Float32Array): THREE.BufferGeometry => {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  const makeGeo = (verts: Float32Array): BufferGeometry => {
+    const geo = new BufferGeometry();
+    geo.setAttribute('position', new BufferAttribute(verts, 3));
 
     // Compute line distances for dashed material
     const distances = new Float32Array(verts.length / 3);
@@ -79,7 +79,7 @@ function createBoxEdges(x: number, y: number, z: number): BoxEdges {
       distances[i] = 0;
       distances[i + 1] = d;
     }
-    geo.setAttribute('lineDistance', new THREE.BufferAttribute(distances, 1));
+    geo.setAttribute('lineDistance', new BufferAttribute(distances, 1));
 
     return geo;
   };
@@ -91,8 +91,8 @@ function createBoxEdges(x: number, y: number, z: number): BoxEdges {
   };
 }
 
-function createDashedMaterial(color: string, opacity: number): THREE.LineDashedMaterial {
-  return new THREE.LineDashedMaterial({
+function createDashedMaterial(color: string, opacity: number): LineDashedMaterial {
+  return new LineDashedMaterial({
     color,
     opacity,
     transparent: true,

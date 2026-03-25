@@ -1,12 +1,12 @@
 // primitives/src/interaction/DragManager.ts
 
-import * as THREE from 'three';
+import { Vector3 } from 'three';
 import type { SelectionManager } from './SelectionManager';
 import type { CommandHistory, Command } from './CommandHistory';
 
 // ── Pre-allocated vectors ──
-const _delta = new THREE.Vector3();
-const _snapped = new THREE.Vector3();
+const _delta = new Vector3();
+const _snapped = new Vector3();
 
 // ── MoveCommand ─────────────────────────────────────────────
 
@@ -14,9 +14,9 @@ class MoveCommand implements Command {
   readonly description: string;
 
   constructor(
-    private readonly _nodePositions: Map<string, THREE.Vector3>,
-    private readonly _snapshots: Map<string, THREE.Vector3>,
-    private readonly _delta: THREE.Vector3,
+    private readonly _nodePositions: Map<string, Vector3>,
+    private readonly _snapshots: Map<string, Vector3>,
+    private readonly _delta: Vector3,
   ) {
     this.description = `Move ${_snapshots.size} node${_snapshots.size === 1 ? '' : 's'}`;
   }
@@ -62,8 +62,8 @@ export interface DragManagerOptions {
 export class DragManager {
   private _isDragging = false;
   private _hasExceededThreshold = false;
-  private readonly _dragStartPointer = new THREE.Vector3();
-  private _snapshots = new Map<string, THREE.Vector3>();
+  private readonly _dragStartPointer = new Vector3();
+  private _snapshots = new Map<string, Vector3>();
 
   private _snapEnabled: boolean;
   private _snapGridSize: number;
@@ -73,7 +73,7 @@ export class DragManager {
   constructor(
     private readonly _selectionManager: SelectionManager,
     private readonly _commandHistory: CommandHistory,
-    private readonly _nodePositions: Map<string, THREE.Vector3>,
+    private readonly _nodePositions: Map<string, Vector3>,
     options: DragManagerOptions = {},
   ) {
     this._snapEnabled = options.snapEnabled ?? false;
@@ -104,7 +104,7 @@ export class DragManager {
 
   // ── Drag Lifecycle ────────────────────────────────────────
 
-  startDrag(pointerPosition: THREE.Vector3): void {
+  startDrag(pointerPosition: Vector3): void {
     this._isDragging = true;
     this._hasExceededThreshold = false;
     this._dragStartPointer.copy(pointerPosition);
@@ -120,7 +120,7 @@ export class DragManager {
     }
   }
 
-  moveDrag(pointerPosition: THREE.Vector3): void {
+  moveDrag(pointerPosition: Vector3): void {
     if (!this._isDragging || this._snapshots.size === 0) return;
 
     _delta.subVectors(pointerPosition, this._dragStartPointer);
@@ -155,7 +155,7 @@ export class DragManager {
     if (this._hasExceededThreshold && this._snapshots.size > 0) {
       // Compute final delta from first node
       const firstId = this._snapshots.keys().next().value;
-      const finalDelta = new THREE.Vector3();
+      const finalDelta = new Vector3();
 
       if (firstId) {
         const currentPos = this._nodePositions.get(firstId);

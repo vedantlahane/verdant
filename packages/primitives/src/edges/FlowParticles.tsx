@@ -2,13 +2,13 @@
 
 import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { Mesh, MeshBasicMaterial, SphereGeometry, Vector3 } from 'three';
 import type { SharedGeometryPool } from '../geometry/SharedGeometryPool';
 import type { MaterialCache } from '../materials/MaterialCache';
 
 export interface FlowParticlesProps {
   /** Path points the particles travel along. Must have ≥ 2 points. */
-  path: THREE.Vector3[];
+  path: Vector3[];
   /** Number of simultaneous particles. @default 5 */
   count?: number;
   /** Seconds for one full traversal. @default 2.0 */
@@ -24,16 +24,16 @@ export interface FlowParticlesProps {
 }
 
 // ── Pre-allocated temp vector for position calculations ──
-const _tempPos = new THREE.Vector3();
+const _tempPos = new Vector3();
 
 /**
  * Computes the world-space position at parameter `t ∈ [0, 1]` along a polyline path.
  * Writes into `out` to avoid allocation.
  */
 function samplePath(
-  path: THREE.Vector3[],
+  path: Vector3[],
   t: number,
-  out: THREE.Vector3,
+  out: Vector3,
 ): void {
   const len = path.length;
   if (len === 0) { out.set(0, 0, 0); return; }
@@ -76,9 +76,9 @@ export function FlowParticles({
   const geometry = useMemo(() => {
     const key = `flow-particle:${size}`;
     if (geometryPool) {
-      return geometryPool.acquire(key, () => new THREE.SphereGeometry(size, 6, 6));
+      return geometryPool.acquire(key, () => new SphereGeometry(size, 6, 6));
     }
-    return new THREE.SphereGeometry(size, 6, 6);
+    return new SphereGeometry(size, 6, 6);
   }, [size, geometryPool]);
 
   // ── Shared material for all particles in this edge ──
@@ -87,7 +87,7 @@ export function FlowParticles({
     if (materialCache) {
       return materialCache.acquire(config);
     }
-    return new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
+    return new MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
   }, [color, materialCache]);
 
   // ── Phase offsets — evenly distributed ──
@@ -103,7 +103,7 @@ export function FlowParticles({
   }, [count]);
 
   // ── Mesh refs ──
-  const meshRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const meshRefs = useRef<(Mesh | null)[]>([]);
 
   // Ensure refs array matches count
   useEffect(() => {

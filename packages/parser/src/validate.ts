@@ -1,21 +1,21 @@
-import type { VrdAST, VrdDiagnostic, VrdGroup } from './types';
-import {
-  VALID_LAYOUTS,
-  VALID_CAMERAS,
-  VALID_SIZES,
-  VALID_EDGE_STYLES,
-  VALID_STATUSES,
-  VALID_SHAPES,
-  VALID_ROUTING_TYPES,
-  KNOWN_CONFIG_KEYS,
-} from './types';
+// parser/validate.ts — Post-parse validation pass
 
-/** Maximum group nesting depth before we bail */
+import type { VrdAST, VrdGroup, VrdDiagnostic } from './types';
+import {
+  VALID_LAYOUTS, VALID_CAMERAS, VALID_SIZES,
+  VALID_EDGE_STYLES, VALID_STATUSES, VALID_SHAPES,
+  VALID_ROUTING_TYPES, KNOWN_CONFIG_KEYS,
+} from './constants';
+
+/** Maximum group nesting depth before we bail. */
 const MAX_GROUP_DEPTH = 64;
 
 /**
  * Post-parse validation pass.
- * Returns additional diagnostics beyond what the parser itself catches.
+ * Returns diagnostics beyond what the line-by-line parser catches.
+ *
+ * Separated from the parser so it can run independently on
+ * programmatically-constructed ASTs.
  */
 export function validateAst(
   ast: VrdAST,
@@ -24,197 +24,185 @@ export function validateAst(
   const diagnostics: VrdDiagnostic[] = [];
 
   validateConfig(ast, diagnostics);
-  validateEdgeReferences(ast, declaredNodeIds, diagnostics);
-  validateEdgeProperties(ast, diagnostics);
-  validateNodeProperties(ast, diagnostics);
-  validateNodeV2Properties(ast, diagnostics);
-  validateEdgeV2Properties(ast, diagnostics);
+  validateEdges(ast, declaredNodeIds, diagnostics);
+  validateNodes(ast, diagnostics);
   validateGroups(ast, declaredNodeIds, diagnostics);
 
   return diagnostics;
 }
 
-// ── Config validation ──
+// ── Config ──
 
 function validateConfig(ast: VrdAST, diags: VrdDiagnostic[]): void {
   for (const key of Object.keys(ast.config)) {
+    if (key === 'animations') continue; // handled separately
     if (!KNOWN_CONFIG_KEYS.has(key)) {
       diags.push({
         line: 0,
         severity: 'info',
-        message: `Unknown config key "${key}". Known keys: ${[...KNOWN_CONFIG_KEYS].join(', ')}`,
+        message: `Unknown config key "${key}". Known: ${[...KNOWN_CONFIG_KEYS].join(', ')}`,
       });
     }
   }
 
-  if (ast.config.layout && !VALID_LAYOUTS.has(ast.config.layout as string)) {
+  const { layout, camera } = ast.config;
+
+  if (layout && !VALID_LAYOUTS.has(layout)) {
     diags.push({
       line: 0,
       severity: 'warning',
-      message: `Invalid layout "${ast.config.layout}". Valid options: ${[...VALID_LAYOUTS].join(', ')}`,
+      message: `Invalid layout "${layout}". Valid: ${[...VALID_LAYOUTS].join(', ')}`,
     });
   }
 
-  if (ast.config.camera && !VALID_CAMERAS.has(ast.config.camera as string)) {
+  if (camera && !VALID_CAMERAS.has(camera)) {
     diags.push({
       line: 0,
       severity: 'warning',
-      message: `Invalid camera "${ast.config.camera}". Valid options: ${[...VALID_CAMERAS].join(', ')}`,
+      message: `Invalid camera "${camera}". Valid: ${[...VALID_CAMERAS].join(', ')}`,
     });
   }
 }
 
-// ── Edge reference validation ──
+// ── Edges (references, self-loops, duplicates, properties) ──
 
-function validateEdgeReferences(
+function validateEdges(
   ast: VrdAST,
   declaredNodeIds: ReadonlySet<string>,
   diags: VrdDiagnostic[],
 ): void {
-  const edgeSet = new Set<string>();
+  const seen = new Set<string>();
 
   for (const edge of ast.edges) {
-    // Unknown nodes
+    const line = edge.loc?.line ?? 0;
+
+    // Undeclared source
     if (!declaredNodeIds.has(edge.from)) {
       diags.push({
-        line: edge.loc?.line ?? 0,
+        line,
         severity: 'warning',
         message: `Edge references undeclared node "${edge.from}"`,
       });
     }
+
+    // Undeclared target
     if (!declaredNodeIds.has(edge.to)) {
       diags.push({
-        line: edge.loc?.line ?? 0,
+        line,
         severity: 'warning',
         message: `Edge references undeclared node "${edge.to}"`,
       });
     }
 
-    // Self-referencing
+    // Self-loop
     if (edge.from === edge.to) {
       diags.push({
-        line: edge.loc?.line ?? 0,
+        line,
         severity: 'warning',
         message: `Self-referencing edge: "${edge.from}" → "${edge.to}"`,
       });
     }
 
-    // Duplicate edges
+    // Duplicate
     const edgeKey = `${edge.from}->${edge.to}`;
-    if (edgeSet.has(edgeKey)) {
+    if (seen.has(edgeKey)) {
       diags.push({
-        line: edge.loc?.line ?? 0,
+        line,
         severity: 'info',
         message: `Duplicate edge: "${edge.from}" → "${edge.to}"`,
       });
     }
-    edgeSet.add(edgeKey);
-  }
-}
+    seen.add(edgeKey);
 
-// ── Edge property validation ──
-
-function validateEdgeProperties(ast: VrdAST, diags: VrdDiagnostic[]): void {
-  for (const edge of ast.edges) {
-    if (
-      edge.props.style &&
-      !VALID_EDGE_STYLES.has(edge.props.style as string)
-    ) {
+    // Property validation
+    if (edge.props.style && !VALID_EDGE_STYLES.has(edge.props.style)) {
       diags.push({
-        line: edge.loc?.line ?? 0,
+        line,
         severity: 'warning',
-        message: `Invalid edge style "${edge.props.style}". Valid options: ${[...VALID_EDGE_STYLES].join(', ')}`,
+        message: `Invalid edge style "${edge.props.style}". Valid: ${[...VALID_EDGE_STYLES].join(', ')}`,
       });
     }
 
     if (edge.props.width !== undefined) {
       if (typeof edge.props.width !== 'number' || !Number.isFinite(edge.props.width) || edge.props.width <= 0) {
         diags.push({
-          line: edge.loc?.line ?? 0,
+          line,
           severity: 'warning',
           message: `Invalid edge width "${edge.props.width}". Must be a positive number.`,
         });
       }
     }
+
+    if (edge.props.routing && !VALID_ROUTING_TYPES.has(edge.props.routing)) {
+      diags.push({
+        line,
+        severity: 'error',
+        message: `Invalid routing "${edge.props.routing}". Valid: ${[...VALID_ROUTING_TYPES].join(', ')}`,
+      });
+    }
   }
 }
 
-// ── Node property validation ──
+// ── Nodes (properties) ──
 
-function validateNodeProperties(ast: VrdAST, diags: VrdDiagnostic[]): void {
+function validateNodes(ast: VrdAST, diags: VrdDiagnostic[]): void {
   for (const node of ast.nodes) {
-    if (node.props.size && !VALID_SIZES.has(node.props.size as string)) {
+    const line = node.loc?.line ?? 0;
+    const { props } = node;
+
+    // Size
+    if (props.size && !VALID_SIZES.has(props.size)) {
       diags.push({
-        line: node.loc?.line ?? 0,
+        line,
         severity: 'warning',
-        message: `Invalid size "${node.props.size}" on node "${node.id}". Valid options: ${[...VALID_SIZES].join(', ')}`,
+        message: `Invalid size "${props.size}" on node "${node.id}". Valid: ${[...VALID_SIZES].join(', ')}`,
       });
     }
 
-    if (node.props.color && typeof node.props.color === 'string') {
-      const c = node.props.color;
-      // Only validate if it looks like a hex color attempt
-      if (c.startsWith('#') && !/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(c)) {
+    // Hex color
+    if (props.color && typeof props.color === 'string' && props.color.startsWith('#')) {
+      if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(props.color)) {
         diags.push({
-          line: node.loc?.line ?? 0,
+          line,
           severity: 'warning',
-          message: `Invalid hex color "${c}" on node "${node.id}". Expected format: #RGB, #RRGGBB, or #RRGGBBAA`,
+          message: `Invalid hex color "${props.color}" on node "${node.id}". Expected: #RGB, #RRGGBB, or #RRGGBBAA`,
         });
       }
     }
 
-    if (node.props.position) {
-      const p = node.props.position;
-      if (
-        typeof p !== 'object' || p === null ||
-        !Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)
-      ) {
+    // Position
+    if (props.position) {
+      const p = props.position;
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)) {
         diags.push({
-          line: node.loc?.line ?? 0,
+          line,
           severity: 'error',
           message: `Invalid position on node "${node.id}". Expected {x, y, z} with finite numbers.`,
         });
       }
     }
-  }
-}
 
-// ── Node v2 property validation ──
-
-function validateNodeV2Properties(ast: VrdAST, diags: VrdDiagnostic[]): void {
-  for (const node of ast.nodes) {
-    if (node.props.status && !VALID_STATUSES.has(node.props.status as string)) {
+    // Status
+    if (props.status && !VALID_STATUSES.has(props.status)) {
       diags.push({
-        line: node.loc?.line ?? 0,
+        line,
         severity: 'error',
-        message: `Invalid status "${node.props.status}" on node "${node.id}".`,
+        message: `Invalid status "${props.status}" on node "${node.id}". Valid: ${[...VALID_STATUSES].join(', ')}`,
       });
     }
-    if (node.props.shape && !VALID_SHAPES.has(node.props.shape as string)) {
+
+    // Shape
+    if (props.shape && !VALID_SHAPES.has(props.shape)) {
       diags.push({
-        line: node.loc?.line ?? 0,
+        line,
         severity: 'warning',
-        message: `Invalid shape "${node.props.shape}" on node "${node.id}".`,
+        message: `Invalid shape "${props.shape}" on node "${node.id}". Valid: ${[...VALID_SHAPES].join(', ')}`,
       });
     }
   }
 }
 
-// ── Edge v2 property validation ──
-
-function validateEdgeV2Properties(ast: VrdAST, diags: VrdDiagnostic[]): void {
-  for (const edge of ast.edges) {
-    if (edge.props.routing && !VALID_ROUTING_TYPES.has(edge.props.routing as string)) {
-      diags.push({
-        line: edge.loc?.line ?? 0,
-        severity: 'error',
-        message: `Invalid routing "${edge.props.routing}".`,
-      });
-    }
-  }
-}
-
-// ── Group validation (iterative — no stack overflow) ──
+// ── Groups (iterative traversal — no stack overflow) ──
 
 function validateGroups(
   ast: VrdAST,
@@ -224,28 +212,26 @@ function validateGroups(
   const visited = new Set<string>();
   const stack: Array<{ group: VrdGroup; depth: number }> = [];
 
-  // Push top-level groups
   for (let i = ast.groups.length - 1; i >= 0; i--) {
     stack.push({ group: ast.groups[i], depth: 0 });
   }
 
   while (stack.length > 0) {
     const { group, depth } = stack.pop()!;
+    const line = group.loc?.line ?? 0;
 
-    // Circular reference
     if (visited.has(group.id)) {
       diags.push({
-        line: group.loc?.line ?? 0,
+        line,
         severity: 'error',
         message: `Circular group reference detected: "${group.id}"`,
       });
       continue;
     }
 
-    // Depth limit
     if (depth > MAX_GROUP_DEPTH) {
       diags.push({
-        line: group.loc?.line ?? 0,
+        line,
         severity: 'error',
         message: `Group nesting exceeds maximum depth (${MAX_GROUP_DEPTH}): "${group.id}"`,
       });
@@ -254,27 +240,24 @@ function validateGroups(
 
     visited.add(group.id);
 
-    // Empty group
     if (group.children.length === 0 && group.groups.length === 0) {
       diags.push({
-        line: group.loc?.line ?? 0,
+        line,
         severity: 'info',
         message: `Group "${group.id}" is empty`,
       });
     }
 
-    // Children reference undeclared nodes
     for (const childId of group.children) {
       if (!declaredNodeIds.has(childId)) {
         diags.push({
-          line: group.loc?.line ?? 0,
+          line,
           severity: 'warning',
           message: `Group "${group.id}" references undeclared node "${childId}"`,
         });
       }
     }
 
-    // Queue sub-groups
     for (let i = group.groups.length - 1; i >= 0; i--) {
       stack.push({ group: group.groups[i], depth: depth + 1 });
     }

@@ -1,19 +1,22 @@
-// ============================================
-// Value parsing helpers
-// ============================================
+// parser/values.ts — Value parsing helpers
+
+/**
+ * Parsed value type — narrower than `unknown`, covers all .vrd value types.
+ */
+export type VrdValue = string | number | boolean | null;
 
 /**
  * Parse a raw string value from a KV pair into a typed value.
- * Handles: quoted strings, booleans, numbers, plain strings.
+ * Handles: quoted strings, booleans, numbers, null/none, plain strings.
  */
-export function parseValue(raw: string): unknown {
+export function parseValue(raw: string): VrdValue {
   const trimmed = raw.trim();
   if (trimmed === '') return '';
 
   // Quoted string (single or double)
   if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+    (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2)
   ) {
     return trimmed.slice(1, -1);
   }
@@ -26,7 +29,7 @@ export function parseValue(raw: string): unknown {
   if (trimmed === 'null' || trimmed === 'none') return null;
 
   // Numbers (integers and floats, not hex colors starting with #)
-  if (!trimmed.startsWith('#') && trimmed !== '' && !isNaN(Number(trimmed))) {
+  if (!trimmed.startsWith('#') && !isNaN(Number(trimmed))) {
     return Number(trimmed);
   }
 
@@ -41,21 +44,18 @@ export function parseValue(raw: string): unknown {
 export function parsePosition(
   raw: string,
 ): { x: number; y: number; z: number } | null {
-  // Try comma-separated first
-  let parts: string[];
-  if (raw.includes(',')) {
-    parts = raw.split(',').map((s) => s.trim());
-  } else {
-    // Space-separated fallback
-    parts = raw.trim().split(/\s+/);
-  }
+  const parts = raw.includes(',')
+    ? raw.split(',').map((s) => s.trim())
+    : raw.trim().split(/\s+/);
 
   if (parts.length !== 3) return null;
 
-  const nums = parts.map(Number);
-  if (nums.some((n) => !Number.isFinite(n))) return null;
+  const [x, y, z] = parts.map(Number);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
+    return null;
+  }
 
-  return { x: nums[0], y: nums[1], z: nums[2] };
+  return { x, y, z };
 }
 
 /**

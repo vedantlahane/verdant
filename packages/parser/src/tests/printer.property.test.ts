@@ -15,7 +15,7 @@ import {
   VALID_PORT_SIDES,
   VALID_BADGE_POSITIONS,
   VALID_LAYOUTS,
-} from '../types';
+} from '../constants';
 
 fc.configureGlobal({ numRuns: 100 });
 

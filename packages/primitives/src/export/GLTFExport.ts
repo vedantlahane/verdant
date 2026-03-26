@@ -1,4 +1,5 @@
-export { ExportError } from './PNGExport';
+import { ExportError } from './PNGExport';
+export { ExportError };
 
 // ---------------------------------------------------------------------------
 // GLTF 2.0 types (minimal)
@@ -353,10 +354,7 @@ export class GLTFExport {
         const blob = new Blob([json], { type: 'model/gltf+json' });
         resolve(blob);
       } catch (err) {
-        // Lazy import to avoid circular dependency
-        import('./PNGExport').then(({ ExportError }) => {
-          reject(new ExportError('GLTF export failed', err));
-        });
+        reject(new ExportError('GLTF export failed', err));
       }
     });
   }

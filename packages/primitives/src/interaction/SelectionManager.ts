@@ -24,6 +24,8 @@ export type SelectionChangeListener = (selectedIds: ReadonlySet<string>) => void
 export class SelectionManager {
   private _selectedIds = new Set<string>();
   private _listeners: SelectionChangeListener[] = [];
+  private _isEmitting = false;    // ← ADD
+  private _pendingEmit = false;   // ← ADD
 
   // ── Queries ─────────────────────────────────────────────
 
@@ -134,10 +136,26 @@ export class SelectionManager {
   // ── Private ─────────────────────────────────────────────
 
   private _emit(): void {
+    if (this._isEmitting) {
+      // Defer: will re-emit after current emission completes
+      this._pendingEmit = true;
+      return;
+    }
+
+    this._isEmitting = true;
+    this._pendingEmit = false;
+
     // Defensive copy so listeners can't mutate internal state
     const snapshot = new Set(this._selectedIds);
     for (const listener of this._listeners) {
       listener(snapshot);
+    }
+
+    this._isEmitting = false;
+
+    // If a listener triggered another selection change, emit again
+    if (this._pendingEmit) {
+      this._emit();
     }
   }
 }

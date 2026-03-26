@@ -149,6 +149,17 @@ export class CommandHistory {
    * above the pointer are discarded before pushing.
    */
   push(command: Command): void {
+    // Execute the command first
+    try {
+      command.execute();
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[CommandHistory] Command execution failed:', err);
+      }
+      // Don't add failed commands to history
+      return;
+    }
+
     // Truncate future commands
     if (this._pointer < this._stack.length - 1) {
       this._stack = this._stack.slice(0, this._pointer + 1);

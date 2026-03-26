@@ -46,6 +46,20 @@ export class ObjectPool {
 
   // ── Vector3 ─────────────────────────────────────────────
 
+  /**
+   * ## Usage Contract
+   *
+   * Objects from this pool are valid only until the next `resetFrame()` call.
+   * There is no explicit "return" — all objects are reclaimed in bulk.
+   *
+   * ```ts
+   * // In useFrame:
+   * pool.resetFrame();
+   * const v = pool.getVector3();
+   * // ... use v within this frame only ...
+   * // v is automatically reclaimed on next resetFrame()
+   * ```
+   */
   getVector3(): Vector3 {
     if (this._vectorIdx >= this._vectors.length) {
       this._vectors.push(new Vector3());
@@ -53,8 +67,12 @@ export class ObjectPool {
     return this._vectors[this._vectorIdx++].set(0, 0, 0);
   }
 
+  /**
+   * @deprecated No-op. Objects are reclaimed automatically by `resetFrame()`.
+   * Will be removed in v3.
+   */
   returnVector3(_v: Vector3): void {
-    // Returning is implicit via resetFrame — kept for API clarity
+    // Returning is implicit via resetFrame
   }
 
   withVector3<T>(fn: (v: Vector3) => T): T {

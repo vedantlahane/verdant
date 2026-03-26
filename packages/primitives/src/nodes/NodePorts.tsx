@@ -1,6 +1,6 @@
 // primitives/src/nodes/NodePorts.tsx
 
-import React, { useRef, useMemo, useState, useCallback } from 'react';
+import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { Group, MeshStandardMaterial, SphereGeometry } from 'three';
@@ -75,6 +75,15 @@ export function NodePorts({ ports, hovered, scale }: NodePortsProps) {
     });
     return result;
   }, []);
+
+  // ── Cleanup materials on unmount ──
+  useEffect(() => {
+    return () => {
+      for (const mat of Object.values(materials)) {
+        mat.dispose();
+      }
+    };
+  }, [materials]);
 
   // ── Animate opacity fade in/out ──
   useFrame((_, delta) => {

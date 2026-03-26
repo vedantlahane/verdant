@@ -75,7 +75,7 @@ export interface NodeProps {
   hovered?: boolean;
   color?: string;
   /** Size key from SIZE_SCALE. @default "md" */
-  size?: string;
+  size?: SizeKey;
   glow?: boolean;
   onClick?: (e: ThreeEvent<MouseEvent>) => void;
   onPointerOver?: (e: ThreeEvent<PointerEvent>) => void;

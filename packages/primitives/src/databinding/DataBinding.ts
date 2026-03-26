@@ -70,6 +70,15 @@ export class DataBinding {
   private _subscriptions = new Map<string, Map<string, Subscription>>();
   private _configs = new Map<string, Map<string, BindingConfig>>();
   private _disposed = false;
+  private _activeCallbacks = new Set<string>();  // ← Track active callbacks
+
+  /**
+   * Create a unique slot key for a node+property binding.
+   * Used to track active callbacks during emission.
+   */
+  private _makeSlotKey(nodeId: string, property: string): string {
+    return `${nodeId}::${property}`;
+  }
 
   /**
    * Bind an observable source to a node property.
@@ -88,10 +97,25 @@ export class DataBinding {
     // Remove existing binding for this slot
     this.unbind(nodeId, property);
 
+    const slotKey = this._makeSlotKey(nodeId, property);
+
     const subscription = source.subscribe({
       next: (value: T) => {
         if (this._disposed) return;
-        onUpdate(nodeId, property, value);
+        this._activeCallbacks.add(slotKey);
+        try {
+          onUpdate(nodeId, property, value);
+        } catch (err) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.error(
+              `[DataBinding] onUpdate threw for node "${nodeId}" property "${property}":`,
+              err,
+            );
+          }
+          // Don't rethrow — protect the subscription
+        } finally {
+          this._activeCallbacks.delete(slotKey);
+        }
       },
       error: (err: unknown) => {
         if (this._disposed) return;
@@ -106,8 +130,12 @@ export class DataBinding {
           err,
         );
 
-        // Set status to 'unknown' as a safety fallback
-        onUpdate(nodeId, 'status' as BindableProperty, 'unknown' as unknown as T);
+        // Set status to 'unknown' as a safety fallback — also protected
+        try {
+          onUpdate(nodeId, 'status' as BindableProperty, 'unknown' as unknown as T);
+        } catch {
+          // Swallow — we already logged the primary error
+        }
       },
     });
 
@@ -126,30 +154,54 @@ export class DataBinding {
 
   /**
    * Unbind a specific property, or all properties for a node if `property` is omitted.
+   * If callbacks are currently active (emitting), defers cleanup to next microtask.
    */
   unbind(nodeId: string, property?: BindableProperty): void {
     const nodeMap = this._subscriptions.get(nodeId);
     if (!nodeMap) return;
 
-    if (property !== undefined) {
-      const sub = nodeMap.get(property);
-      if (sub) {
-        sub.unsubscribe();
-        nodeMap.delete(property);
-        this._configs.get(nodeId)?.delete(property);
-      }
-      if (nodeMap.size === 0) {
+    const tryUnbind = () => {
+      const nodeMapCheck = this._subscriptions.get(nodeId);
+      if (!nodeMapCheck) return;
+
+      if (property !== undefined) {
+        const slotKey = this._makeSlotKey(nodeId, property);
+        // If this slot is actively emitting, defer again
+        if (this._activeCallbacks.has(slotKey)) {
+          Promise.resolve().then(() => this.unbind(nodeId, property));
+          return;
+        }
+
+        const sub = nodeMapCheck.get(property);
+        if (sub) {
+          sub.unsubscribe();
+          nodeMapCheck.delete(property);
+          this._configs.get(nodeId)?.delete(property);
+        }
+        if (nodeMapCheck.size === 0) {
+          this._subscriptions.delete(nodeId);
+          this._configs.delete(nodeId);
+        }
+      } else {
+        // Unbind all properties for this node
+        // Check if ANY are active; if so, defer entire operation
+        for (const prop of nodeMapCheck.keys()) {
+          const slotKey = this._makeSlotKey(nodeId, prop);
+          if (this._activeCallbacks.has(slotKey)) {
+            Promise.resolve().then(() => this.unbind(nodeId, property));
+            return;
+          }
+        }
+
+        for (const sub of nodeMapCheck.values()) {
+          sub.unsubscribe();
+        }
         this._subscriptions.delete(nodeId);
         this._configs.delete(nodeId);
       }
-    } else {
-      // Unbind all properties for this node
-      for (const sub of nodeMap.values()) {
-        sub.unsubscribe();
-      }
-      this._subscriptions.delete(nodeId);
-      this._configs.delete(nodeId);
-    }
+    };
+
+    tryUnbind();
   }
 
   /** Check if a binding exists for a given node + property. */

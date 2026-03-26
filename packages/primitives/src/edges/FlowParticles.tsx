@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import { Mesh, MeshBasicMaterial, SphereGeometry, Vector3 } from 'three';
 import type { SharedGeometryPool } from '../geometry/SharedGeometryPool';
 import type { MaterialCache } from '../materials/MaterialCache';
+import { samplePathAtT } from './pathUtils';
 
 export interface FlowParticlesProps {
   /** Path points the particles travel along. Must have ≥ 2 points. */
@@ -26,43 +27,6 @@ export interface FlowParticlesProps {
 // ── Pre-allocated temp vector for position calculations ──
 const _tempPos = new Vector3();
 
-/**
- * Computes the world-space position at parameter `t ∈ [0, 1]` along a polyline path.
- * Writes into `out` to avoid allocation.
- */
-function samplePath(
-  path: Vector3[],
-  t: number,
-  out: Vector3,
-): void {
-  const len = path.length;
-  if (len === 0) { out.set(0, 0, 0); return; }
-  if (len === 1) { out.copy(path[0]); return; }
-
-  // Compute total length
-  let totalLength = 0;
-  for (let i = 1; i < len; i++) {
-    totalLength += path[i].distanceTo(path[i - 1]);
-  }
-  if (totalLength === 0) { out.copy(path[0]); return; }
-
-  // Walk segments to find the target position
-  const target = Math.max(0, Math.min(1, t)) * totalLength;
-  let accumulated = 0;
-
-  for (let i = 1; i < len; i++) {
-    const segLen = path[i].distanceTo(path[i - 1]);
-    if (accumulated + segLen >= target) {
-      const localT = segLen === 0 ? 0 : (target - accumulated) / segLen;
-      out.lerpVectors(path[i - 1], path[i], localT);
-      return;
-    }
-    accumulated += segLen;
-  }
-
-  out.copy(path[len - 1]);
-}
-
 export function FlowParticles({
   path,
   count = 5,
@@ -72,26 +36,35 @@ export function FlowParticles({
   geometryPool,
   materialCache,
 }: FlowParticlesProps) {
+  // ── Phase offsets — evenly distributed ──
+  const tValues = useRef<Float32Array>(new Float32Array(count));
+
+  // ── Consolidated resource keys ──
+  const resourceKeys = useMemo(() => ({
+    geoKey: `flow-particle:${size}`,
+    matConfig: {
+      type: 'MeshBasicMaterial' as const,
+      color,
+      transparent: true,
+      opacity: 0.9,
+    },
+  }), [size, color]);
+
   // ── Shared geometry for all particles in this edge ──
   const geometry = useMemo(() => {
-    const key = `flow-particle:${size}`;
     if (geometryPool) {
-      return geometryPool.acquire(key, () => new SphereGeometry(size, 6, 6));
+      return geometryPool.acquire(resourceKeys.geoKey, () => new SphereGeometry(size, 6, 6));
     }
     return new SphereGeometry(size, 6, 6);
-  }, [size, geometryPool]);
+  }, [size, geometryPool, resourceKeys.geoKey]);
 
   // ── Shared material for all particles in this edge ──
   const material = useMemo(() => {
-    const config = { type: 'MeshBasicMaterial' as const, color, transparent: true, opacity: 0.9 };
     if (materialCache) {
-      return materialCache.acquire(config);
+      return materialCache.acquire(resourceKeys.matConfig);
     }
     return new MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
-  }, [color, materialCache]);
-
-  // ── Phase offsets — evenly distributed ──
-  const tValues = useRef<Float32Array>(new Float32Array(count));
+  }, [color, materialCache, resourceKeys.matConfig]);
 
   // Reset t-values when count changes
   useEffect(() => {
@@ -110,25 +83,27 @@ export function FlowParticles({
     meshRefs.current = new Array(count).fill(null);
   }, [count]);
 
-  // ── Cleanup on unmount ──
+  // ── Single cleanup effect using consolidated resource keys ──
   useEffect(() => {
-    const geoKey = `flow-particle:${size}`;
-    const matConfig = { type: 'MeshBasicMaterial' as const, color, transparent: true, opacity: 0.9 };
+    const { geoKey, matConfig } = resourceKeys;
+    const geoPool = geometryPool;
+    const matPool = materialCache;
+    const geo = geometry;
+    const mat = material;
 
     return () => {
-      if (geometryPool) {
-        geometryPool.release(geoKey);
+      if (geoPool) {
+        geoPool.release(geoKey);
       } else {
-        geometry.dispose();
+        geo.dispose();
       }
-      if (materialCache) {
-        materialCache.release(matConfig);
+      if (matPool) {
+        matPool.release(matConfig);
       } else {
-        material.dispose();
+        mat.dispose();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [size, color, geometryPool, materialCache]);
+  }, [resourceKeys, geometryPool, materialCache, geometry, material]);
 
   // ── Animation loop ──
   useFrame((_, delta) => {
@@ -144,7 +119,7 @@ export function FlowParticles({
       // Update mesh position
       const mesh = meshRefs.current[i];
       if (mesh) {
-        samplePath(path, ts[i], _tempPos);
+        samplePathAtT(path, ts[i], _tempPos);
         mesh.position.copy(_tempPos);
       }
     }

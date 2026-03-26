@@ -94,6 +94,7 @@ export function PrimitivesProvider({
     return () => {
       geometryPool.dispose();
       materialCache.dispose();
+      dragManager.dispose();
 
       for (const mat of Object.values(statusMaterials)) {
         if (mat && typeof mat.dispose === 'function') {
@@ -104,7 +105,7 @@ export function PrimitivesProvider({
       commandHistory.clear();
       selectionManager.clearSelection();
     };
-  }, [geometryPool, materialCache, statusMaterials, commandHistory, selectionManager]);
+  }, [geometryPool, materialCache, statusMaterials, commandHistory, selectionManager, dragManager]);
 
   // ── Context value (stable reference when deps don't change) ──
 

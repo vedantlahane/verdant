@@ -1,6 +1,6 @@
 // primitives/src/interaction/ContextMenu.tsx
 
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -74,14 +74,23 @@ export function ContextMenu({
   const [focusIndex, setFocusIndex] = useState(-1);
   const colors = THEMES[theme];
 
-  // ── Filter actions for this element type ──
-  const filteredActions = actions.filter(
-    (a) => a.appliesTo.includes(state.targetType),
+  // ── Memoize filtered actions for this element type ──
+  const filteredActions = useMemo(
+    () =>
+      actions.filter(
+        (a) => a.appliesTo.includes(state.targetType),
+      ),
+    [actions, state.targetType],
   );
 
-  const enabledIndices = filteredActions
-    .map((a, i) => (a.disabled ? -1 : i))
-    .filter((i) => i >= 0);
+  // ── Memoize enabled indices to prevent listener re-attachment ──
+  const enabledIndices = useMemo(
+    () =>
+      filteredActions
+        .map((a, i) => (a.disabled ? -1 : i))
+        .filter((i) => i >= 0),
+    [filteredActions],
+  );
 
   // ── Close on Escape or outside click ──
   useEffect(() => {

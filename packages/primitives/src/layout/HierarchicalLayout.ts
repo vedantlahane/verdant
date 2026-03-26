@@ -99,7 +99,7 @@ export class HierarchicalLayout {
     const { successors, predecessors } = this._buildAdjacency(nodeIds, dagEdges);
 
     // Step 3: Assign layers via longest-path
-    const layers = this._assignLayers(nodeIds, predecessors);
+    const layers = this._assignLayers(nodeIds, predecessors, successors);
 
     // Step 4: Group nodes by layer
     const layerGroups = this._groupByLayer(layers);
@@ -199,6 +199,7 @@ export class HierarchicalLayout {
   private _assignLayers(
     nodeIds: Set<string>,
     predecessors: Map<string, string[]>,
+    successors: Map<string, string[]>,
   ): Map<string, number> {
     const layers = new Map<string, number>();
     const inDegree = new Map<string, number>();
@@ -227,14 +228,11 @@ export class HierarchicalLayout {
       }
       layers.set(u, layer);
 
-      // Decrease in-degree of successors
-      // (We need successors here — rebuild from predecessors)
-      for (const [otherId, otherPreds] of predecessors) {
-        if (otherPreds.includes(u)) {
-          const newDeg = (inDegree.get(otherId) ?? 1) - 1;
-          inDegree.set(otherId, newDeg);
-          if (newDeg === 0) queue.push(otherId);
-        }
+      // ✅ O(out-degree) instead of O(V × avg-degree)
+      for (const v of successors.get(u) ?? []) {
+        const newDeg = (inDegree.get(v) ?? 1) - 1;
+        inDegree.set(v, newDeg);
+        if (newDeg === 0) queue.push(v);
       }
     }
 

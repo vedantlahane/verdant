@@ -183,6 +183,12 @@ export function Minimap({
     [nodes, groups],
   );
 
+  // ── Memoize scale context ──
+  const scaleCtx = useMemo(
+    () => computeScaleContext(bounds, width, height),
+    [bounds, width, height],
+  );
+
   // ── Draw function ──
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -197,8 +203,8 @@ export function Minimap({
     const cW = width;
     const cH = height;
     
-    // Scale context for preserving aspect ratio
-    const sCtx = computeScaleContext(bounds, cW, cH);
+    // ✅ Use memoized scale context instead of recomputing
+    const sCtx = scaleCtx;
 
     // ── Background ──
     ctx.clearRect(0, 0, cW, cH);
@@ -288,7 +294,7 @@ export function Minimap({
       ctx.strokeRect(vx1, vy1, vx2 - vx1, vy2 - vy1);
       ctx.setLineDash([]);
     }
-  }, [nodes, edges, groups, camera, viewportSize, bounds, width, height, dpr]);
+  }, [nodes, edges, groups, camera, viewportSize, bounds, width, height, dpr, scaleCtx]);
 
   // ── Redraw via RAF (once per frame max) ──
   useEffect(() => {
@@ -311,11 +317,10 @@ export function Minimap({
   const handleInteraction = useCallback(
     (cx: number, cy: number) => {
       if (!onPan) return;
-      const sCtx = computeScaleContext(bounds, width, height);
-      const [wx, wz] = canvasToWorld(cx, cy, bounds, sCtx);
+      const [wx, wz] = canvasToWorld(cx, cy, bounds, scaleCtx);  // ✅ Use memoized
       onPan([wx, wz]);
     },
-    [bounds, width, height, onPan],
+    [bounds, scaleCtx, onPan],
   );
 
   // ── Mouse handlers ──

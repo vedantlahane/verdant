@@ -35,6 +35,7 @@ export class CameraControls {
   private _camera: PerspectiveCamera;
   private _orbitControls: any | null = null; // OrbitControls duck type
   private _rafId: number | null = null;
+  private _activeResolve: (() => void) | null = null;
   private _defaultPosition: Vector3;
   private _fitPadding: number;
 
@@ -193,6 +194,12 @@ export class CameraControls {
       cancelAnimationFrame(this._rafId);
       this._rafId = null;
     }
+    // Resolve the pending promise so it doesn't hang
+    if (this._activeResolve) {
+      const resolve = this._activeResolve;
+      this._activeResolve = null;
+      resolve();
+    }
   }
 
   /** Cancel animation and release references. */
@@ -210,12 +217,16 @@ export class CameraControls {
     toTarget: Vector3,
     duration: number,
   ): Promise<void> {
+    // Cancel any previous animation and resolve its promise
     this.cancel();
 
     const startPos = fromPos.clone();
     const startTarget = fromTarget.clone();
 
     return new Promise<void>((resolve) => {
+      // Track the resolve so it can be called if this animation is cancelled
+      this._activeResolve = resolve;
+
       const startTime = performance.now();
 
       const step = (now: number) => {
@@ -241,6 +252,10 @@ export class CameraControls {
           this._rafId = requestAnimationFrame(step);
         } else {
           this._rafId = null;
+          // Clear active resolve and call it
+          if (this._activeResolve === resolve) {
+            this._activeResolve = null;
+          }
           resolve();
         }
       };

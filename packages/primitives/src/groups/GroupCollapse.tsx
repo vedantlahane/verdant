@@ -52,6 +52,8 @@ export function GroupCollapse({
     // No change
     if (collapsed === wasCollapsed) return;
 
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
     if (collapsed && !wasCollapsed) {
       // ── Collapsing ──
       setIsTransitioning(true);
@@ -74,8 +76,7 @@ export function GroupCollapse({
 
       if (transitionEngine) {
         transitionEngine.playEnter(proxyId, 'scale', 250);
-        // Enter animations are fire-and-forget
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           setIsTransitioning(false);
           onExpandComplete?.();
         }, 250);
@@ -84,6 +85,12 @@ export function GroupCollapse({
         onExpandComplete?.();
       }
     }
+
+    return () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [collapsed, label, transitionEngine, proxyId, onCollapseComplete, onExpandComplete]);
 
   // ── Collapsed: render proxy node ──

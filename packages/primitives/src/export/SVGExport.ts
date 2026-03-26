@@ -1,5 +1,24 @@
 import { ExportError, SceneSnapshot } from './PNGExport';
 
+// ── Color validation to prevent SVG injection ──
+const COLOR_PATTERN = /^(#[0-9a-fA-F]{3,8}|rgb\([^)]*\)|[a-zA-Z]{1,20})$/;
+
+/**
+ * Validates and sanitizes a color value to prevent SVG injection.
+ * Returns the color if valid, or a safe default.
+ */
+function sanitizeColor(color: string | undefined, fallback: string): string {
+  if (!color) return fallback;
+  if (COLOR_PATTERN.test(color)) {
+    return escapeXml(color);
+  }
+  // Invalid format — use fallback
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[SVGExport] Invalid color format "${color}", using fallback`);
+  }
+  return escapeXml(fallback);
+}
+
 export interface SVGExportOptions {
   width?: number;
   height?: number;
@@ -78,7 +97,7 @@ export class SVGExport {
         for (const edge of scene.edges) {
           const [x1, y1] = project(edge.from, width, height, padding);
           const [x2, y2] = project(edge.to, width, height, padding);
-          const color = escapeXml(edge.color ?? '#888888');
+          const color = sanitizeColor(edge.color, '#888888');
           lines.push(
             `  <line x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" stroke="${color}" stroke-width="2"/>`
           );
@@ -87,7 +106,7 @@ export class SVGExport {
         // Nodes
         for (const node of scene.nodes) {
           const [x, y] = project(node.position, width, height, padding);
-          const color = escapeXml(node.color ?? '#4a90d9');
+          const color = sanitizeColor(node.color, '#4a90d9');
           const label = escapeXml(node.label);
 
           lines.push(

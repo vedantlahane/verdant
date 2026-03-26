@@ -124,7 +124,7 @@ export class TransitionEngine {
    * Query the current animation state for a node.
    * Returns `null` if the node has no active animation.
    *
-   * Automatically cleans up completed animations.
+   * Pure read — no side effects. Cleanup happens in tick().
    */
   getAnimationState(nodeId: string): AnimationState | null {
     const record = this._animations.get(nodeId);
@@ -135,12 +135,6 @@ export class TransitionEngine {
     const rawProgress = Math.min(elapsed / record.duration, 1);
     const eased = easeInOutCubic(rawProgress);
     const isComplete = rawProgress >= 1;
-
-    // Auto-cleanup completed animations
-    if (isComplete) {
-      record.resolve();
-      this._animations.delete(nodeId);
-    }
 
     return {
       type: record.type,
@@ -208,13 +202,18 @@ export class TransitionEngine {
     if (t === this._lastTickTime) return;
     this._lastTickTime = t;
 
-    // ── Node animations ──
+    // ── Node animations — cleanup completed ──
+    const completed: string[] = [];
     for (const [nodeId, record] of this._animations) {
       const elapsed = t - record.startTime;
       if (elapsed >= record.duration) {
-        record.resolve();
-        this._animations.delete(nodeId);
+        completed.push(nodeId);
       }
+    }
+    for (const nodeId of completed) {
+      const record = this._animations.get(nodeId)!;
+      record.resolve();
+      this._animations.delete(nodeId);
     }
 
     // ── Layout transition ──

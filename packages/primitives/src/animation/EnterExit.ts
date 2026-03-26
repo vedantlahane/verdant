@@ -3,6 +3,19 @@
 import type { AnimationType } from '../types';
 
 /**
+ * Compile-time exhaustiveness check.
+ * If all union members are handled, this is unreachable.
+ * If a new member is added without a case, TypeScript errors here.
+ */
+function assertNever(value: never): AnimationProperties {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[EnterExit] Unhandled animation type: "${value}". Falling back to fade.`);
+  }
+  // Runtime fallback to fade
+  return setResult(1, 1, 1, 1, 0, 0, 0);
+}
+
+/**
  * Plain-object animation properties — no Three.js allocations.
  * Called every frame, so MUST be allocation-free.
  */
@@ -78,7 +91,7 @@ export function getEnterProperties(
       return setResult(p, 1, 1, 1, 0, SLIDE_DISTANCE * (p - 1), 0);
 
     default:
-      return setResult(p, 1, 1, 1, 0, 0, 0);
+      return assertNever(type);  // ← Compile-time exhaustiveness
   }
 }
 
@@ -112,7 +125,7 @@ export function getExitProperties(
       return setResult(inv, 1, 1, 1, 0, -SLIDE_DISTANCE * p, 0);
 
     default:
-      return setResult(inv, 1, 1, 1, 0, 0, 0);
+      return assertNever(type);  // ← Compile-time exhaustiveness
   }
 }
 

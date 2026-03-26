@@ -6,7 +6,6 @@ import type { CommandHistory, Command } from './CommandHistory';
 
 // ── Pre-allocated vectors ──
 const _delta = new Vector3();
-const _snapped = new Vector3();
 
 // ── MoveCommand ─────────────────────────────────────────────
 
@@ -153,7 +152,7 @@ export class DragManager {
 
     // Only push command if we actually moved
     if (this._hasExceededThreshold && this._snapshots.size > 0) {
-      // Compute final delta from first node
+      // Compute final delta from first node (before restoring)
       const firstId = this._snapshots.keys().next().value;
       const finalDelta = new Vector3();
 
@@ -163,6 +162,14 @@ export class DragManager {
         if (currentPos && snapshotPos) {
           finalDelta.subVectors(currentPos, snapshotPos);
         }
+      }
+
+      // Restore positions to snapshots BEFORE push.
+      // Since CommandHistory.push() now executes the command,
+      // we need to restore first so execute() applies the delta fresh.
+      for (const [id, snapshot] of this._snapshots) {
+        const pos = this._nodePositions.get(id);
+        if (pos) pos.copy(snapshot);
       }
 
       const command = new MoveCommand(
@@ -191,5 +198,11 @@ export class DragManager {
     this._isDragging = false;
     this._hasExceededThreshold = false;
     this._snapshots.clear();
+  }
+
+  /** Cancel any in-flight drag and release references. */
+  dispose(): void {
+    this.cancelDrag();
+    this._lockedNodeIds.clear();
   }
 }

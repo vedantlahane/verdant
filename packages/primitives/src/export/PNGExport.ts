@@ -89,20 +89,32 @@ export async function exportPNG(
 
     renderer.autoClear = true;
 
-    // ── Render ──
-    renderer.render(scene, camera);
+    // ── Helper to restore original state ──
+    const restore = (): void => {
+      try {
+        renderer.setSize(originalSize.x, originalSize.y, false);
+        renderer.setPixelRatio(originalPixelRatio);
+        renderer.setClearColor(originalClearColor, originalClearAlpha);
+        renderer.autoClear = originalAutoClear;
+        // Force a re-render to restore the live view
+        renderer.render(scene, camera);
+      } catch (restoreErr) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('[PNGExport] Failed to restore renderer state:', restoreErr);
+        }
+        // Best-effort; don't throw
+      }
+    };
+
+    // ── Render (in try-finally to guarantee restore) ──
+    try {
+      renderer.render(scene, camera);
+    } finally {
+      restore();
+    }
 
     // ── Extract pixels ──
     const canvas = renderer.domElement;
-
-    // ── Restore original state ──
-    renderer.setSize(originalSize.x, originalSize.y, false);
-    renderer.setPixelRatio(originalPixelRatio);
-    renderer.setClearColor(originalClearColor, originalClearAlpha);
-    renderer.autoClear = originalAutoClear;
-
-    // Force a re-render to restore the live view
-    renderer.render(scene, camera);
 
     // ── Convert to blob ──
     return new Promise<Blob>((resolve, reject) => {

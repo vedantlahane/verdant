@@ -3,7 +3,8 @@
 import { Vector3 } from 'three';
 import type { NodePort } from '../shapes/ShapeDefinition';
 
-const _tempVec = new Vector3();
+// ── Fallback immutable origin (never mutated) ──
+const _fallbackOrigin = new Vector3(0, 0, 0);
 
 /**
  * Resolves a named port on a node to its world-space position.
@@ -57,7 +58,7 @@ export function resolveEdgeEndpoints(
     if (process.env.NODE_ENV !== 'production') {
       console.warn(`[EdgePorts] Node "${fromNodeId}" not found in position map. Using origin.`);
     }
-    fromPos = _tempVec.set(0, 0, 0);
+    fromPos = _fallbackOrigin;
   }
 
   let toPos = nodePositions.get(toNodeId);
@@ -65,7 +66,7 @@ export function resolveEdgeEndpoints(
     if (process.env.NODE_ENV !== 'production') {
       console.warn(`[EdgePorts] Node "${toNodeId}" not found in position map. Using origin.`);
     }
-    toPos = _tempVec.set(0, 0, 0);
+    toPos = _fallbackOrigin;
   }
 
   // Resolve ports

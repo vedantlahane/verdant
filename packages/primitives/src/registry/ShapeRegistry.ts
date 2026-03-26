@@ -21,7 +21,8 @@ export class ShapeRegistry {
 
   /**
    * Register a shape definition. Overwrites if the same name already exists.
-   * @throws {InvalidShapeDefinitionError} if `geometryFactory` is missing.
+   * Validates geometryFactory and defaultPorts structure.
+   * @throws {InvalidShapeDefinitionError} if validation fails.
    */
   register(name: string, definition: ShapeDefinition): void {
     if (!definition) {
@@ -33,6 +34,61 @@ export class ShapeRegistry {
         `"geometryFactory" must be a function, got ${typeof definition.geometryFactory}`,
       );
     }
+
+    // ── Validate defaultPorts ──
+    if (definition.defaultPorts !== undefined) {
+      if (!Array.isArray(definition.defaultPorts)) {
+        throw new InvalidShapeDefinitionError(
+          name,
+          `"defaultPorts" must be an array or undefined, got ${typeof definition.defaultPorts}`,
+        );
+      }
+
+      for (let i = 0; i < definition.defaultPorts.length; i++) {
+        const port = definition.defaultPorts[i];
+
+        if (!port) {
+          throw new InvalidShapeDefinitionError(
+            name,
+            `defaultPorts[${i}] is null/undefined`,
+          );
+        }
+
+        // Check required properties
+        if (typeof port.name !== 'string' || port.name.length === 0) {
+          throw new InvalidShapeDefinitionError(
+            name,
+            `defaultPorts[${i}].name must be a non-empty string, got ${typeof port.name}`,
+          );
+        }
+
+        if (!port.localPosition) {
+          throw new InvalidShapeDefinitionError(
+            name,
+            `defaultPorts[${i}].localPosition is required`,
+          );
+        }
+
+        if (
+          !Number.isFinite(port.localPosition.x) ||
+          !Number.isFinite(port.localPosition.y) ||
+          !Number.isFinite(port.localPosition.z)
+        ) {
+          throw new InvalidShapeDefinitionError(
+            name,
+            `defaultPorts[${i}].localPosition coordinates must be finite numbers`,
+          );
+        }
+
+        if (!port.facingDirection) {
+          throw new InvalidShapeDefinitionError(
+            name,
+            `defaultPorts[${i}].facingDirection is required`,
+          );
+        }
+      }
+    }
+
     this._shapes.set(name, definition);
   }
 

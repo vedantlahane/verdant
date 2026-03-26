@@ -8,6 +8,22 @@ export type { RoutingAlgorithm };
 const CURVE_SEGMENTS = 32;
 const ORTHOGONAL_MAX_ITERATIONS = 10;
 
+// ── Pre-allocated for curved path computation ──
+const _curveFrom = new Vector3();
+const _curveMid = new Vector3();
+const _curveTo = new Vector3();
+const _reusableCurve = new QuadraticBezierCurve3(
+  _curveFrom, _curveMid, _curveTo,
+);
+
+// ── Exhaustiveness check for routing algorithms ──
+function assertNeverAlgorithm(value: never): Vector3[] {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[EdgeRouter] Unhandled algorithm "${value}". Using straight.`);
+  }
+  return [];
+}
+
 /**
  * Returns true if an axis-aligned segment from `a` to `b` intersects the interior of `box`.
  * Uses parametric ray-box intersection, works in full 3D.
@@ -115,17 +131,17 @@ export class EdgeRouter {
       case 'curved': {
         const dist = from.distanceTo(to);
         const arcHeight = Math.min(0.8, Math.max(0.2, dist * 0.2));
-        const mid = new Vector3(
+
+        _curveFrom.copy(from);
+        _curveTo.copy(to);
+        _curveMid.set(
           (from.x + to.x) / 2,
           (from.y + to.y) / 2 + arcHeight,
           (from.z + to.z) / 2,
         );
-        const curve = new QuadraticBezierCurve3(
-          from.clone(),
-          mid,
-          to.clone(),
-        );
-        return curve.getPoints(CURVE_SEGMENTS);
+
+        // getPoints() still allocates — but the curve object itself is reused
+        return _reusableCurve.getPoints(CURVE_SEGMENTS);
       }
 
       case 'orthogonal': {
@@ -175,11 +191,11 @@ export class EdgeRouter {
         return EdgeRouter.computePath(from, to, 'curved', obstacles);
       }
 
-      default:
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn(`[EdgeRouter] Unknown algorithm "${algorithm}". Using straight.`);
-        }
-        return [from.clone(), to.clone()];
+      default: {
+        const fallback = assertNeverAlgorithm(algorithm);
+        // Runtime fallback: straight line
+        return fallback.length > 0 ? fallback : [from.clone(), to.clone()];
+      }
     }
   }
 }

@@ -7,6 +7,7 @@ import { ConeGeometry, QuadraticBezierCurve3, Quaternion, Vector3 } from 'three'
 import type { EdgeLineProps, EdgeStyle } from '../types';
 import { EdgeRouter } from './EdgeRouter';
 import { FlowParticles } from './FlowParticles';
+import { samplePathAtT } from './pathUtils';
 import { usePrimitivesOptional } from '../provider/PrimitivesContext';
 
 // ── Pre-allocated objects (module-level, reused across all edges) ──
@@ -16,32 +17,13 @@ const _defaultUp = new Vector3(0, 1, 0);
 // ── Shared cone geometry for all arrowheads ──
 const _arrowGeometry = new ConeGeometry(0.06, 0.15, 6);
 
-/**
- * Computes the position at parameter `t ∈ [0, 1]` along a polyline path.
- * Writes result into `out` to avoid allocation.
- */
-function getPointOnPath(path: Vector3[], t: number, out: Vector3): Vector3 {
-  if (path.length === 0) return out.set(0, 0, 0);
-  if (path.length === 1) return out.copy(path[0]);
-
-  let totalLen = 0;
-  for (let i = 1; i < path.length; i++) {
-    totalLen += path[i].distanceTo(path[i - 1]);
-  }
-  if (totalLen === 0) return out.copy(path[0]);
-
-  const target = t * totalLen;
-  let accum = 0;
-  for (let i = 1; i < path.length; i++) {
-    const segLen = path[i].distanceTo(path[i - 1]);
-    if (accum + segLen >= target) {
-      const localT = segLen === 0 ? 0 : (target - accum) / segLen;
-      return out.lerpVectors(path[i - 1], path[i], localT);
-    }
-    accum += segLen;
-  }
-  return out.copy(path[path.length - 1]);
-}
+// ── Pre-allocated for default curved path ──
+const _bezierFrom = new Vector3();
+const _bezierMid = new Vector3();
+const _bezierTo = new Vector3();
+const _defaultCurve = new QuadraticBezierCurve3(
+  _bezierFrom, _bezierMid, _bezierTo,
+);
 
 export function BaseEdge({
   from,
@@ -81,13 +63,16 @@ export function BaseEdge({
     // Default curved bezier
     const dist = fromVec.distanceTo(toVec);
     const arcHeight = Math.min(0.6, dist * 0.15);
-    const mid = new Vector3(
+
+    _bezierFrom.copy(fromVec);
+    _bezierTo.copy(toVec);
+    _bezierMid.set(
       (from[0] + to[0]) / 2,
       (from[1] + to[1]) / 2 + arcHeight,
       (from[2] + to[2]) / 2,
     );
-    const curve = new QuadraticBezierCurve3(fromVec, mid, toVec);
-    return curve.getPoints(32);
+
+    return _defaultCurve.getPoints(32);
   }, [from, to, routing]);
 
   // ── Compute arrowhead orientation from curve tangent ──
@@ -120,7 +105,7 @@ export function BaseEdge({
   // ── Compute label position at actual curve midpoint ──
   const labelPosition = useMemo<[number, number, number]>(() => {
     const mid = new Vector3();
-    getPointOnPath(points, 0.5, mid);
+    samplePathAtT(points, 0.5, mid);
     // Offset slightly above the path for readability
     return [mid.x, mid.y + 0.3, mid.z];
   }, [points]);

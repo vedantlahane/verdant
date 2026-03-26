@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { BackSide, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Vector3 } from 'three';
-import { NodeProps, SIZE_SCALE } from '../types';
+import { NodeProps, SIZE_SCALE, SizeKey } from '../types';
 import { NodePorts } from './NodePorts';
 import { NodeBadge } from './NodeBadge';
 import { getEnterProperties, getExitProperties } from '../animation/EnterExit';
@@ -15,7 +15,7 @@ interface BaseNodeProps extends NodeProps {
 }
 
 // ── Pre-allocated objects (shared across all BaseNode instances) ──
-const _targetScale = new Vector3();
+// (Removed module-level _targetScale — now per-instance via useRef)
 
 // ── Status fallback colors (when no PrimitivesProvider) ──
 const STATUS_FALLBACK_COLORS: Record<string, string> = {
@@ -25,10 +25,16 @@ const STATUS_FALLBACK_COLORS: Record<string, string> = {
   unknown: '#6b7280',
 };
 
-function resolveSizeScale(size: string): number {
-  return Object.prototype.hasOwnProperty.call(SIZE_SCALE, size)
-    ? SIZE_SCALE[size as keyof typeof SIZE_SCALE]
-    : SIZE_SCALE.md;
+function resolveSizeScale(size: SizeKey | string | undefined): number {
+  if (!size || size in SIZE_SCALE) {
+    return SIZE_SCALE[(size ?? 'md') as SizeKey];
+  }
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(
+      `[BaseNode] Unknown size "${size}". Valid keys: ${Object.keys(SIZE_SCALE).join(', ')}. Falling back to "md".`,
+    );
+  }
+  return SIZE_SCALE.md;
 }
 
 export function BaseNode({
@@ -59,6 +65,9 @@ export function BaseNode({
   const groupRef = useRef<Group>(null!);
   const glowRef = useRef<Mesh>(null!);
   const lastOpacity = useRef<number | null>(null);
+  const meshCacheRef = useRef<Mesh[]>([]);       // ← New
+  const meshCacheDirty = useRef(true);            // ← New
+  const targetScaleRef = useRef(new Vector3());   // ← New
   const scale = resolveSizeScale(size);
 
   // ── Context (optional — works without provider) ──
@@ -97,6 +106,11 @@ export function BaseNode({
       return true;
     });
   }, [badges, id, label]);
+
+  // ── Invalidate mesh cache when children change ──
+  useEffect(() => {
+    meshCacheDirty.current = true;
+  }, [children, visible, selected, ports, badges]);
 
   // ── Enter animation (side effect, runs once on mount) ──
   useEffect(() => {
@@ -175,8 +189,8 @@ export function BaseNode({
 
     // ── 3. Scale lerp ──
     const ts = selected ? animScale * 1.08 : isHovered ? animScale * 1.04 : animScale;
-    _targetScale.set(ts, ts, ts);
-    groupRef.current.scale.lerp(_targetScale, 0.1);
+    targetScaleRef.current.set(ts, ts, ts);
+    groupRef.current.scale.lerp(targetScaleRef.current, 0.1);
 
     // ── 4. Glow opacity ──
     if (glowRef.current) {
@@ -185,30 +199,38 @@ export function BaseNode({
       mat.opacity += (target - mat.opacity) * 0.1;
     }
 
-    // ── 5. Animation opacity (only traverse when changed) ──
+    // ── 5. Animation opacity (cached mesh list) ──
     if (animOpacity !== null && animOpacity !== lastOpacity.current) {
       lastOpacity.current = animOpacity;
-      groupRef.current.traverse((obj) => {
-        if ((obj as Mesh).isMesh) {
-          const mat = (obj as Mesh).material as MeshStandardMaterial;
-          if (mat && 'opacity' in mat) {
-            mat.transparent = true;
-            mat.opacity = animOpacity!;
+
+      // Rebuild cache if dirty
+      if (meshCacheDirty.current) {
+        meshCacheDirty.current = false;
+        const meshes: Mesh[] = [];
+        groupRef.current.traverse((obj) => {
+          if ((obj as Mesh).isMesh && obj !== glowRef.current) {
+            meshes.push(obj as Mesh);
           }
+        });
+        meshCacheRef.current = meshes;
+      }
+
+      for (const mesh of meshCacheRef.current) {
+        const mat = mesh.material as MeshStandardMaterial;
+        if (mat && 'opacity' in mat) {
+          mat.transparent = true;
+          mat.opacity = animOpacity;
         }
-      });
+      }
     } else if (animOpacity === null && lastOpacity.current !== null) {
-      // Reset opacity when animation ends
       lastOpacity.current = null;
-      groupRef.current.traverse((obj) => {
-        if ((obj as Mesh).isMesh) {
-          const mat = (obj as Mesh).material as MeshStandardMaterial;
-          if (mat && 'opacity' in mat) {
-            mat.opacity = 1;
-            mat.transparent = false;
-          }
+      for (const mesh of meshCacheRef.current) {
+        const mat = mesh.material as MeshStandardMaterial;
+        if (mat && 'opacity' in mat) {
+          mat.opacity = 1;
+          mat.transparent = false;
         }
-      });
+      }
     }
   });
 

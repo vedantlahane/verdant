@@ -3,6 +3,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { Camera, Plane, Raycaster, Vector2, Vector3 } from 'three';
 import { useThree } from '@react-three/fiber';
+import { usePrimitivesOptional } from '@verdant/primitives';
 import { useRendererStore } from '../store';
 import type { Vec3, MutVec3 } from '../types';
 import { isFiniteVec3 } from '../utils';
@@ -39,35 +40,19 @@ export interface UseDraggableOptions {
 
 // ═══════════════════════════════════════════════════════════════════
 //  Internal State
-//
-//  All drag state is stored in refs to avoid re-renders during
-//  the high-frequency pointer move events. The component tree
-//  never needs to know whether we're "mid-drag" — only the
-//  final position matters (written to the store).
 // ═══════════════════════════════════════════════════════════════════
 
 interface DragState {
-  /** Whether a drag is currently in progress */
   active: boolean;
-  /** Pointer ID for capture management */
   pointerId: number;
-  /** Whether significant movement has occurred (drag vs tap) */
   hasMoved: boolean;
-  /** World position at start of drag */
   startPos: Vector3;
-  /** Plane onto which pointer is projected (perpendicular to camera) */
   plane: Plane;
-  /** Offset from pointer hit to node center at drag start */
   offset: Vector3;
-  /** Reusable raycaster for pointer projection */
   raycaster: Raycaster;
-  /** Reusable intersection point vector */
   intersection: Vector3;
-  /** Reusable NDC vector for pointer conversion */
   ndc: Vector2;
-  /** Reusable camera direction vector */
   camDir: Vector3;
-  /** Reusable world position vector */
   worldPos: Vector3;
 }
 
@@ -91,10 +76,6 @@ function createDragState(): DragState {
 //  Helpers
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Convert a DOM PointerEvent to NDC (normalized device coordinates).
- * Writes into a reusable Vector2 to avoid allocation.
- */
 function pointerToNDC(
   clientX: number,
   clientY: number,
@@ -106,10 +87,6 @@ function pointerToNDC(
   return out;
 }
 
-/**
- * Raycast from NDC onto a plane, writing the intersection into `out`.
- * Returns false if the ray is parallel to the plane (no intersection).
- */
 function raycastToPlane(
   ndc: Vector2,
   camera: Camera,
@@ -125,22 +102,6 @@ function raycastToPlane(
 //  Hook
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Provides pointer event handlers for dragging a 3D node on a
- * camera-facing plane.
- *
- * Architecture:
- * - On pointer down: establish a drag plane perpendicular to the
- *   camera at the node's current depth, compute pointer offset.
- * - On pointer move: project pointer onto the drag plane, subtract
- *   offset, write new position to both the ref (for immediate
- *   visual feedback) and the store (for persistence/sync).
- * - On pointer up: release capture, notify drag end.
- *
- * All intermediate Three.js objects (raycaster, vectors, plane) are
- * allocated once in a ref and reused across drag events — zero
- * allocation during the drag loop.
- */
 export function useDraggable({
   nodeId,
   positionRef,
@@ -151,9 +112,11 @@ export function useDraggable({
   const updateNodePosition = useRendererStore((s) => s.updateNodePosition);
   const setDraggingNode = useRendererStore((s) => s.setDraggingNode);
 
+  const primitivesCtx = usePrimitivesOptional();
+  const snapConfig = primitivesCtx?.config?.snap;
+
   const dragRef = useRef<DragState | null>(null);
 
-  // Lazy-init drag state on first use
   function getDragState(): DragState {
     if (!dragRef.current) {
       dragRef.current = createDragState();
@@ -170,15 +133,13 @@ export function useDraggable({
       const canvas = gl.domElement;
       const rect = canvas.getBoundingClientRect();
 
-      // Set up drag plane perpendicular to camera through node position
       camera.getWorldDirection(state.camDir);
       state.worldPos.set(pos[0], pos[1], pos[2]);
       state.plane.setFromNormalAndCoplanarPoint(state.camDir, state.worldPos);
 
-      // Raycast pointer onto drag plane to compute offset
       pointerToNDC(e.clientX, e.clientY, rect, state.ndc);
       if (!raycastToPlane(state.ndc, camera, state.plane, state.raycaster, state.intersection)) {
-        return; // Ray parallel to plane — abort
+        return;
       }
 
       state.offset.copy(state.intersection).sub(state.worldPos);
@@ -194,7 +155,7 @@ export function useDraggable({
       try {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
       } catch {
-        // Pointer capture may fail if element is detached
+        // Ignored
       }
     },
     [camera, gl, nodeId, positionRef, onDragStart, setDraggingNode],
@@ -215,18 +176,21 @@ export function useDraggable({
         return;
       }
 
-      const newPos: MutVec3 = [
-        state.intersection.x - state.offset.x,
-        state.intersection.y - state.offset.y,
-        state.intersection.z - state.offset.z,
-      ];
+      let finalX = state.intersection.x - state.offset.x;
+      let finalY = state.intersection.y - state.offset.y;
+      let finalZ = state.intersection.z - state.offset.z;
 
-      // Reject NaN/Infinity positions (can occur with degenerate projections)
+      if (snapConfig?.enabled) {
+        const gs = snapConfig.gridSize || 1.0;
+        finalX = Math.round(finalX / gs) * gs;
+        finalY = Math.round(finalY / gs) * gs;
+        finalZ = Math.round(finalZ / gs) * gs;
+      }
+
+      const newPos: MutVec3 = [finalX, finalY, finalZ];
+
       if (!isFiniteVec3(newPos)) return;
 
-      // Track movement threshold (approx 2 world units or pixels depending on scale)
-      // Actually we should use screen distance if more precision is needed, 
-      // but world distance is usually fine for nodes.
       if (!state.hasMoved) {
         state.worldPos.set(newPos[0], newPos[1], newPos[2]);
         if (state.worldPos.distanceTo(state.startPos) > 0.05) {
@@ -237,7 +201,7 @@ export function useDraggable({
       positionRef.current = newPos;
       updateNodePosition(nodeId, newPos);
     },
-    [camera, gl, nodeId, positionRef, updateNodePosition],
+    [camera, gl, nodeId, positionRef, updateNodePosition, snapConfig],
   );
 
   const onPointerUp = useCallback(
@@ -255,13 +219,12 @@ export function useDraggable({
       try {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
       } catch {
-        // Pointer capture may already be released
+        // Ignored
       }
     },
     [gl, onDragEnd, setDraggingNode],
   );
 
-  // ── Safety: cancel drag if component unmounts mid-drag ──
   useEffect(() => {
     return () => {
       const state = dragRef.current;
@@ -275,7 +238,6 @@ export function useDraggable({
 
   const hasMovedRef = useRef(false);
 
-  // Keep the exposed ref in sync with internal drag state
   if (dragRef.current) {
     hasMovedRef.current = dragRef.current.hasMoved;
   }

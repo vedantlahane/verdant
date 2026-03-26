@@ -35,27 +35,113 @@ import {
 // ═══════════════════════════════════════════════════════════════════
 
 const NODE_REGISTRY: Readonly<Record<string, ComponentType<NodeProps>>> = Object.freeze({
+  // --- Compute ---
   server: ServerNode,
+  service: ServiceNode,
+  microservice: ServiceNode,
+  function: ServerNode, // Fallback to service-like if no specific component
+  lambda: ServerNode,
+  container: ServerNode,
+  pod: ServerNode,
+  worker: ServerNode,
+  vm: ServerNode,
+  task: ServerNode,
+  instance: ServerNode,
+  process: ServerNode,
+
+  // --- Storage ---
   database: DatabaseNode,
   db: DatabaseNode,
   cache: CacheNode,
   redis: CacheNode,
+  storage: StorageNode,
+  bucket: StorageNode,
+  datalake: StorageNode,
+  warehouse: StorageNode,
+  filesystem: StorageNode,
+  volume: StorageNode,
+  table: StorageNode,
+  datastore: StorageNode,
+
+  // --- Network ---
   gateway: GatewayNode,
   api: GatewayNode,
-  service: ServiceNode,
-  microservice: ServiceNode,
-  user: UserNode,
-  client: UserNode,
+  loadbalancer: GatewayNode,
+  proxy: GatewayNode,
+  firewall: GatewayNode,
+  cdn: CloudNode,
+  dns: CloudNode,
+  router: CloudNode,
+  switch: CloudNode,
+  endpoint: GatewayNode,
+  ingress: GatewayNode,
+
+  // --- Messaging ---
   queue: QueueNode,
   mq: QueueNode,
+  topic: QueueNode,
+  stream: QueueNode,
+  bus: QueueNode,
+  broker: QueueNode,
+  pubsub: QueueNode,
+  event: QueueNode,
+
+  // --- Cloud Infrastructure ---
   cloud: CloudNode,
-  cdn: CloudNode,
-  storage: StorageNode,
-  s3: StorageNode,
-  blob: StorageNode,
+  region: CloudNode,
+  zone: CloudNode,
+  vpc: CloudNode,
+  subnet: CloudNode,
+  cluster: CloudNode,
+  namespace: CloudNode,
+  network: CloudNode,
+
+  // --- Clients ---
+  user: UserNode,
+  client: UserNode,
+  browser: UserNode,
+  mobile: UserNode,
+  iot: UserNode,
+  device: UserNode,
+  desktop: UserNode,
+  app: UserNode,
+
+  // --- Observability ---
   monitor: MonitorNode,
   metrics: MonitorNode,
   observability: MonitorNode,
+  logger: MonitorNode,
+  tracer: MonitorNode,
+  alerter: MonitorNode,
+  dashboard: MonitorNode,
+  metric: MonitorNode,
+
+  // --- Security ---
+  auth: GatewayNode,
+  vault: GatewayNode,
+  waf: GatewayNode,
+  certificate: GatewayNode,
+  identity: GatewayNode,
+  secret: GatewayNode,
+  kms: GatewayNode,
+  sso: GatewayNode,
+
+  // --- CI/CD ---
+  pipeline: ServerNode,
+  registry: StorageNode,
+  artifact: StorageNode,
+  build: ServerNode,
+  deploy: ServerNode,
+  repository: StorageNode,
+
+  // --- Generic ---
+  webhook: ServerNode,
+  cron: ServerNode,
+  scheduler: ServerNode,
+  config: ServerNode,
+  mesh: CloudNode,
+  sidecar: CloudNode,
+  plugin: ServerNode,
 });
 
 /**

@@ -1,7 +1,7 @@
 // nodes/DraggableNode.tsx
 
 import React, { useCallback, useRef } from 'react';
-import type { NodeProps } from '@verdant/primitives';
+import type { NodeProps, SizeKey, NodeStatus, AnimationType, NodeBadgeType, DataBindingConfig, NodePort } from '@verdant/primitives';
 import { useDraggable } from '../hooks/useDraggable';
 import { getNodeComponent } from './nodeMap';
 import type { Vec3, MutVec3 } from '../types';
@@ -41,22 +41,23 @@ function buildNodeProps(
   onClick: (e: any) => void,
   onPointerOver: (e: any) => void,
   onPointerOut: () => void,
-): NodeProps {
+): NodeProps & { type: string } {
   return {
+    type: node.type,
     label: (node.props.label as string) || node.id,
     position,
     selected: isSelected,
     hovered: isHovered,
     color,
-    size: (node.props.size as string) || 'md',
+    size: (node.props.size as SizeKey) || 'md',
     glow: node.props.glow === true,
     shape: node.props.shape as string | undefined,
-    status: node.props.status as any,
-    badges: node.props.badges as any,                                  // Bug #13: now tracked in comparator
-    ports: node.props.ports as any,                                    // Bug #13: now tracked in comparator
+    status: node.props.status as NodeStatus | undefined,
+    badges: node.props.badges as NodeBadgeType[] | undefined,          // Bug #13: now tracked in comparator
+    ports: node.props.ports as NodePort[] | undefined,                // Bug #13: now tracked in comparator
     subtitle: node.props.subtitle as string | undefined,               // Bug #13: now tracked in comparator
-    enterAnimation: node.props.enterAnimation as any,                  // Bug #13: now tracked in comparator
-    bindings: node.props.bindings as any,                              // Bug #13: now tracked in comparator
+    enterAnimation: node.props.enterAnimation as AnimationType | undefined, // Bug #13: now tracked in comparator
+    bindings: node.props.bindings as DataBindingConfig | undefined,   // Bug #13: now tracked in comparator
     visible: node.props.visible as boolean | undefined,                // Bug #13: now tracked in comparator
     locked: node.props.locked as boolean | undefined,                  // Bug #13: now tracked in comparator
     breathe: node.props.breathe as boolean | undefined,

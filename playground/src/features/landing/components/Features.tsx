@@ -1,21 +1,11 @@
 "use client";
 
 import { CodeBlock } from "./CodeBlock";
-import { CODE_LINES, THEMES_LIST } from "../constants";
+import { CODE_LINES } from "../constants";
 import { useAccentTheme } from "@/features/shared/hooks/useAccentTheme";
 import { LeafRain } from "@/features/shared/ui/LeafRain";
 import { ThemeInkSelector } from "../../shared/ui/ThemeInkSelector";
-
-function CadCrosshairs() {
-  return (
-    <>
-      <div className="cad-crosshair cad-tl" />
-      <div className="cad-crosshair cad-tr" />
-      <div className="cad-crosshair cad-bl" />
-      <div className="cad-crosshair cad-br" />
-    </>
-  );
-}
+import CadCrosshairs from "../../shared/ui/CadCrosshairs";
 
 export function Features() {
   const { activeTheme, setActiveTheme, mounted } = useAccentTheme();
@@ -23,6 +13,7 @@ export function Features() {
   return (
     <section id="features" className="grid-section">
       <div className="frame-grid">
+        {/* ═══ Left Gutter ═══ */}
         <div className="frame-gutter pattern-topo border-r border-[var(--border)] py-6 opacity-40">
           <div className="crosshair" />
           <div className="flex flex-col items-center gap-4 mt-12">
@@ -32,18 +23,24 @@ export function Features() {
           <div className="mt-auto crosshair" />
         </div>
 
+        {/* ═══ Center Content ═══ */}
         <div className="flex flex-col h-full">
+          {/* Section Label */}
           <div className="border-b border-[var(--border)] px-6 py-4 shrink-0">
             <span className="section-label">// features</span>
           </div>
 
+          {/* Heading */}
           <div className="px-6 py-10 md:py-16 shrink-0 border-b border-[var(--border)]">
             <h2 className="font-display max-w-[800px] text-[3.5rem] sm:text-5xl md:text-[5.5rem] leading-[1.05] text-[color:var(--text-primary)]">
               Built to scale alongside your infrastructure.
             </h2>
           </div>
 
+          {/* Feature Grid */}
           <div className="grid-lines grid-cols-1 md:grid-cols-[2rem_1fr_1fr_1fr_1fr_2rem] lg:grid-cols-[4rem_1fr_1fr_1fr_1fr_4rem] border-y border-[var(--border)] mt-auto bg-[var(--page-bg)]">
+            
+            {/* ── ROW 1: Top Spacers ── */}
             <div className="hidden md:block h-8 lg:h-12"></div>
             <div className="hidden md:block h-8 lg:h-12 pattern-hatch opacity-30"></div>
             <div className="hidden md:block h-8 lg:h-12"></div>
@@ -51,6 +48,7 @@ export function Features() {
             <div className="hidden md:block h-8 lg:h-12 pattern-hatch opacity-30"></div>
             <div className="hidden md:block h-8 lg:h-12"></div>
 
+            {/* ── ROW 2: Syntax (2 cols) + Format + Git ── */}
             <div className="hidden md:block"></div>
             
             <LeafRain className="cad-hover px-6 py-10 md:p-8 lg:p-10 md:col-span-2 hover:bg-[var(--accent-faint)] transition-colors group flex flex-col h-full">
@@ -86,6 +84,7 @@ export function Features() {
 
             <div className="hidden md:block pattern-hatch opacity-30"></div>
 
+            {/* ── ROW 3: Middle Spacers ── */}
             <div className="hidden md:block h-8 lg:h-12 pattern-hatch opacity-30"></div>
             <div className="hidden md:block h-8 lg:h-12"></div>
             <div className="hidden md:block h-8 lg:h-12"></div>
@@ -93,20 +92,23 @@ export function Features() {
             <div className="hidden md:block h-8 lg:h-12"></div>
             <div className="hidden md:block h-8 lg:h-12"></div>
 
+            {/* ── ROW 4: Nodes + Themes (2 cols) ── */}
             <div className="hidden md:block"></div>
 
             <LeafRain className="cad-hover px-6 py-10 md:p-8 lg:p-10 hover:bg-[var(--accent-faint)] transition-colors group flex flex-col h-full">
               <CadCrosshairs />
               <p className="section-label mb-6">// nodes</p>
               <h3 className="font-ui font-medium text-xl text-[color:var(--text-primary)]">10 ready components</h3>
+              <p className="font-body mt-4 text-base text-[color:var(--text-secondary)]">
+                Pre-built 3D nodes for infrastructure you work with daily.
+              </p>
             </LeafRain>
 
-            {/* Themes Section using Shared Component */}
-            <LeafRain className="cad-hover px-6 py-10 md:p-8 lg:p-10 md:col-span-2 flex flex-col h-full relative">
+            <LeafRain className="cad-hover px-6 py-10 md:p-8 lg:p-10 md:col-span-2 flex flex-col h-full relative hover:bg-[var(--accent-faint)] transition-colors">
               <CadCrosshairs />
               <p className="section-label mb-6">// themes</p>
               <h3 className="font-ui font-medium text-xl text-[color:var(--text-primary)]">Themes that set the mood</h3>
-              <div className="mt-auto pt-10">
+              <div className="mt-auto pt-10 relative z-10">
                 <ThemeInkSelector 
                   activeTheme={activeTheme} 
                   onSelect={setActiveTheme} 
@@ -118,10 +120,21 @@ export function Features() {
 
             <div className="hidden md:block pattern-hatch opacity-30"></div>
             <div className="hidden md:block"></div>
+
+            {/* ── ROW 5: Bottom Spacers ── */}
+            <div className="hidden md:block h-8 lg:h-12 pattern-hatch opacity-30"></div>
+            <div className="hidden md:block h-8 lg:h-12"></div>
+            <div className="hidden md:block h-8 lg:h-12"></div>
+            <div className="hidden md:block h-8 lg:h-12 pattern-hatch opacity-30"></div>
+            <div className="hidden md:block h-8 lg:h-12"></div>
+            <div className="hidden md:block h-8 lg:h-12"></div>
           </div>
         </div>
+
+        {/* ═══ Right Gutter ═══ */}
         <div className="frame-gutter pattern-dots border-l border-[var(--border)] py-6 opacity-40">
           <div className="crosshair" />
+          <div className="mt-auto crosshair" />
         </div>
       </div>
     </section>

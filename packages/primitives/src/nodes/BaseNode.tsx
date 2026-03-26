@@ -11,7 +11,7 @@ import { getEnterProperties, getExitProperties } from '../animation/EnterExit';
 import { usePrimitivesOptional } from '../provider/PrimitivesContext';
 
 interface BaseNodeProps extends NodeProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 // ── Pre-allocated objects (shared across all BaseNode instances) ──
@@ -61,6 +61,7 @@ export function BaseNode({
   locked = false,
   visible = true,
   subtitle,
+  shape,
 }: BaseNodeProps) {
   const groupRef = useRef<Group>(null!);
   const glowRef = useRef<Mesh>(null!);
@@ -145,11 +146,40 @@ export function BaseNode({
     document.body.style.cursor = 'default';
     onPointerOut?.(e);
   }, [onPointerOut]);
+  const handleClick = useCallback(
+    (e: ThreeEvent<MouseEvent>) => {
+      e.stopPropagation();
+      onClick?.(e);
+    },
+    [onClick],
+  );
 
-  const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
-    e.stopPropagation();
-    onClick?.(e);
-  }, [onClick]);
+  // ── Resolve shape geometry ──
+  const shapeDef = useMemo(() => {
+    if (shape && ctx?.shapeRegistry) {
+      const def = ctx.shapeRegistry.get(shape);
+      if (def) return def;
+    }
+    // Documentation: Fallback to cube if shape is missing or not provided
+    if (ctx?.shapeRegistry) {
+      return ctx.shapeRegistry.get('cube');
+    }
+    return undefined;
+  }, [shape, ctx?.shapeRegistry]);
+
+  const shapeGeometry = useMemo(() => {
+    if (shapeDef) {
+      return shapeDef.geometryFactory();
+    }
+    return null;
+  }, [shapeDef]);
+
+  // ── Pulse intensity based on status (Appendix B) ──
+  const pulseBaseIntensity = useMemo(() => {
+    if (status === 'error') return 0.8;
+    if (status === 'warning') return 0.4;
+    return 0;
+  }, [status]);
 
   // ── Single useFrame for ALL per-frame logic ──
   useFrame(() => {
@@ -232,6 +262,31 @@ export function BaseNode({
         }
       }
     }
+
+    // ── 6. Status Pulse (emissive) ──
+    if (pulseBaseIntensity > 0) {
+      const pulseIntensity = pulseBaseIntensity * (0.8 + Math.sin(t * 4) * 0.2);
+
+      // We need the mesh cache to be up to date
+      if (meshCacheDirty.current) {
+        meshCacheDirty.current = false;
+        const meshes: Mesh[] = [];
+        groupRef.current.traverse((obj) => {
+          if ((obj as Mesh).isMesh && obj !== glowRef.current) {
+            meshes.push(obj as Mesh);
+          }
+        });
+        meshCacheRef.current = meshes;
+      }
+
+      for (const mesh of meshCacheRef.current) {
+        const mat = mesh.material as MeshStandardMaterial;
+        if (mat && 'emissive' in mat) {
+          mat.emissive.set(resolvedColor);
+          mat.emissiveIntensity = pulseIntensity;
+        }
+      }
+    }
   });
 
   // ── Don't render if not visible ──
@@ -287,8 +342,17 @@ export function BaseNode({
         </mesh>
       )}
 
-      {/* ── Shape content (children) ── */}
-      {children}
+      {/* ── Shape content ── */}
+      {children ||
+        (shapeGeometry && (
+          <mesh geometry={shapeGeometry} castShadow receiveShadow>
+            <meshStandardMaterial
+              color={resolvedColor}
+              metalness={shapeDef?.defaultMaterialConfig.metalness ?? 0.2}
+              roughness={shapeDef?.defaultMaterialConfig.roughness ?? 0.6}
+            />
+          </mesh>
+        ))}
 
       {/* ── Node ports (visible on hover) ── */}
       {ports && ports.length > 0 && (

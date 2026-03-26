@@ -7,6 +7,7 @@ import { MaterialCache } from '../materials/MaterialCache';
 import { createStatusMaterials } from '../materials/StatusMaterials';
 import { NodeRegistry } from '../registry/NodeRegistry';
 import { ShapeRegistry } from '../registry/ShapeRegistry';
+import { registerAllBuiltInShapes } from '../shapes';
 import { PluginSystem } from '../registry/PluginSystem';
 import { CommandHistory } from '../interaction/CommandHistory';
 import { SelectionManager } from '../interaction/SelectionManager';
@@ -39,7 +40,11 @@ export function PrimitivesProvider({
   // ── Registries (stable) ──
 
   const nodeRegistry = useMemo(() => new NodeRegistry(), []);
-  const shapeRegistry = useMemo(() => new ShapeRegistry(), []);
+  const shapeRegistry = useMemo(() => {
+    const reg = new ShapeRegistry();
+    registerAllBuiltInShapes(reg);
+    return reg;
+  }, []);
   const pluginSystem = useMemo(
     () => new PluginSystem(nodeRegistry, shapeRegistry),
     [nodeRegistry, shapeRegistry],

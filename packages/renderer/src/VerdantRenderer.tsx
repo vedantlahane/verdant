@@ -53,6 +53,14 @@ export function astConfigToPrimitivesConfig(
             : DEFAULT_BLOOM_INTENSITY,
       },
     },
+    snap: {
+      enabled: config['snap-to-grid'] === true,
+      gridSize: typeof config['grid-size'] === 'number' ? config['grid-size'] : 1.0,
+    },
+    animation: {
+      breathe: config.breathe !== false,
+      defaultDuration: typeof config['animation-duration'] === 'number' ? config['animation-duration'] : 300,
+    },
     maxUndoHistory: DEFAULT_MAX_UNDO_HISTORY,
   };
 }

@@ -76,7 +76,7 @@ export function Hero() {
               className="group w-full h-full transition-colors text-[color:var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[color:var(--text-primary)] col-span-1 md:col-span-2 md:row-span-2 "
             >
               <div className="flex flex-col justify-between p-6 font-ui text-sm font-medium min-h-[120px] md:min-h-0 h-full w-full">
-                <a href="#features" className="absolute inset-0 z-20" aria-label="Documentation" />
+                <Link href="/docs" className="absolute inset-0 z-20" aria-label="Documentation" />
                 <span className="leading-snug text-base relative z-10">Documentation</span>
                 <ArrowRight className="h-5 w-5 self-end opacity-0 transition-all group-hover:opacity-100 group-hover:translate-x-1 relative z-10" />
               </div>

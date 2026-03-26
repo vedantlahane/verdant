@@ -75,9 +75,9 @@ export function Navbar({
               aria-label="Main navigation"
             >
               <LeafRain className="nav-item">
-                <a href="#features" className="btn-content">
+                <Link href="/docs" className="btn-content">
                   Docs
-                </a>
+                </Link>
               </LeafRain>
 
               <LeafRain className="nav-item">
@@ -176,7 +176,7 @@ export function Navbar({
 
         <nav className="flex flex-col">
           {[
-            { label: "Documentation", href: "#features" },
+            { label: "Documentation", href: "/docs" },
             { label: "Playground", href: "/playground" },
             { label: "GitHub", href: "https://github.com/vedantlahane/verdant" },
           ].map((item) => (

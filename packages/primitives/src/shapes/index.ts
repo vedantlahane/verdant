@@ -1,5 +1,6 @@
-import { BoxGeometry, CapsuleGeometry, ConeGeometry, CylinderGeometry, IcosahedronGeometry, OctahedronGeometry, PlaneGeometry, SphereGeometry, TorusGeometry, Vector3 } from 'three';
+import { BoxGeometry, CapsuleGeometry, ConeGeometry, CylinderGeometry, IcosahedronGeometry, OctahedronGeometry, PlaneGeometry, SphereGeometry, TorusGeometry, Vector3, Shape, ExtrudeGeometry } from 'three';
 import type { ShapeDefinition, NodePort } from './ShapeDefinition';
+import { ShapeRegistry } from '../registry/ShapeRegistry';
 
 export { CubeShape } from './CubeShape';
 export { CylinderShape } from './CylinderShape';
@@ -41,140 +42,82 @@ function cardinalPorts(halfH: number, halfW: number): NodePort[] {
 }
 
 // ---------------------------------------------------------------------------
-// 6 existing shapes
+// Definitions
 // ---------------------------------------------------------------------------
 
 export const cubeDefinition: ShapeDefinition = {
   name: 'cube',
-  geometryFactory: (params) => {
-    const w = params?.width ?? 1;
-    const h = params?.height ?? 1;
-    const d = params?.depth ?? 1;
-    return new BoxGeometry(w, h, d);
-  },
+  geometryFactory: () => new BoxGeometry(1, 1, 1),
   defaultPorts: cardinalPorts(0.5, 0.5),
   defaultMaterialConfig: { color: '#4287f5', metalness: 0.2, roughness: 0.6 },
 };
 
 export const sphereDefinition: ShapeDefinition = {
   name: 'sphere',
-  geometryFactory: (params) => {
-    const r = params?.radius ?? 0.7;
-    const ws = params?.widthSegments ?? 32;
-    const hs = params?.heightSegments ?? 32;
-    return new SphereGeometry(r, ws, hs);
-  },
+  geometryFactory: () => new SphereGeometry(0.7, 32, 32),
   defaultPorts: cardinalPorts(0.7, 0.7),
   defaultMaterialConfig: { color: '#8b5cf6', metalness: 0.2, roughness: 0.5 },
 };
 
 export const cylinderDefinition: ShapeDefinition = {
   name: 'cylinder',
-  geometryFactory: (params) => {
-    const rt = params?.radiusTop ?? 0.5;
-    const rb = params?.radiusBottom ?? 0.5;
-    const h  = params?.height ?? 1;
-    const seg = params?.radialSegments ?? 24;
-    return new CylinderGeometry(rt, rb, h, seg);
-  },
+  geometryFactory: () => new CylinderGeometry(0.5, 0.5, 1, 24),
   defaultPorts: cardinalPorts(0.5, 0.5),
   defaultMaterialConfig: { color: '#42f554', metalness: 0.2, roughness: 0.7 },
 };
 
 export const diamondDefinition: ShapeDefinition = {
   name: 'diamond',
-  geometryFactory: (params) => {
-    const r = params?.radius ?? 0.7;
-    const detail = params?.detail ?? 0;
-    return new OctahedronGeometry(r, detail);
-  },
+  geometryFactory: () => new OctahedronGeometry(0.7, 0),
   defaultPorts: cardinalPorts(0.7, 0.7),
   defaultMaterialConfig: { color: '#f59e0b', metalness: 0.2, roughness: 0.6 },
 };
 
 export const hexagonDefinition: ShapeDefinition = {
   name: 'hexagon',
-  geometryFactory: (params) => {
-    const r = params?.radius ?? 0.7;
-    const h = params?.height ?? 0.6;
-    return new CylinderGeometry(r, r, h, 6);
-  },
+  geometryFactory: () => new CylinderGeometry(0.7, 0.7, 0.6, 6),
   defaultPorts: cardinalPorts(0.3, 0.7),
   defaultMaterialConfig: { color: '#ef4444', metalness: 0.2, roughness: 0.6 },
 };
 
 export const torusDefinition: ShapeDefinition = {
   name: 'torus',
-  geometryFactory: (params) => {
-    const r  = params?.radius ?? 0.5;
-    const t  = params?.tube ?? 0.2;
-    const rs = params?.radialSegments ?? 16;
-    const ts = params?.tubularSegments ?? 100;
-    return new TorusGeometry(r, t, rs, ts);
-  },
+  geometryFactory: () => new TorusGeometry(0.5, 0.2, 16, 100),
   defaultPorts: cardinalPorts(0.7, 0.7),
   defaultMaterialConfig: { color: '#06b6d4', metalness: 0.2, roughness: 0.6 },
 };
 
-// ---------------------------------------------------------------------------
-// 8 new shapes
-// ---------------------------------------------------------------------------
-
 export const pentagonDefinition: ShapeDefinition = {
   name: 'pentagon',
-  geometryFactory: (params) => {
-    const r = params?.radius ?? 0.7;
-    const h = params?.height ?? 0.1;
-    return new CylinderGeometry(r, r, h, 5);
-  },
-  defaultPorts: cardinalPorts(0.05, 0.7),
+  geometryFactory: () => new CylinderGeometry(0.7, 0.7, 0.2, 5),
+  defaultPorts: cardinalPorts(0.1, 0.7),
   defaultMaterialConfig: { color: '#10b981', metalness: 0.2, roughness: 0.6 },
 };
 
 export const octagonDefinition: ShapeDefinition = {
   name: 'octagon',
-  geometryFactory: (params) => {
-    const r = params?.radius ?? 0.7;
-    const h = params?.height ?? 0.1;
-    return new CylinderGeometry(r, r, h, 8);
-  },
-  defaultPorts: cardinalPorts(0.05, 0.7),
+  geometryFactory: () => new CylinderGeometry(0.7, 0.7, 0.2, 8),
+  defaultPorts: cardinalPorts(0.1, 0.7),
   defaultMaterialConfig: { color: '#f97316', metalness: 0.2, roughness: 0.6 },
 };
 
 export const ringDefinition: ShapeDefinition = {
   name: 'ring',
-  geometryFactory: (params) => {
-    const r  = params?.radius ?? 0.5;
-    const t  = params?.tube ?? 0.08;
-    const rs = params?.radialSegments ?? 16;
-    const ts = params?.tubularSegments ?? 100;
-    return new TorusGeometry(r, t, rs, ts);
-  },
+  geometryFactory: () => new TorusGeometry(0.5, 0.08, 16, 100),
   defaultPorts: cardinalPorts(0.58, 0.58),
   defaultMaterialConfig: { color: '#a78bfa', metalness: 0.3, roughness: 0.5 },
 };
 
 export const boxDefinition: ShapeDefinition = {
   name: 'box',
-  geometryFactory: (params) => {
-    const w = params?.width ?? 1;
-    const h = params?.height ?? 1;
-    const d = params?.depth ?? 1;
-    return new BoxGeometry(w, h, d);
-  },
+  geometryFactory: () => new BoxGeometry(1, 1, 1),
   defaultPorts: cardinalPorts(0.5, 0.5),
   defaultMaterialConfig: { color: '#64748b', metalness: 0.2, roughness: 0.6 },
 };
 
 export const coneDefinition: ShapeDefinition = {
   name: 'cone',
-  geometryFactory: (params) => {
-    const r  = params?.radius ?? 0.5;
-    const h  = params?.height ?? 1;
-    const seg = params?.radialSegments ?? 32;
-    return new ConeGeometry(r, h, seg);
-  },
+  geometryFactory: () => new ConeGeometry(0.5, 1, 32),
   defaultPorts: [
     port('top',    0,  0.5, 0,  0,  1, 0),
     port('bottom', 0, -0.5, 0,  0, -1, 0),
@@ -186,47 +129,54 @@ export const coneDefinition: ShapeDefinition = {
 
 export const capsuleDefinition: ShapeDefinition = {
   name: 'capsule',
-  geometryFactory: (params) => {
-    const r  = params?.radius ?? 0.3;
-    const l  = params?.length ?? 0.8;
-    const cs = params?.capSegments ?? 4;
-    const rs = params?.radialSegments ?? 8;
-    return new CapsuleGeometry(r, l, cs, rs);
-  },
+  geometryFactory: () => new CapsuleGeometry(0.3, 0.8, 4, 8),
   defaultPorts: cardinalPorts(0.7, 0.3),
   defaultMaterialConfig: { color: '#14b8a6', metalness: 0.2, roughness: 0.5 },
 };
 
-export const icosahedronDefinition: ShapeDefinition = {
-  name: 'icosahedron',
-  geometryFactory: (params) => {
-    const r = params?.radius ?? 0.7;
-    const detail = params?.detail ?? 0;
-    return new IcosahedronGeometry(r, detail);
+export const starDefinition: ShapeDefinition = {
+  name: 'star',
+  geometryFactory: () => {
+    const starShape = new Shape();
+    const innerRadius = 0.3;
+    const outerRadius = 0.7;
+    const spikes = 5;
+    const step = Math.PI / spikes;
+    starShape.moveTo(outerRadius, 0);
+    for (let i = 1; i < spikes * 2; i++) {
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      starShape.lineTo(Math.cos(i * step) * radius, Math.sin(i * step) * radius);
+    }
+    starShape.closePath();
+    return new ExtrudeGeometry(starShape, { depth: 0.2, bevelEnabled: false });
   },
   defaultPorts: cardinalPorts(0.7, 0.7),
-  defaultMaterialConfig: { color: '#6366f1', metalness: 0.3, roughness: 0.4 },
+  defaultMaterialConfig: { color: '#fbbf24', metalness: 0.4, roughness: 0.3 },
 };
 
-export const planeDefinition: ShapeDefinition = {
-  name: 'plane',
-  geometryFactory: (params) => {
-    const w = params?.width ?? 1;
-    const h = params?.height ?? 1;
-    return new PlaneGeometry(w, h);
+export const heartDefinition: ShapeDefinition = {
+  name: 'heart',
+  geometryFactory: () => {
+    const heartShape = new Shape();
+    const x = 0, y = 0;
+    heartShape.moveTo(x + 5, y + 5);
+    heartShape.bezierCurveTo(x + 5, y + 5, x + 4, y, x, y);
+    heartShape.bezierCurveTo(x - 6, y, x - 6, y + 7, x - 6, y + 7);
+    heartShape.bezierCurveTo(x - 6, y + 11, x - 3, y + 15.4, x + 5, y + 19);
+    heartShape.bezierCurveTo(x + 12, y + 15.4, x + 16, y + 11, x + 16, y + 7);
+    heartShape.bezierCurveTo(x + 16, y + 7, x + 16, y, x + 10, y);
+    heartShape.bezierCurveTo(x + 7, y, x + 5, y + 5, x + 5, y + 5);
+    
+    // Scale and center heart
+    const scale = 0.05;
+    const geo = new ExtrudeGeometry(heartShape, { depth: 4, bevelEnabled: false });
+    geo.scale(scale, -scale, scale);
+    geo.translate(-0.25, 0.45, -0.1);
+    return geo;
   },
-  defaultPorts: [
-    port('top',    0,  0.5, 0,  0,  1, 0),
-    port('bottom', 0, -0.5, 0,  0, -1, 0),
-    port('left',  -0.5, 0,  0, -1,  0, 0),
-    port('right',  0.5, 0,  0,  1,  0, 0),
-  ],
-  defaultMaterialConfig: { color: '#94a3b8', metalness: 0.1, roughness: 0.8 },
+  defaultPorts: cardinalPorts(0.7, 0.7),
+  defaultMaterialConfig: { color: '#f43f5e', metalness: 0.1, roughness: 0.7 },
 };
-
-// ---------------------------------------------------------------------------
-// BUILTIN_SHAPE_DEFINITIONS — all 14 built-in shapes
-// ---------------------------------------------------------------------------
 
 export const BUILTIN_SHAPE_DEFINITIONS: ShapeDefinition[] = [
   cubeDefinition,
@@ -241,6 +191,13 @@ export const BUILTIN_SHAPE_DEFINITIONS: ShapeDefinition[] = [
   boxDefinition,
   coneDefinition,
   capsuleDefinition,
-  icosahedronDefinition,
-  planeDefinition,
+  starDefinition,
+  heartDefinition,
 ];
+
+/**
+ * Registers all 14 built-in shapes into the provided registry.
+ */
+export function registerAllBuiltInShapes(registry: ShapeRegistry): void {
+  BUILTIN_SHAPE_DEFINITIONS.forEach(def => registry.register(def.name, def));
+}

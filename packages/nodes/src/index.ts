@@ -1,3 +1,9 @@
+export { VerdantNode } from './VerdantNode';
+export type { VerdantNodeProps } from './VerdantNode';
+export { NODE_TYPE_DEFAULTS } from './nodeDefaults';
+export { nodeRegistry } from './registry';
+
+// Re-export specific nodes for backward compatibility
 export { ServerNode } from './ServerNode';
 export { DatabaseNode } from './DatabaseNode';
 export { CacheNode } from './CacheNode';

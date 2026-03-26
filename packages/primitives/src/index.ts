@@ -1,4 +1,3 @@
-// primitives/src/index.ts
 // ============================================================
 // @verdant/primitives v2 — public API
 // ============================================================
@@ -21,94 +20,95 @@ export type {
 export type { NodeBadge as NodeBadgeType } from './types';
 export { SIZE_SCALE } from './types';
 
+// ── Provider ────────────────────────────────────────────────
+
+export {
+  PrimitivesProvider,
+  usePrimitives,
+  usePrimitivesOptional,
+} from './provider';
 export type {
   PrimitivesConfig,
   MinimapConfig,
   PostProcessingConfig,
-} from './provider/PrimitivesConfig';
-
-export type { ShapeDefinition } from './shapes/ShapeDefinition';
-
-// ── Provider ────────────────────────────────────────────────
-
-export { PrimitivesProvider } from './provider/PrimitivesProvider';
-export { usePrimitives, usePrimitivesOptional } from './provider/PrimitivesContext';
-
-// ── Core Components ─────────────────────────────────────────
-
-export { BaseNode } from './nodes/BaseNode';
-export { BaseEdge } from './edges/BaseEdge';
+} from './provider';
 
 // ── Shapes ──────────────────────────────────────────────────
 
+export type { ShapeDefinition } from './shapes';
 export * as Shapes from './shapes';
+
+// ── Core Components ─────────────────────────────────────────
+
+export { BaseNode } from './nodes';
+export { BaseEdge } from './edges';
 
 // ── Node Subsystems ─────────────────────────────────────────
 
-export { NodeBadge } from './nodes/NodeBadge';
-export { NodePorts } from './nodes/NodePorts';
+export { NodeBadge } from './nodes';
+export { NodePorts } from './nodes';
 
 // ── Edge Subsystems ─────────────────────────────────────────
 
-export { EdgeRouter } from './edges/EdgeRouter';
-export { FlowParticles } from './edges/FlowParticles';
-export { resolvePort, resolveEdgeEndpoints } from './edges/EdgePorts';
+export { EdgeRouter } from './edges';
+export { FlowParticles } from './edges';
+export { resolvePort, resolveEdgeEndpoints } from './edges';
+export { samplePathAtT } from './edges';
 
 // ── Groups ──────────────────────────────────────────────────
 
-export { GroupContainer } from './groups/GroupContainer';
-export { GroupCollapse } from './groups/GroupCollapse';
-export { NestedGroup } from './groups/NestedGroup';
+export { GroupContainer, GroupCollapse, NestedGroup } from './groups';
 
 // ── Layout ──────────────────────────────────────────────────
 
-export { HierarchicalLayout } from './layout/HierarchicalLayout';
+export { HierarchicalLayout } from './layout';
 
 // ── Animation ───────────────────────────────────────────────
 
-export { TransitionEngine } from './animation/TransitionEngine';
-export { EnterExit } from './animation/EnterExit';
+export { TransitionEngine } from './animation';
+export { EnterExit } from './animation';
 
 // ── Interaction ─────────────────────────────────────────────
 
-export { SelectionManager } from './interaction/SelectionManager';
-export { CommandHistory } from './interaction/CommandHistory';
-export { DragManager } from './interaction/DragManager';
-export { CameraControls } from './interaction/CameraControls';
-export { KeyboardNav } from './interaction/KeyboardNav';
-export { ContextMenu } from './interaction/ContextMenu';
+export {
+  SelectionManager,
+  CommandHistory,
+  DragManager,
+  CameraControls,
+  KeyboardNav,
+  ContextMenu,
+} from './interaction';
 
 // ── Minimap ─────────────────────────────────────────────────
 
-export { Minimap } from './minimap/Minimap';
+export { Minimap } from './minimap';
 
 // ── Performance ─────────────────────────────────────────────
 
-export { SharedGeometryPool } from './geometry/SharedGeometryPool';
-export { GeometryFactory } from './geometry/GeometryFactory';
-export { MaterialCache } from './materials/MaterialCache';
-export { StatusMaterials } from './materials/StatusMaterials';
-export { ObjectPool } from './performance/ObjectPool';
-export { InstancedRenderer } from './performance/InstancedRenderer';
-export { FrustumCulling } from './performance/FrustumCulling';
-export { LODController } from './performance/LODController';
+export {
+  ObjectPool,
+  InstancedRenderer,
+  FrustumCulling,
+  LODController,
+} from './performance';
+
+// ── Geometry & Materials ────────────────────────────────────
+
+export { SharedGeometryPool, GeometryFactory } from './geometry';
+export { MaterialCache, StatusMaterials } from './materials';
 
 // ── Post-processing ─────────────────────────────────────────
 
-export { PostProcessingPipeline } from './postprocessing/PostProcessingPipeline';
+export { PostProcessingPipeline } from './postprocessing';
 
 // ── Data Binding ────────────────────────────────────────────
 
-export { DataBinding } from './databinding/DataBinding';
+export { DataBinding } from './databinding';
 
 // ── Export Utilities ────────────────────────────────────────
 
-export { GLTFExport } from './export/GLTFExport';
-export { PNGExport } from './export/PNGExport';
-export { SVGExport } from './export/SVGExport';
+export { GLTFExport, PNGExport, SVGExport } from './export';
 
 // ── Registry ────────────────────────────────────────────────
 
-export { NodeRegistry } from './registry/NodeRegistry';
-export { ShapeRegistry } from './registry/ShapeRegistry';
-export { PluginSystem } from './registry/PluginSystem';
+export { NodeRegistry, ShapeRegistry, PluginSystem } from './registry';
